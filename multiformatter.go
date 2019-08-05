@@ -1,8 +1,24 @@
 package golog
 
-import "time"
+import (
+	"sync"
+	"time"
+)
 
 type MultiFormatter []Formatter
+
+var multiFormatterPool sync.Pool
+
+func NewMultiFormatter(count int) MultiFormatter {
+	if f, ok := multiFormatterPool.Get().(MultiFormatter); ok {
+		if count > len(f) {
+			return make(MultiFormatter, count)
+		}
+		return f[:count]
+	}
+
+	return make(MultiFormatter, count)
+}
 
 func (mf MultiFormatter) Begin(t time.Time, level Level, msg string, data []byte) {
 	for _, f := range mf {
@@ -68,4 +84,5 @@ func (mf MultiFormatter) Flush() {
 	for _, f := range mf {
 		f.Flush()
 	}
+	multiFormatterPool.Put(mf)
 }
