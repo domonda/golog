@@ -56,12 +56,19 @@ func (l *Logger) NewMessage(level Level, msg string) *Message {
 	return l.NewMessageAt(time.Now(), level, msg)
 }
 
+func (l *Logger) NewMessagef(level Level, format string, args ...interface{}) *Message {
+	if !l.levelFilter.IsActive(level) {
+		return nil // Don't do fmt.Sprintf
+	}
+	return l.NewMessageAt(time.Now(), level, fmt.Sprintf(format, args...))
+}
+
 func (l *Logger) Fatal(msg string) *Message {
 	return l.NewMessage(LevelFatal, msg)
 }
 
 func (l *Logger) Fatalf(format string, args ...interface{}) *Message {
-	return l.NewMessage(LevelFatal, fmt.Sprintf(format, args...))
+	return l.NewMessagef(LevelFatal, format, args...)
 }
 
 func (l *Logger) Error(msg string) *Message {
@@ -69,7 +76,7 @@ func (l *Logger) Error(msg string) *Message {
 }
 
 func (l *Logger) Errorf(format string, args ...interface{}) *Message {
-	return l.NewMessage(LevelError, fmt.Sprintf(format, args...))
+	return l.NewMessagef(LevelError, format, args...)
 }
 
 func (l *Logger) Warn(msg string) *Message {
@@ -77,7 +84,7 @@ func (l *Logger) Warn(msg string) *Message {
 }
 
 func (l *Logger) Warnf(format string, args ...interface{}) *Message {
-	return l.NewMessage(LevelWarn, fmt.Sprintf(format, args...))
+	return l.NewMessagef(LevelWarn, format, args...)
 }
 
 func (l *Logger) Info(msg string) *Message {
@@ -85,7 +92,7 @@ func (l *Logger) Info(msg string) *Message {
 }
 
 func (l *Logger) Infof(format string, args ...interface{}) *Message {
-	return l.NewMessage(LevelInfo, fmt.Sprintf(format, args...))
+	return l.NewMessagef(LevelInfo, format, args...)
 }
 
 func (l *Logger) Debug(msg string) *Message {
@@ -93,7 +100,7 @@ func (l *Logger) Debug(msg string) *Message {
 }
 
 func (l *Logger) Debugf(format string, args ...interface{}) *Message {
-	return l.NewMessage(LevelDebug, fmt.Sprintf(format, args...))
+	return l.NewMessagef(LevelDebug, format, args...)
 }
 
 func (l *Logger) Trace(msg string) *Message {
@@ -101,5 +108,33 @@ func (l *Logger) Trace(msg string) *Message {
 }
 
 func (l *Logger) Tracef(format string, args ...interface{}) *Message {
-	return l.NewMessage(LevelTrace, fmt.Sprintf(format, args...))
+	return l.NewMessagef(LevelTrace, format, args...)
+}
+
+func (l *Logger) NewLevelPrinter(level Level) *LevelPrinter {
+	return &LevelPrinter{logger: l, level: level}
+}
+
+func (l *Logger) FatalPrinter() *LevelPrinter {
+	return l.NewLevelPrinter(LevelFatal)
+}
+
+func (l *Logger) ErrorPrinter() *LevelPrinter {
+	return l.NewLevelPrinter(LevelError)
+}
+
+func (l *Logger) WarnPrinter() *LevelPrinter {
+	return l.NewLevelPrinter(LevelWarn)
+}
+
+func (l *Logger) InfoPrinter() *LevelPrinter {
+	return l.NewLevelPrinter(LevelInfo)
+}
+
+func (l *Logger) DebugPrinter() *LevelPrinter {
+	return l.NewLevelPrinter(LevelDebug)
+}
+
+func (l *Logger) TracePrinter() *LevelPrinter {
+	return l.NewLevelPrinter(LevelTrace)
 }
