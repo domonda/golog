@@ -111,30 +111,78 @@ func (l *Logger) Tracef(format string, args ...interface{}) *Message {
 	return l.NewMessagef(LevelTrace, format, args...)
 }
 
-func (l *Logger) NewLevelPrinter(level Level) *LevelPrinter {
-	return &LevelPrinter{logger: l, level: level}
+func (l *Logger) LogFatal(msg string) {
+	l.NewMessage(LevelFatal, msg).Log()
 }
 
-func (l *Logger) FatalPrinter() *LevelPrinter {
-	return l.NewLevelPrinter(LevelFatal)
+func (l *Logger) LogFatalf(format string, args ...interface{}) {
+	l.NewMessagef(LevelFatal, format, args...).Log()
 }
 
-func (l *Logger) ErrorPrinter() *LevelPrinter {
-	return l.NewLevelPrinter(LevelError)
+func (l *Logger) LogError(msg string) {
+	l.NewMessage(LevelError, msg).Log()
 }
 
-func (l *Logger) WarnPrinter() *LevelPrinter {
-	return l.NewLevelPrinter(LevelWarn)
+func (l *Logger) LogErrorf(format string, args ...interface{}) {
+	l.NewMessagef(LevelError, format, args...).Log()
 }
 
-func (l *Logger) InfoPrinter() *LevelPrinter {
-	return l.NewLevelPrinter(LevelInfo)
+func (l *Logger) LogWarn(msg string) {
+	l.NewMessage(LevelWarn, msg).Log()
 }
 
-func (l *Logger) DebugPrinter() *LevelPrinter {
-	return l.NewLevelPrinter(LevelDebug)
+func (l *Logger) LogWarnf(format string, args ...interface{}) {
+	l.NewMessagef(LevelWarn, format, args...).Log()
 }
 
-func (l *Logger) TracePrinter() *LevelPrinter {
-	return l.NewLevelPrinter(LevelTrace)
+func (l *Logger) LogInfo(msg string) {
+	l.NewMessage(LevelInfo, msg).Log()
+}
+
+func (l *Logger) LogInfof(format string, args ...interface{}) {
+	l.NewMessagef(LevelInfo, format, args...).Log()
+}
+
+func (l *Logger) LogDebug(msg string) {
+	l.NewMessage(LevelDebug, msg).Log()
+}
+
+func (l *Logger) LogDebugf(format string, args ...interface{}) {
+	l.NewMessagef(LevelDebug, format, args...).Log()
+}
+
+func (l *Logger) LogTrace(msg string) {
+	l.NewMessage(LevelTrace, msg).Log()
+}
+
+func (l *Logger) LogTracef(format string, args ...interface{}) {
+	l.NewMessagef(LevelTrace, format, args...).Log()
+}
+
+func (l *Logger) NewLevelWriter(level Level) *LevelWriter {
+	return &LevelWriter{logger: l, level: level}
+}
+
+func (l *Logger) FatalWriter() *LevelWriter {
+	return l.NewLevelWriter(LevelFatal)
+}
+
+func (l *Logger) ErrorWriter() *LevelWriter {
+	return l.NewLevelWriter(LevelError)
+}
+
+func (l *Logger) WarnWriter() *LevelWriter {
+	return l.NewLevelWriter(LevelWarn)
+}
+
+func (l *Logger) InfoWriter() *LevelWriter {
+	return l.NewLevelWriter(LevelInfo)
+}
+
+func (l *Logger) DebugWriter() *LevelWriter {
+	return l.NewLevelWriter(LevelDebug)
+}
+
+func (l *Logger) TraceWriter() *LevelWriter {
+	return l.NewLevelWriter(LevelTrace)
 }
