@@ -5,7 +5,7 @@ import (
 	"log"
 )
 
-// LevelWriter writes unstructured messages with a fixed Level to a Logger.
+// LevelWriter writes unstructured messages to a Logger with a fixed Level.
 // It can be used as a shim/wrapper for third party packages
 // that need a standard log.Logger, an io.Writer,
 // or an an interface implementation with a Printf method.
@@ -30,7 +30,8 @@ func (w *LevelWriter) Print(v ...interface{}) {
 }
 
 func (w *LevelWriter) Println(v ...interface{}) {
-	w.Msg(fmt.Sprintln(v...))
+	msg := fmt.Sprintln(v...)
+	w.Msg(msg[:len(msg)-1])
 }
 
 func (w *LevelWriter) Printf(format string, v ...interface{}) {
