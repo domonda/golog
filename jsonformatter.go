@@ -1,6 +1,7 @@
 package golog
 
 import (
+	"fmt"
 	"io"
 	"sync"
 	"time"
@@ -71,7 +72,10 @@ func (f *JSONFormatter) appendParent(buf []byte) []byte {
 func (f *JSONFormatter) FlushAndFree() {
 	// Flush
 	f.buf = append(f.buf, '}', '\n')
-	f.writer.Write(f.buf)
+	_, err := f.writer.Write(f.buf)
+	if err != nil && ErrorHandler != nil {
+		ErrorHandler(fmt.Errorf("golog.JSONFormatter error: %w", err))
+	}
 
 	// Free
 	f.parent = nil

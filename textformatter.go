@@ -2,6 +2,7 @@ package golog
 
 import (
 	"encoding/hex"
+	"fmt"
 	"io"
 	"strconv"
 	"sync"
@@ -80,7 +81,10 @@ func (f *TextFormatter) appendParent(buf []byte) []byte {
 func (f *TextFormatter) FlushAndFree() {
 	// Flush
 	f.buf = append(f.buf, '\n')
-	f.writer.Write(f.buf)
+	_, err := f.writer.Write(f.buf)
+	if err != nil && ErrorHandler != nil {
+		ErrorHandler(fmt.Errorf("golog.TextFormatter error: %w", err))
+	}
 
 	// Free
 	f.parent = nil
