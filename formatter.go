@@ -8,7 +8,9 @@ import (
 type NewFormatterFunc func(writer io.Writer, format *Format) Formatter
 
 type Formatter interface {
-	Begin(t time.Time, level Level, msg string, data []byte)
+	WriteIntro(t time.Time, level Level, msg string, data []byte)
+	WriteOutro()
+	Flush()
 
 	WriteKey(key string)
 	WriteSliceKey(key string)
@@ -20,8 +22,6 @@ type Formatter interface {
 	WriteFloat(val float64)
 	WriteString(val string)
 	WriteUUID(val [16]byte)
-
-	Flush()
 }
 
 type Format struct {

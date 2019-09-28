@@ -20,10 +20,23 @@ func NewMultiFormatter(count int) MultiFormatter {
 	return make(MultiFormatter, count)
 }
 
-func (mf MultiFormatter) Begin(t time.Time, level Level, msg string, data []byte) {
+func (mf MultiFormatter) WriteIntro(t time.Time, level Level, msg string, data []byte) {
 	for _, f := range mf {
-		f.Begin(t, level, msg, data)
+		f.WriteIntro(t, level, msg, data)
 	}
+}
+
+func (mf MultiFormatter) WriteOutro() {
+	for _, f := range mf {
+		f.WriteOutro()
+	}
+}
+
+func (mf MultiFormatter) Flush() {
+	for _, f := range mf {
+		f.Flush()
+	}
+	multiFormatterPool.Put(mf)
 }
 
 func (mf MultiFormatter) WriteKey(key string) {
@@ -78,11 +91,4 @@ func (mf MultiFormatter) WriteUUID(val [16]byte) {
 	for _, f := range mf {
 		f.WriteUUID(val)
 	}
-}
-
-func (mf MultiFormatter) Flush() {
-	for _, f := range mf {
-		f.Flush()
-	}
-	multiFormatterPool.Put(mf)
 }

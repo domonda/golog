@@ -31,7 +31,7 @@ func NewJSONFormatter(writer io.Writer, format *Format) Formatter {
 	}
 }
 
-func (f *jsonFormatter) Begin(t time.Time, level Level, msg string, data []byte) {
+func (f *jsonFormatter) WriteIntro(t time.Time, level Level, msg string, data []byte) {
 	f.buf = append(f.buf, '{')
 
 	f.buf = encjson.AppendKey(f.buf, f.format.TimestampKey)
@@ -47,6 +47,18 @@ func (f *jsonFormatter) Begin(t time.Time, level Level, msg string, data []byte)
 
 	// Write data from super logger
 	f.buf = append(f.buf, data...)
+}
+
+func (f *jsonFormatter) WriteOutro() {
+	f.buf = append(f.buf, '}', '\n')
+}
+
+func (f *jsonFormatter) Flush() {
+	f.writer.Write(f.buf)
+
+	f.writer = nil
+	f.format = nil
+	textFormatterPool.Put(f)
 }
 
 func (f *jsonFormatter) WriteKey(key string) {
@@ -84,13 +96,4 @@ func (f *jsonFormatter) WriteString(val string) {
 
 func (f *jsonFormatter) WriteUUID(val [16]byte) {
 	f.buf = encjson.AppendUUID(f.buf, val)
-}
-
-func (f *jsonFormatter) Flush() {
-	f.buf = append(f.buf, '}', '\n')
-	f.writer.Write(f.buf)
-
-	f.writer = nil
-	f.format = nil
-	textFormatterPool.Put(f)
 }

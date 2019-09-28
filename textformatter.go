@@ -47,7 +47,7 @@ func NewTextFormatter(writer io.Writer, format *Format) Formatter {
 	return newTextFormatter(writer, format, DefaultColorizer)
 }
 
-func (f *textFormatter) Begin(t time.Time, level Level, msg string, data []byte) {
+func (f *textFormatter) WriteIntro(t time.Time, level Level, msg string, data []byte) {
 	// Write timestamp
 	timestamp := t.Format(f.format.TimestampFormat)
 	f.buf = append(f.buf, f.colorizer.ColorizeTimestamp(timestamp)...)
@@ -64,6 +64,19 @@ func (f *textFormatter) Begin(t time.Time, level Level, msg string, data []byte)
 
 	// Write data from super logger
 	f.buf = append(f.buf, data...)
+}
+
+func (f *textFormatter) WriteOutro() {
+	f.buf = append(f.buf, '\n')
+}
+
+func (f *textFormatter) Flush() {
+	// s := string(f.buf)
+	f.writer.Write(f.buf)
+
+	f.writer = nil
+	f.format = nil
+	textFormatterPool.Put(f)
 }
 
 func (f *textFormatter) growValBuf(n int) {
@@ -160,14 +173,4 @@ func (f *textFormatter) WriteUUID(val [16]byte) {
 
 	str := f.colorizer.ColorizeUUID(string(b[:]))
 	f.buf = append(f.buf, str...)
-}
-
-func (f *textFormatter) Flush() {
-	f.buf = append(f.buf, '\n')
-	// s := string(f.buf)
-	f.writer.Write(f.buf)
-
-	f.writer = nil
-	f.format = nil
-	textFormatterPool.Put(f)
 }

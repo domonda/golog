@@ -15,9 +15,10 @@ type output struct {
 type Logger struct {
 	levelFilter LevelFilter
 	outputs     []output
+	prefix      []*Message
 }
 
-func NewLogger(levelFilter LevelFilter, writer io.Writer, newFormatterFunc NewFormatterFunc, format *Format) *Logger {
+func NewLogger(levelFilter LevelFilter, writer io.Writer, newFormatterFunc NewFormatterFunc, format *Format, prefix ...*Message) *Logger {
 	return &Logger{
 		levelFilter: levelFilter,
 		outputs: []output{
@@ -27,43 +28,64 @@ func NewLogger(levelFilter LevelFilter, writer io.Writer, newFormatterFunc NewFo
 				format:       format,
 			},
 		},
+		prefix: prefix,
 	}
 }
 
-func (l *Logger) Clone() *Logger {
+func (l *Logger) subLogger(prefixMessage *Message) *Logger {
+	if l == nil {
+		return nil
+	}
 	return &Logger{
 		levelFilter: l.levelFilter,
+		outputs:     l.outputs,
+		prefix:      append(l.prefix, prefixMessage),
 	}
+}
+
+// Prefix returns a new Message that can be used to record
+// the prefix for a sub-logger.
+//
+// Example:
+//   log := log.Prefix().Str("requestID", requestID).Logger()
+func (l *Logger) Prefix() *Message {
+	if l == nil {
+		return nil
+	}
+	return NewMessage(l, l.newFormatter())
 }
 
 func (l *Logger) NewMessageAt(t time.Time, level Level, msg string) *Message {
-	if !l.levelFilter.IsActive(level) {
+	if l == nil || !l.levelFilter.IsActive(level) {
 		return nil
 	}
 
-	var f Formatter
+	formatter := l.newFormatter()
+	formatter.WriteIntro(t, level, msg, nil)
+	return NewMessage(l, formatter)
+}
 
+func (l *Logger) newFormatter() Formatter {
 	if len(l.outputs) == 1 {
-		f = l.outputs[0].newFormatter(l.outputs[0].writer, l.outputs[0].format)
-	} else {
-		mf := make(MultiFormatter, len(l.outputs)) // todo optimize allocation
-		for i := range l.outputs {
-			mf[i] = l.outputs[i].newFormatter(l.outputs[i].writer, l.outputs[i].format)
-		}
-		f = mf
+		return l.outputs[0].newFormatter(l.outputs[0].writer, l.outputs[0].format)
 	}
 
-	f.Begin(t, level, msg, nil)
-
-	return NewMessage(l, f)
+	mf := make(MultiFormatter, len(l.outputs)) // todo optimize allocation
+	for i := range l.outputs {
+		mf[i] = l.outputs[i].newFormatter(l.outputs[i].writer, l.outputs[i].format)
+	}
+	return mf
 }
 
 func (l *Logger) NewMessage(level Level, msg string) *Message {
+	if l == nil {
+		return nil
+	}
 	return l.NewMessageAt(time.Now(), level, msg)
 }
 
 func (l *Logger) NewMessagef(level Level, format string, args ...interface{}) *Message {
-	if !l.levelFilter.IsActive(level) {
+	if l == nil || !l.levelFilter.IsActive(level) {
 		return nil // Don't do fmt.Sprintf
 	}
 	return l.NewMessageAt(time.Now(), level, fmt.Sprintf(format, args...))

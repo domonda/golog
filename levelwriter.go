@@ -22,6 +22,9 @@ func (w *LevelWriter) Write(data []byte) (int, error) {
 
 // Msg writes a string message.
 func (w *LevelWriter) Msg(msg string) {
+	if w.logger == nil {
+		return
+	}
 	w.logger.NewMessage(w.level, msg).Log()
 }
 
@@ -35,6 +38,9 @@ func (w *LevelWriter) Println(v ...interface{}) {
 }
 
 func (w *LevelWriter) Printf(format string, v ...interface{}) {
+	if w.logger == nil {
+		return
+	}
 	w.logger.NewMessagef(w.level, format, v...).Log()
 }
 

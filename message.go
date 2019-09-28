@@ -26,8 +26,7 @@ func NewMessage(logger *Logger, formatter Formatter) *Message {
 }
 
 func (m *Message) Logger() *Logger {
-	logger := m.logger.Clone()
-	return logger
+	return m.logger.subLogger(m)
 }
 
 // Loggable lets a value that implements the Loggable log itself
@@ -105,6 +104,7 @@ func (m *Message) Log() {
 	if m == nil {
 		return
 	}
+	m.formatter.WriteOutro()
 	m.formatter.Flush()
 	m.formatter = nil
 	m.logger = nil
