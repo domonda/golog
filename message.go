@@ -1,6 +1,9 @@
 package golog
 
-import "sync"
+import (
+	"fmt"
+	"sync"
+)
 
 type Message struct {
 	logger    *Logger
@@ -25,6 +28,38 @@ func NewMessage(logger *Logger, formatter Formatter) *Message {
 func (m *Message) Logger() *Logger {
 	logger := m.logger.Clone()
 	return logger
+}
+
+// Loggable lets a value that implements the Loggable log itself
+func (m *Message) Loggable(key string, val Loggable) *Message {
+	if m == nil {
+		return nil
+	}
+	val.LogMessage(m, key)
+	return m
+}
+
+// Val logs val as string with the "%v" format of the fmt package
+func (m *Message) Val(key string, val interface{}) *Message {
+	if m == nil {
+		return nil
+	}
+	m.formatter.WriteKey(key)
+	m.formatter.WriteString(fmt.Sprint(val))
+	return m
+}
+
+// Val logs vals as string array with the "%v" format of the fmt package
+func (m *Message) Vals(key string, vals []interface{}) *Message {
+	if m == nil {
+		return nil
+	}
+	m.formatter.WriteSliceKey(key)
+	for _, val := range vals {
+		m.formatter.WriteString(fmt.Sprint(val))
+	}
+	m.formatter.WriteSliceEnd()
+	return m
 }
 
 func (m *Message) Int(key string, val int) *Message {

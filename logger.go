@@ -17,10 +17,16 @@ type Logger struct {
 	outputs     []output
 }
 
-func NewLogger(levelFilter LevelFilter, writer io.Writer, newFormatter NewFormatterFunc, format *Format) *Logger {
+func NewLogger(levelFilter LevelFilter, writer io.Writer, newFormatterFunc NewFormatterFunc, format *Format) *Logger {
 	return &Logger{
 		levelFilter: levelFilter,
-		outputs:     []output{{writer, newFormatter, format}},
+		outputs: []output{
+			{
+				writer:       writer,
+				newFormatter: newFormatterFunc,
+				format:       format,
+			},
+		},
 	}
 }
 
