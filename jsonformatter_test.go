@@ -5,16 +5,18 @@ import (
 	"time"
 )
 
-func ExampleTextFormatter() {
+func ExampleJSONFormatter() {
 	t, _ := time.Parse("2006-01-02 15:04:05", "2006-01-02 15:04:05")
 
 	format := &Format{
-		TimestampFormat: "2006-01-02 15:04:05",
+		TimestampKey:    "time",
+		TimestampFormat: "2006-01-02 15:04:05.999",
+		LevelKey:        "level",
 		Levels:          DefaultLevels,
-		// MessageKey:      "msg",
+		MessageKey:      "msg",
 	}
 
-	formatter := NewTextFormatter(os.Stdout, format, NoColorizer)
+	formatter := NewJSONFormatter(os.Stdout, format)
 	log := NewLogger(LevelFilterNone, formatter)
 
 	log.NewMessageAt(t, LevelInfo, "My log message").
@@ -24,6 +26,6 @@ func ExampleTextFormatter() {
 	log.NewMessageAt(t, LevelError, "This is an error").Log()
 
 	// Output:
-	// 2006-01-02 15:04:05  INFO: "My log message" int=66 str="Hello\tWorld!\n"
-	// 2006-01-02 15:04:05 ERROR: "This is an error"
+	// {"time":"2006-01-02 15:04:05","level":"INFO","msg":"My log message","int":66,"str":"Hello\tWorld!\n"}
+	// {"time":"2006-01-02 15:04:05","level":"ERROR","msg":"This is an error"}
 }

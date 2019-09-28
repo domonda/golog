@@ -2,15 +2,6 @@ package golog
 
 import "strconv"
 
-var DefaultLevels = Levels{
-	"FATAL", // 0
-	"ERROR", // 1
-	"WARN",  // 2
-	"INFO",  // 3
-	"DEBUG", // 4
-	"TRACE", // 5
-}
-
 type Levels []string
 
 func (l Levels) Name(level Level) string {
@@ -32,19 +23,34 @@ func (l Levels) LevelOfName(name string) Level {
 	return LevelInvalid
 }
 
-func (l Levels) MaxNameLen() int {
-	max := 0
+func (l Levels) NameLenRange() (min, max int) {
 	for _, name := range l {
-		if len(name) > max {
-			max = len(name)
+		nameLen := len(name)
+		if nameLen < min {
+			min = nameLen
+		}
+		if nameLen > max {
+			max = nameLen
 		}
 	}
-	return max
+	return min, max
 }
 
-func (l Levels) CopyWithPaddedNames() Levels {
+func (l Levels) CopyWithLeftPaddedNames() Levels {
 	p := make(Levels, len(l))
-	maxLen := l.MaxNameLen()
+	_, maxLen := l.NameLenRange()
+	for i := range l {
+		p[i] = l[i]
+		for len(p[i]) < maxLen {
+			p[i] = " " + p[i]
+		}
+	}
+	return p
+}
+
+func (l Levels) CopyWithRightPaddedNames() Levels {
+	p := make(Levels, len(l))
+	_, maxLen := l.NameLenRange()
 	for i := range l {
 		p[i] = l[i]
 		for len(p[i]) < maxLen {

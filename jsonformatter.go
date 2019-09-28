@@ -10,28 +10,33 @@ import (
 
 var jsonFormatterPool sync.Pool
 
-type jsonFormatter struct {
+type JSONFormatter struct {
+	parent *JSONFormatter
 	writer io.Writer
 	format *Format
 	buf    []byte
 }
 
-func NewJSONFormatter(writer io.Writer, format *Format) Formatter {
-	if f, ok := jsonFormatterPool.Get().(*jsonFormatter); ok {
-		f.writer = writer
-		f.format = format
-		f.buf = f.buf[:0]
-		return f
-	}
-
-	return &jsonFormatter{
+func NewJSONFormatter(writer io.Writer, format *Format) *JSONFormatter {
+	return &JSONFormatter{
 		writer: writer,
 		format: format,
 		buf:    make([]byte, 0, 1024),
 	}
 }
 
-func (f *jsonFormatter) WriteIntro(t time.Time, level Level, msg string, data []byte) {
+func (f *JSONFormatter) NewChild() Formatter {
+	if child, ok := jsonFormatterPool.Get().(*JSONFormatter); ok {
+		child.parent = f
+		child.writer = f.writer
+		child.format = f.format
+		return child
+	}
+
+	return NewJSONFormatter(f.writer, f.format)
+}
+
+func (f *JSONFormatter) WriteMsg(t time.Time, level Level, msg string) {
 	f.buf = append(f.buf, '{')
 
 	f.buf = encjson.AppendKey(f.buf, f.format.TimestampKey)
@@ -45,55 +50,71 @@ func (f *jsonFormatter) WriteIntro(t time.Time, level Level, msg string, data []
 	f.buf = encjson.AppendKey(f.buf, f.format.MessageKey)
 	f.buf = encjson.AppendString(f.buf, msg)
 
-	// Write data from super logger
-	f.buf = append(f.buf, data...)
+	f.buf = f.appendParent(f.buf)
 }
 
-func (f *jsonFormatter) WriteOutro() {
+func (f *JSONFormatter) appendParent(buf []byte) []byte {
+	if f.parent != nil {
+		buf = f.parent.appendParent(buf)
+		if len(f.parent.buf) > 0 {
+			buf = append(buf, ',')
+			buf = append(buf, f.parent.buf...)
+		}
+	}
+	return buf
+}
+
+func (f *JSONFormatter) FlushAndFree() {
+	// Flush
 	f.buf = append(f.buf, '}', '\n')
-}
-
-func (f *jsonFormatter) Flush() {
 	f.writer.Write(f.buf)
 
+	// Free
+	f.parent = nil
 	f.writer = nil
 	f.format = nil
-	textFormatterPool.Put(f)
+	f.buf = f.buf[:0]
+	jsonFormatterPool.Put(f)
 }
 
-func (f *jsonFormatter) WriteKey(key string) {
+// String is here only for debugging
+func (f *JSONFormatter) String() string {
+	return string(f.buf)
+}
+
+func (f *JSONFormatter) WriteKey(key string) {
 	f.buf = encjson.AppendKey(f.buf, key)
 }
 
-func (f *jsonFormatter) WriteSliceKey(key string) {
+func (f *JSONFormatter) WriteSliceKey(key string) {
 	f.buf = encjson.AppendKey(f.buf, key)
 	f.buf = encjson.AppendArrayStart(f.buf)
 }
 
-func (f *jsonFormatter) WriteSliceEnd() {
+func (f *JSONFormatter) WriteSliceEnd() {
 	f.buf = encjson.AppendArrayEnd(f.buf)
 }
 
-func (f *jsonFormatter) WriteBool(val bool) {
+func (f *JSONFormatter) WriteBool(val bool) {
 	f.buf = encjson.AppendBool(f.buf, val)
 }
 
-func (f *jsonFormatter) WriteInt(val int64) {
+func (f *JSONFormatter) WriteInt(val int64) {
 	f.buf = encjson.AppendInt(f.buf, val)
 }
 
-func (f *jsonFormatter) WriteUint(val uint64) {
+func (f *JSONFormatter) WriteUint(val uint64) {
 	f.buf = encjson.AppendUint(f.buf, val)
 }
 
-func (f *jsonFormatter) WriteFloat(val float64) {
+func (f *JSONFormatter) WriteFloat(val float64) {
 	f.buf = encjson.AppendFloat(f.buf, val)
 }
 
-func (f *jsonFormatter) WriteString(val string) {
+func (f *JSONFormatter) WriteString(val string) {
 	f.buf = encjson.AppendString(f.buf, val)
 }
 
-func (f *jsonFormatter) WriteUUID(val [16]byte) {
+func (f *JSONFormatter) WriteUUID(val [16]byte) {
 	f.buf = encjson.AppendUUID(f.buf, val)
 }

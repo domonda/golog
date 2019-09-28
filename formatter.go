@@ -1,16 +1,16 @@
 package golog
 
 import (
-	"io"
 	"time"
 )
 
-type NewFormatterFunc func(writer io.Writer, format *Format) Formatter
-
 type Formatter interface {
-	WriteIntro(t time.Time, level Level, msg string, data []byte)
-	WriteOutro()
-	Flush()
+	NewChild() Formatter
+	WriteMsg(t time.Time, level Level, msg string)
+	FlushAndFree()
+
+	// String is here only for debugging
+	String() string
 
 	WriteKey(key string)
 	WriteSliceKey(key string)
@@ -22,14 +22,4 @@ type Formatter interface {
 	WriteFloat(val float64)
 	WriteString(val string)
 	WriteUUID(val [16]byte)
-}
-
-type Format struct {
-	TimestampKey    string
-	TimestampFormat string
-
-	LevelKey string // can be empty
-	Levels   Levels // can be empty
-
-	MessageKey string
 }

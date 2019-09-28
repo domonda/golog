@@ -1,6 +1,7 @@
 package golog
 
 import (
+	"strings"
 	"sync"
 	"time"
 )
@@ -9,34 +10,46 @@ type MultiFormatter []Formatter
 
 var multiFormatterPool sync.Pool
 
-func NewMultiFormatter(count int) MultiFormatter {
-	if f, ok := multiFormatterPool.Get().(MultiFormatter); ok {
-		if count > len(f) {
-			return make(MultiFormatter, count)
-		}
-		return f[:count]
+func getMultiFormatter(l int) MultiFormatter {
+	if f, ok := multiFormatterPool.Get().(MultiFormatter); ok && l <= cap(f) {
+		return f[:l]
 	}
 
-	return make(MultiFormatter, count)
+	return make(MultiFormatter, l)
 }
 
-func (mf MultiFormatter) WriteIntro(t time.Time, level Level, msg string, data []byte) {
+func (mf MultiFormatter) NewChild() Formatter {
+	child := getMultiFormatter(len(mf))
+	for i, f := range mf {
+		child[i] = f.NewChild()
+	}
+	return child
+}
+
+func (mf MultiFormatter) WriteMsg(t time.Time, level Level, msg string) {
 	for _, f := range mf {
-		f.WriteIntro(t, level, msg, data)
+		f.WriteMsg(t, level, msg)
 	}
 }
 
-func (mf MultiFormatter) WriteOutro() {
-	for _, f := range mf {
-		f.WriteOutro()
-	}
-}
-
-func (mf MultiFormatter) Flush() {
-	for _, f := range mf {
-		f.Flush()
+func (mf MultiFormatter) FlushAndFree() {
+	for i, f := range mf {
+		f.FlushAndFree()
+		mf[i] = nil
 	}
 	multiFormatterPool.Put(mf)
+}
+
+// String is here only for debugging
+func (mf MultiFormatter) String() string {
+	var b strings.Builder
+	for i, f := range mf {
+		if i > 0 {
+			b.WriteByte('\n')
+		}
+		b.WriteString(f.String())
+	}
+	return b.String()
 }
 
 func (mf MultiFormatter) WriteKey(key string) {

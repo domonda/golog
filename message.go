@@ -12,7 +12,7 @@ type Message struct {
 
 var messagePool sync.Pool
 
-func NewMessage(logger *Logger, formatter Formatter) *Message {
+func newMessage(logger *Logger, formatter Formatter) *Message {
 	if m, ok := messagePool.Get().(*Message); ok {
 		m.logger = logger
 		m.formatter = formatter
@@ -26,7 +26,7 @@ func NewMessage(logger *Logger, formatter Formatter) *Message {
 }
 
 func (m *Message) Logger() *Logger {
-	return m.logger.subLogger(m)
+	return m.logger.newChild(m)
 }
 
 // Loggable lets a value that implements the Loggable log itself
@@ -104,8 +104,7 @@ func (m *Message) Log() {
 	if m == nil {
 		return
 	}
-	m.formatter.WriteOutro()
-	m.formatter.Flush()
+	m.formatter.FlushAndFree()
 	m.formatter = nil
 	m.logger = nil
 	messagePool.Put(m)

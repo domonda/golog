@@ -16,24 +16,23 @@ type Colorizer interface {
 	ColorizeMsg(string) string
 }
 
-var (
-	DefaultColorizer  Colorizer = inactiveColorizer{}
-	InactiveColorizer Colorizer = inactiveColorizer{}
-)
+const NoColorizer noColorizer = 0
 
-type inactiveColorizer struct{}
+var _ Colorizer = noColorizer(0) // make sure noColorizer implements Colorizer
 
-func (inactiveColorizer) ColorizeKey(str string) string       { return str }
-func (inactiveColorizer) ColorizeTrue(str string) string      { return str }
-func (inactiveColorizer) ColorizeFalse(str string) string     { return str }
-func (inactiveColorizer) ColorizeInt(str string) string       { return str }
-func (inactiveColorizer) ColorizeUint(str string) string      { return str }
-func (inactiveColorizer) ColorizeFloat(str string) string     { return str }
-func (inactiveColorizer) ColorizeString(str string) string    { return str }
-func (inactiveColorizer) ColorizeUUID(str string) string      { return str }
-func (inactiveColorizer) ColorizeTimestamp(str string) string { return str }
-func (inactiveColorizer) ColorizeLevel(str string) string     { return str }
-func (inactiveColorizer) ColorizeMsg(str string) string       { return str }
+type noColorizer int
+
+func (noColorizer) ColorizeKey(str string) string       { return str }
+func (noColorizer) ColorizeTrue(str string) string      { return str }
+func (noColorizer) ColorizeFalse(str string) string     { return str }
+func (noColorizer) ColorizeInt(str string) string       { return str }
+func (noColorizer) ColorizeUint(str string) string      { return str }
+func (noColorizer) ColorizeFloat(str string) string     { return str }
+func (noColorizer) ColorizeString(str string) string    { return str }
+func (noColorizer) ColorizeUUID(str string) string      { return str }
+func (noColorizer) ColorizeTimestamp(str string) string { return str }
+func (noColorizer) ColorizeLevel(str string) string     { return str }
+func (noColorizer) ColorizeMsg(str string) string       { return str }
 
 type ConsoleColorizer struct {
 	KeyColor       *color.Color

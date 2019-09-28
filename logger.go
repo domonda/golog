@@ -2,91 +2,75 @@ package golog
 
 import (
 	"fmt"
-	"io"
 	"time"
 )
 
-type output struct {
-	writer       io.Writer
-	newFormatter NewFormatterFunc
-	format       *Format
-}
-
 type Logger struct {
-	levelFilter LevelFilter
-	outputs     []output
-	prefix      []*Message
+	levelFilter    LevelFilter
+	formatter      Formatter
+	parentMessages []*Message
 }
 
-func NewLogger(levelFilter LevelFilter, writer io.Writer, newFormatterFunc NewFormatterFunc, format *Format, prefix ...*Message) *Logger {
-	return &Logger{
-		levelFilter: levelFilter,
-		outputs: []output{
-			{
-				writer:       writer,
-				newFormatter: newFormatterFunc,
-				format:       format,
-			},
-		},
-		prefix: prefix,
+// NewLogger returns a new Logger with the DefaultFormatter if no Formatter is passed.
+func NewLogger(levelFilter LevelFilter, formatters ...Formatter) *Logger {
+	l := &Logger{levelFilter: levelFilter}
+	switch len(formatters) {
+	case 0:
+		l.formatter = DefaultFormatter
+	case 1:
+		l.formatter = formatters[0]
+	default:
+		l.formatter = MultiFormatter(formatters)
 	}
+	return l
 }
 
-func (l *Logger) subLogger(prefixMessage *Message) *Logger {
+func (l *Logger) newChild(parentMessage *Message) *Logger {
 	if l == nil {
 		return nil
 	}
 	return &Logger{
-		levelFilter: l.levelFilter,
-		outputs:     l.outputs,
-		prefix:      append(l.prefix, prefixMessage),
+		levelFilter:    l.levelFilter,
+		formatter:      l.formatter,
+		parentMessages: append(l.parentMessages, parentMessage),
 	}
 }
 
-// Prefix returns a new Message that can be used to record
+// With returns a new Message that can be used to record
 // the prefix for a sub-logger.
 //
 // Example:
-//   log := log.Prefix().Str("requestID", requestID).Logger()
-func (l *Logger) Prefix() *Message {
+//   log := log.With().Str("requestID", requestID).Logger()
+func (l *Logger) With() *Message {
 	if l == nil {
 		return nil
 	}
-	return NewMessage(l, l.newFormatter())
+	return newMessage(l, l.formatter.NewChild())
 }
 
 func (l *Logger) NewMessageAt(t time.Time, level Level, msg string) *Message {
-	if l == nil || !l.levelFilter.IsActive(level) {
+	if !l.IsActive(level) {
 		return nil
 	}
-
-	formatter := l.newFormatter()
-	formatter.WriteIntro(t, level, msg, nil)
-	return NewMessage(l, formatter)
+	m := newMessage(l, l.formatter.NewChild())
+	m.formatter.WriteMsg(t, level, msg)
+	return m
 }
 
-func (l *Logger) newFormatter() Formatter {
-	if len(l.outputs) == 1 {
-		return l.outputs[0].newFormatter(l.outputs[0].writer, l.outputs[0].format)
-	}
-
-	mf := make(MultiFormatter, len(l.outputs)) // todo optimize allocation
-	for i := range l.outputs {
-		mf[i] = l.outputs[i].newFormatter(l.outputs[i].writer, l.outputs[i].format)
-	}
-	return mf
+func (l *Logger) IsActive(level Level) bool {
+	return l != nil && l.levelFilter.IsActive(level)
 }
 
 func (l *Logger) NewMessage(level Level, msg string) *Message {
-	if l == nil {
+	if !l.IsActive(level) {
 		return nil
 	}
 	return l.NewMessageAt(time.Now(), level, msg)
 }
 
 func (l *Logger) NewMessagef(level Level, format string, args ...interface{}) *Message {
-	if l == nil || !l.levelFilter.IsActive(level) {
-		return nil // Don't do fmt.Sprintf
+	if !l.IsActive(level) {
+		return nil
 	}
 	return l.NewMessageAt(time.Now(), level, fmt.Sprintf(format, args...))
 }
