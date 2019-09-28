@@ -22,4 +22,5 @@ type Formatter interface {
 	WriteFloat(val float64)
 	WriteString(val string)
 	WriteUUID(val [16]byte)
+	WriteJSON(val []byte)
 }

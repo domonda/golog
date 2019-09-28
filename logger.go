@@ -1,6 +1,7 @@
 package golog
 
 import (
+	"context"
 	"fmt"
 	"time"
 )
@@ -11,18 +12,37 @@ type Logger struct {
 	parentMessages []*Message
 }
 
-// NewLogger returns a new Logger with the DefaultFormatter if no Formatter is passed.
 func NewLogger(levelFilter LevelFilter, formatters ...Formatter) *Logger {
-	l := &Logger{levelFilter: levelFilter}
 	switch len(formatters) {
 	case 0:
-		l.formatter = DefaultFormatter
+		return nil
+
 	case 1:
-		l.formatter = formatters[0]
+		return &Logger{
+			levelFilter: levelFilter,
+			formatter:   formatters[0],
+		}
+
 	default:
-		l.formatter = MultiFormatter(formatters)
+		return &Logger{
+			levelFilter: levelFilter,
+			formatter:   MultiFormatter(formatters),
+		}
 	}
+}
+
+func Context(ctx context.Context) *Logger {
+	l, _ := ctx.Value(ctxKey{}).(*Logger)
 	return l
+}
+
+type ctxKey struct{}
+
+func (l *Logger) Context(ctx context.Context) context.Context {
+	if l == nil {
+		return ctx
+	}
+	return context.WithValue(ctx, ctxKey{}, l)
 }
 
 func (l *Logger) newChild(parentMessage *Message) *Logger {

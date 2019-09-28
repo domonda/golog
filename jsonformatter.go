@@ -39,16 +39,20 @@ func (f *JSONFormatter) NewChild() Formatter {
 func (f *JSONFormatter) WriteMsg(t time.Time, level Level, msg string) {
 	f.buf = append(f.buf, '{')
 
-	f.buf = encjson.AppendKey(f.buf, f.format.TimestampKey)
-	f.buf = encjson.AppendTime(f.buf, t, f.format.TimestampFormat)
+	if f.format.TimestampKey != "" {
+		f.buf = encjson.AppendKey(f.buf, f.format.TimestampKey)
+		f.buf = encjson.AppendTime(f.buf, t, f.format.TimestampFormat)
+	}
 
 	if f.format.LevelKey != "" {
 		f.buf = encjson.AppendKey(f.buf, f.format.LevelKey)
 		f.buf = encjson.AppendString(f.buf, f.format.Levels.Name(level))
 	}
 
-	f.buf = encjson.AppendKey(f.buf, f.format.MessageKey)
-	f.buf = encjson.AppendString(f.buf, msg)
+	if f.format.MessageKey != "" && msg != "" {
+		f.buf = encjson.AppendKey(f.buf, f.format.MessageKey)
+		f.buf = encjson.AppendString(f.buf, msg)
+	}
 
 	f.buf = f.appendParent(f.buf)
 }
@@ -117,4 +121,8 @@ func (f *JSONFormatter) WriteString(val string) {
 
 func (f *JSONFormatter) WriteUUID(val [16]byte) {
 	f.buf = encjson.AppendUUID(f.buf, val)
+}
+
+func (f *JSONFormatter) WriteJSON(val []byte) {
+	f.buf = append(f.buf, val...)
 }

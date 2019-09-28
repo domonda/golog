@@ -2,6 +2,15 @@ package golog
 
 import "strconv"
 
+var DefaultLevels = Levels{
+	"FATAL", // 0
+	"ERROR", // 1
+	"WARN",  // 2
+	"INFO",  // 3
+	"DEBUG", // 4
+	"TRACE", // 5
+}
+
 type Levels []string
 
 func (l Levels) Name(level Level) string {

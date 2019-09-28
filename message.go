@@ -1,6 +1,7 @@
 package golog
 
 import (
+	"encoding/json"
 	"fmt"
 	"sync"
 )
@@ -97,6 +98,27 @@ func (m *Message) Str(key, val string) *Message {
 	}
 	m.formatter.WriteKey(key)
 	m.formatter.WriteString(val)
+	return m
+}
+
+func (m *Message) UUID(key string, val [16]byte) *Message {
+	if m == nil {
+		return nil
+	}
+	m.formatter.WriteKey(key)
+	m.formatter.WriteUUID(val)
+	return m
+}
+
+func (m *Message) JSON(key string, val []byte) *Message {
+	if m == nil {
+		return nil
+	}
+
+	if json.Valid(val) {
+		m.formatter.WriteKey(key)
+		m.formatter.WriteJSON(val)
+	}
 	return m
 }
 

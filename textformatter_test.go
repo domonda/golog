@@ -24,6 +24,6 @@ func ExampleTextFormatter() {
 	log.NewMessageAt(t, LevelError, "This is an error").Log()
 
 	// Output:
-	// 2006-01-02 15:04:05  INFO: "My log message" int=66 str="Hello\tWorld!\n"
-	// 2006-01-02 15:04:05 ERROR: "This is an error"
+	// 2006-01-02 15:04:05 |INFO | My log message int=66 str="Hello\tWorld!\n"
+	// 2006-01-02 15:04:05 |ERROR| This is an error
 }

@@ -105,3 +105,9 @@ func (mf MultiFormatter) WriteUUID(val [16]byte) {
 		f.WriteUUID(val)
 	}
 }
+
+func (mf MultiFormatter) WriteJSON(val []byte) {
+	for _, f := range mf {
+		f.WriteJSON(val)
+	}
+}

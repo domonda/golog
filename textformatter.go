@@ -22,7 +22,7 @@ type TextFormatter struct {
 func NewTextFormatter(writer io.Writer, format *Format, colorizer Colorizer) *TextFormatter {
 	if min, max := format.Levels.NameLenRange(); min != max {
 		paddedFormat := *format
-		paddedFormat.Levels = format.Levels.CopyWithLeftPaddedNames()
+		paddedFormat.Levels = format.Levels.CopyWithRightPaddedNames()
 		format = &paddedFormat
 	}
 
@@ -53,12 +53,15 @@ func (f *TextFormatter) WriteMsg(t time.Time, level Level, msg string) {
 
 	// Write level
 	str := f.colorizer.ColorizeLevel(f.format.Levels.Name(level))
+	f.buf = append(f.buf, '|')
 	f.buf = append(f.buf, str...)
-	// f.buf = append(f.buf, f.format.LevelPadding...)
-	f.buf = append(f.buf, ':', ' ')
+	f.buf = append(f.buf, '|')
 
 	// Write message
-	f.buf = strconv.AppendQuote(f.buf, f.colorizer.ColorizeMsg(msg))
+	if msg != "" {
+		f.buf = append(f.buf, ' ')
+		f.buf = append(f.buf, f.colorizer.ColorizeMsg(msg)...)
+	}
 
 	f.buf = f.appendParent(f.buf)
 }
@@ -93,13 +96,8 @@ func (f *TextFormatter) String() string {
 	return string(f.buf)
 }
 
-func (f *TextFormatter) growValBuf(n int) {
-	// TODO optimization
-}
-
 func (f *TextFormatter) WriteKey(key string) {
 	str := f.colorizer.ColorizeKey(key)
-	f.growValBuf(len(key) + 2)
 	f.buf = append(f.buf, ' ')
 	f.buf = append(f.buf, str...)
 	f.buf = append(f.buf, '=')
@@ -107,7 +105,6 @@ func (f *TextFormatter) WriteKey(key string) {
 
 func (f *TextFormatter) WriteSliceKey(key string) {
 	str := f.colorizer.ColorizeKey(key)
-	f.growValBuf(len(key) + 3)
 	f.buf = append(f.buf, ' ')
 	f.buf = append(f.buf, str...)
 	f.buf = append(f.buf, '=', '[')
@@ -188,4 +185,8 @@ func (f *TextFormatter) WriteUUID(val [16]byte) {
 
 	str := f.colorizer.ColorizeUUID(string(b[:]))
 	f.buf = append(f.buf, str...)
+}
+
+func (f *TextFormatter) WriteJSON(val []byte) {
+	f.buf = append(f.buf, val...)
 }
