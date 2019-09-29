@@ -3,13 +3,16 @@ package golog
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 )
 
 type Logger struct {
-	levelFilter    LevelFilter
-	formatter      Formatter
-	parentMessages []*Message
+	levelFilter  LevelFilter
+	formatter    Formatter
+	hooks        []Hook
+	withMessages []*Message
+	mtx          sync.Mutex
 }
 
 func NewLogger(levelFilter LevelFilter, formatters ...Formatter) *Logger {
@@ -31,6 +34,16 @@ func NewLogger(levelFilter LevelFilter, formatters ...Formatter) *Logger {
 	}
 }
 
+func newLoggerWithMessage(message *Message) *Logger {
+	l := message.logger
+	return &Logger{
+		levelFilter:  l.levelFilter,
+		formatter:    l.formatter,
+		hooks:        l.hooks,
+		withMessages: append(l.withMessages, message),
+	}
+}
+
 func Context(ctx context.Context) *Logger {
 	l, _ := ctx.Value(ctxKey{}).(*Logger)
 	return l
@@ -45,40 +58,62 @@ func (l *Logger) Context(ctx context.Context) context.Context {
 	return context.WithValue(ctx, ctxKey{}, l)
 }
 
-func (l *Logger) newChild(parentMessage *Message) *Logger {
+func (l *Logger) AddHook(hook Hook) {
+	l.mtx.Lock()
+	l.hooks = append(l.hooks, hook)
+	l.mtx.Unlock()
+}
+
+func (l *Logger) SetHooks(hooks ...Hook) {
+	l.mtx.Lock()
+	l.hooks = hooks
+	l.mtx.Unlock()
+}
+
+func (l *Logger) SetLevelFilter(filter LevelFilter) {
+	l.mtx.Lock()
+	l.levelFilter = filter
+	l.mtx.Unlock()
+}
+
+func (l *Logger) GetLevelFilter() LevelFilter {
+	l.mtx.Lock()
+	defer l.mtx.Unlock()
+	return l.levelFilter
+}
+
+func (l *Logger) IsActive(level Level) bool {
 	if l == nil {
-		return nil
+		return false
 	}
-	return &Logger{
-		levelFilter:    l.levelFilter,
-		formatter:      l.formatter,
-		parentMessages: append(l.parentMessages, parentMessage),
-	}
+	l.mtx.Lock()
+	active := l.levelFilter.IsActive(level)
+	l.mtx.Unlock()
+	return active
 }
 
 // With returns a new Message that can be used to record
 // the prefix for a sub-logger.
 //
 // Example:
-//   log := log.With().Str("requestID", requestID).Logger()
+//   log := log.With().Str("requestID", requestID).NewLogger()
 func (l *Logger) With() *Message {
 	if l == nil {
 		return nil
 	}
-	return newMessage(l, l.formatter.NewChild())
+	return newMessage(l, LevelInvalid, l.formatter.NewChild())
 }
 
 func (l *Logger) NewMessageAt(t time.Time, level Level, msg string) *Message {
 	if !l.IsActive(level) {
 		return nil
 	}
-	m := newMessage(l, l.formatter.NewChild())
+	m := newMessage(l, level, l.formatter.NewChild())
 	m.formatter.WriteMsg(t, level, msg)
+	for _, hook := range l.hooks {
+		hook.Log(m)
+	}
 	return m
-}
-
-func (l *Logger) IsActive(level Level) bool {
-	return l != nil && l.levelFilter.IsActive(level)
 }
 
 func (l *Logger) NewMessage(level Level, msg string) *Message {

@@ -36,14 +36,16 @@ func NewTextFormatter(writer io.Writer, format *Format, colorizer Colorizer) *Te
 }
 
 func (f *TextFormatter) NewChild() Formatter {
-	if child, ok := textFormatterPool.Get().(*TextFormatter); ok {
+	child, ok := jsonFormatterPool.Get().(*TextFormatter)
+	if ok {
 		child.writer = f.writer
 		child.format = f.format
 		child.colorizer = f.colorizer
-		return f
+	} else {
+		child = NewTextFormatter(f.writer, f.format, f.colorizer)
 	}
-
-	return NewTextFormatter(f.writer, f.format, f.colorizer)
+	child.parent = f
+	return child
 }
 
 func (f *TextFormatter) WriteMsg(t time.Time, level Level, msg string) {

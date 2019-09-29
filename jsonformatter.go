@@ -27,14 +27,15 @@ func NewJSONFormatter(writer io.Writer, format *Format) *JSONFormatter {
 }
 
 func (f *JSONFormatter) NewChild() Formatter {
-	if child, ok := jsonFormatterPool.Get().(*JSONFormatter); ok {
-		child.parent = f
+	child, ok := jsonFormatterPool.Get().(*JSONFormatter)
+	if ok {
 		child.writer = f.writer
 		child.format = f.format
-		return child
+	} else {
+		child = NewJSONFormatter(f.writer, f.format)
 	}
-
-	return NewJSONFormatter(f.writer, f.format)
+	child.parent = f
+	return child
 }
 
 func (f *JSONFormatter) WriteMsg(t time.Time, level Level, msg string) {

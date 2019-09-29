@@ -8,26 +8,40 @@ import (
 
 type Message struct {
 	logger    *Logger
+	level     Level
 	formatter Formatter
 }
 
 var messagePool sync.Pool
 
-func newMessage(logger *Logger, formatter Formatter) *Message {
+func newMessage(logger *Logger, level Level, formatter Formatter) *Message {
 	if m, ok := messagePool.Get().(*Message); ok {
 		m.logger = logger
+		m.level = level
 		m.formatter = formatter
 		return m
 	}
 
 	return &Message{
 		logger:    logger,
+		level:     level,
 		formatter: formatter,
 	}
 }
 
-func (m *Message) Logger() *Logger {
-	return m.logger.newChild(m)
+func (m *Message) GetLevel() Level {
+	return m.level
+}
+
+func (m *Message) IsActive() bool {
+	return m != nil
+}
+
+func (m *Message) NewLogger() *Logger {
+	if m == nil {
+		return nil
+	}
+	return newLoggerWithMessage(m)
 }
 
 // Loggable lets a value that implements the Loggable log itself

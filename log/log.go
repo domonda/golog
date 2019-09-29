@@ -1,6 +1,7 @@
 package log
 
 import (
+	"context"
 	"os"
 	"sync"
 
@@ -40,6 +41,10 @@ func SetLogger(l *golog.Logger) {
 	loggerMtx.Lock()
 	logger = l
 	loggerMtx.Unlock()
+}
+
+func Context(ctx context.Context) context.Context {
+	return GetLogger().Context(ctx)
 }
 
 func Fatal(msg string) *golog.Message {
