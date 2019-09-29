@@ -6,7 +6,7 @@ import (
 
 type Formatter interface {
 	NewChild() Formatter
-	WriteMsg(t time.Time, level Level, msg string)
+	WriteMsg(t time.Time, levels *Levels, level Level, msg string)
 	FlushAndFree()
 
 	// String is here only for debugging

@@ -9,19 +9,17 @@ import (
 )
 
 var (
-	Levels = golog.DefaultLevels
+	Levels      = golog.DefaultLevels
+	LevelFilter = Levels.Debug.FilterAbove()
 
 	Format = &golog.Format{
 		TimestampKey:    "time",
 		TimestampFormat: "2006-01-02 15:04:05.999",
 		LevelKey:        "level",
-		Levels:          Levels,
 		MessageKey:      "message",
 	}
 
 	Formatter golog.Formatter = golog.NewTextFormatter(os.Stdout, Format, golog.NoColorizer)
-
-	LevelFilter = golog.LevelDebug.FilterAbove()
 
 	logger    *golog.Logger
 	loggerMtx sync.Mutex
@@ -30,7 +28,7 @@ var (
 func GetLogger() *golog.Logger {
 	loggerMtx.Lock()
 	if logger == nil {
-		logger = golog.NewLogger(LevelFilter, Formatter)
+		logger = golog.NewLogger(Levels, LevelFilter, Formatter)
 	}
 	l := logger
 	loggerMtx.Unlock()

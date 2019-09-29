@@ -11,15 +11,22 @@ func LevelFilterAbove(level Level) LevelFilter {
 	return ^((LevelFilter(1) << level) - 1)
 }
 
+func LevelFilterBelow(level Level) LevelFilter {
+	return (LevelFilter(1) << level) - 1
+}
+
 func LevelFilterExclusive(level Level) LevelFilter {
 	return ^(LevelFilter(1) << level)
 }
 
 func (f LevelFilter) IsActive(level Level) bool {
-	return f&(LevelFilter(1)<<level) == 0
+	return (level <= LevelMax) && (f&(LevelFilter(1)<<level) == 0)
 }
 
 func (f *LevelFilter) SetActive(level Level, active bool) {
+	if level > LevelMax {
+		return
+	}
 	switch active {
 	case true:
 		*f &^= (LevelFilter(1) << level)

@@ -26,9 +26,9 @@ func (mf MultiFormatter) NewChild() Formatter {
 	return child
 }
 
-func (mf MultiFormatter) WriteMsg(t time.Time, level Level, msg string) {
+func (mf MultiFormatter) WriteMsg(t time.Time, levels *Levels, level Level, msg string) {
 	for _, f := range mf {
-		f.WriteMsg(t, level, msg)
+		f.WriteMsg(t, levels, level, msg)
 	}
 }
 

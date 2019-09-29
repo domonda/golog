@@ -8,29 +8,27 @@ import (
 )
 
 type Logger struct {
+	levels      *Levels
 	levelFilter LevelFilter
 	formatter   Formatter
 	hooks       []Hook
 	mtx         sync.Mutex
 }
 
-func NewLogger(levelFilter LevelFilter, formatters ...Formatter) *Logger {
+func NewLogger(levels *Levels, levelFilter LevelFilter, formatters ...Formatter) *Logger {
+	l := &Logger{
+		levels:      levels,
+		levelFilter: levelFilter,
+	}
 	switch len(formatters) {
 	case 0:
-		return nil
-
+		// return nil ?
 	case 1:
-		return &Logger{
-			levelFilter: levelFilter,
-			formatter:   formatters[0],
-		}
-
+		l.formatter = formatters[0]
 	default:
-		return &Logger{
-			levelFilter: levelFilter,
-			formatter:   MultiFormatter(formatters),
-		}
+		l.formatter = MultiFormatter(formatters)
 	}
+	return l
 }
 
 func (l *Logger) WithFormatter(formatter Formatter) *Logger {
@@ -38,6 +36,7 @@ func (l *Logger) WithFormatter(formatter Formatter) *Logger {
 		return nil
 	}
 	return &Logger{
+		levels:      l.levels,
 		levelFilter: l.levelFilter,
 		formatter:   formatter,
 		hooks:       l.hooks,
@@ -76,6 +75,10 @@ func (l *Logger) SetLevelFilter(filter LevelFilter) {
 	l.mtx.Unlock()
 }
 
+func (l *Logger) GetLevels() *Levels {
+	return l.levels
+}
+
 func (l *Logger) GetLevelFilter() LevelFilter {
 	l.mtx.Lock()
 	defer l.mtx.Unlock()
@@ -109,7 +112,7 @@ func (l *Logger) NewMessageAt(t time.Time, level Level, msg string) *Message {
 		return nil
 	}
 	m := newMessage(l, level, l.formatter.NewChild())
-	m.formatter.WriteMsg(t, level, msg)
+	m.formatter.WriteMsg(t, l.levels, level, msg)
 	for _, hook := range l.hooks {
 		hook.Log(m)
 	}
@@ -131,99 +134,99 @@ func (l *Logger) NewMessagef(level Level, format string, args ...interface{}) *M
 }
 
 func (l *Logger) Fatal(msg string) *Message {
-	return l.NewMessage(LevelFatal, msg)
+	return l.NewMessage(l.levels.Fatal, msg)
 }
 
 func (l *Logger) Fatalf(format string, args ...interface{}) *Message {
-	return l.NewMessagef(LevelFatal, format, args...)
+	return l.NewMessagef(l.levels.Fatal, format, args...)
 }
 
 func (l *Logger) Error(msg string) *Message {
-	return l.NewMessage(LevelError, msg)
+	return l.NewMessage(l.levels.Error, msg)
 }
 
 func (l *Logger) Errorf(format string, args ...interface{}) *Message {
-	return l.NewMessagef(LevelError, format, args...)
+	return l.NewMessagef(l.levels.Error, format, args...)
 }
 
 func (l *Logger) Warn(msg string) *Message {
-	return l.NewMessage(LevelWarn, msg)
+	return l.NewMessage(l.levels.Warn, msg)
 }
 
 func (l *Logger) Warnf(format string, args ...interface{}) *Message {
-	return l.NewMessagef(LevelWarn, format, args...)
+	return l.NewMessagef(l.levels.Warn, format, args...)
 }
 
 func (l *Logger) Info(msg string) *Message {
-	return l.NewMessage(LevelInfo, msg)
+	return l.NewMessage(l.levels.Info, msg)
 }
 
 func (l *Logger) Infof(format string, args ...interface{}) *Message {
-	return l.NewMessagef(LevelInfo, format, args...)
+	return l.NewMessagef(l.levels.Info, format, args...)
 }
 
 func (l *Logger) Debug(msg string) *Message {
-	return l.NewMessage(LevelDebug, msg)
+	return l.NewMessage(l.levels.Debug, msg)
 }
 
 func (l *Logger) Debugf(format string, args ...interface{}) *Message {
-	return l.NewMessagef(LevelDebug, format, args...)
+	return l.NewMessagef(l.levels.Debug, format, args...)
 }
 
 func (l *Logger) Trace(msg string) *Message {
-	return l.NewMessage(LevelTrace, msg)
+	return l.NewMessage(l.levels.Trace, msg)
 }
 
 func (l *Logger) Tracef(format string, args ...interface{}) *Message {
-	return l.NewMessagef(LevelTrace, format, args...)
+	return l.NewMessagef(l.levels.Trace, format, args...)
 }
 
 func (l *Logger) LogFatal(msg string) {
-	l.NewMessage(LevelFatal, msg).Log()
+	l.NewMessage(l.levels.Fatal, msg).Log()
 }
 
 func (l *Logger) LogFatalf(format string, args ...interface{}) {
-	l.NewMessagef(LevelFatal, format, args...).Log()
+	l.NewMessagef(l.levels.Fatal, format, args...).Log()
 }
 
 func (l *Logger) LogError(msg string) {
-	l.NewMessage(LevelError, msg).Log()
+	l.NewMessage(l.levels.Error, msg).Log()
 }
 
 func (l *Logger) LogErrorf(format string, args ...interface{}) {
-	l.NewMessagef(LevelError, format, args...).Log()
+	l.NewMessagef(l.levels.Error, format, args...).Log()
 }
 
 func (l *Logger) LogWarn(msg string) {
-	l.NewMessage(LevelWarn, msg).Log()
+	l.NewMessage(l.levels.Warn, msg).Log()
 }
 
 func (l *Logger) LogWarnf(format string, args ...interface{}) {
-	l.NewMessagef(LevelWarn, format, args...).Log()
+	l.NewMessagef(l.levels.Warn, format, args...).Log()
 }
 
 func (l *Logger) LogInfo(msg string) {
-	l.NewMessage(LevelInfo, msg).Log()
+	l.NewMessage(l.levels.Info, msg).Log()
 }
 
 func (l *Logger) LogInfof(format string, args ...interface{}) {
-	l.NewMessagef(LevelInfo, format, args...).Log()
+	l.NewMessagef(l.levels.Info, format, args...).Log()
 }
 
 func (l *Logger) LogDebug(msg string) {
-	l.NewMessage(LevelDebug, msg).Log()
+	l.NewMessage(l.levels.Debug, msg).Log()
 }
 
 func (l *Logger) LogDebugf(format string, args ...interface{}) {
-	l.NewMessagef(LevelDebug, format, args...).Log()
+	l.NewMessagef(l.levels.Debug, format, args...).Log()
 }
 
 func (l *Logger) LogTrace(msg string) {
-	l.NewMessage(LevelTrace, msg).Log()
+	l.NewMessage(l.levels.Trace, msg).Log()
 }
 
 func (l *Logger) LogTracef(format string, args ...interface{}) {
-	l.NewMessagef(LevelTrace, format, args...).Log()
+	l.NewMessagef(l.levels.Trace, format, args...).Log()
 }
 
 func (l *Logger) NewLevelWriter(level Level) *LevelWriter {
@@ -231,25 +234,25 @@ func (l *Logger) NewLevelWriter(level Level) *LevelWriter {
 }
 
 func (l *Logger) FatalWriter() *LevelWriter {
-	return l.NewLevelWriter(LevelFatal)
+	return l.NewLevelWriter(l.levels.Fatal)
 }
 
 func (l *Logger) ErrorWriter() *LevelWriter {
-	return l.NewLevelWriter(LevelError)
+	return l.NewLevelWriter(l.levels.Error)
 }
 
 func (l *Logger) WarnWriter() *LevelWriter {
-	return l.NewLevelWriter(LevelWarn)
+	return l.NewLevelWriter(l.levels.Warn)
 }
 
 func (l *Logger) InfoWriter() *LevelWriter {
-	return l.NewLevelWriter(LevelInfo)
+	return l.NewLevelWriter(l.levels.Info)
 }
 
 func (l *Logger) DebugWriter() *LevelWriter {
-	return l.NewLevelWriter(LevelDebug)
+	return l.NewLevelWriter(l.levels.Debug)
 }
 
 func (l *Logger) TraceWriter() *LevelWriter {
-	return l.NewLevelWriter(LevelTrace)
+	return l.NewLevelWriter(l.levels.Trace)
 }

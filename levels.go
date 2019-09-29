@@ -2,27 +2,67 @@ package golog
 
 import "strconv"
 
-var DefaultLevels = Levels{
-	"FATAL", // 0
-	"ERROR", // 1
-	"WARN",  // 2
-	"INFO",  // 3
-	"DEBUG", // 4
-	"TRACE", // 5
+var DefaultLevels = &Levels{
+	Fatal: 0,
+	Error: 1,
+	Warn:  2,
+	Info:  3,
+	Debug: 4,
+	Trace: 5,
+	Names: []string{
+		"FATAL", // 0
+		"ERROR", // 1
+		"WARN",  // 2
+		"INFO",  // 3
+		"DEBUG", // 4
+		"TRACE", // 5
+	},
 }
 
-type Levels []string
+type Levels struct {
+	Fatal Level
+	Error Level
+	Warn  Level
+	Info  Level
+	Debug Level
+	Trace Level
+	Names []string
+}
 
-func (l Levels) Name(level Level) string {
-	if int(level) >= len(l) {
+func (l *Levels) Name(level Level) string {
+	if int(level) >= len(l.Names) {
 		return strconv.Itoa(int(level))
 	}
-	return l[level]
+	return l.Names[level]
 }
 
-func (l Levels) LevelOfName(name string) Level {
-	for i := range l {
-		if l[i] == name {
+func (l *Levels) FatalName() string {
+	return l.Name(l.Fatal)
+}
+
+func (l *Levels) ErrorName() string {
+	return l.Name(l.Error)
+}
+
+func (l *Levels) WarnName() string {
+	return l.Name(l.Warn)
+}
+
+func (l *Levels) InfoName() string {
+	return l.Name(l.Info)
+}
+
+func (l *Levels) DebugName() string {
+	return l.Name(l.Debug)
+}
+
+func (l *Levels) TraceName() string {
+	return l.Name(l.Trace)
+}
+
+func (l *Levels) LevelOfName(name string) Level {
+	for i := range l.Names {
+		if l.Names[i] == name {
 			return Level(i)
 		}
 	}
@@ -32,8 +72,8 @@ func (l Levels) LevelOfName(name string) Level {
 	return LevelInvalid
 }
 
-func (l Levels) NameLenRange() (min, max int) {
-	for _, name := range l {
+func (l *Levels) NameLenRange() (min, max int) {
+	for _, name := range l.Names {
 		nameLen := len(name)
 		if nameLen < min {
 			min = nameLen
@@ -45,26 +85,28 @@ func (l Levels) NameLenRange() (min, max int) {
 	return min, max
 }
 
-func (l Levels) CopyWithLeftPaddedNames() Levels {
-	p := make(Levels, len(l))
+func (l *Levels) CopyWithLeftPaddedNames() *Levels {
+	padded := *l
+	padded.Names = make([]string, len(l.Names))
 	_, maxLen := l.NameLenRange()
-	for i := range l {
-		p[i] = l[i]
-		for len(p[i]) < maxLen {
-			p[i] = " " + p[i]
+	for i, name := range l.Names {
+		padded.Names[i] = name
+		for len(padded.Names[i]) < maxLen {
+			padded.Names[i] = " " + padded.Names[i]
 		}
 	}
-	return p
+	return &padded
 }
 
-func (l Levels) CopyWithRightPaddedNames() Levels {
-	p := make(Levels, len(l))
+func (l *Levels) CopyWithRightPaddedNames() *Levels {
+	padded := *l
+	padded.Names = make([]string, len(l.Names))
 	_, maxLen := l.NameLenRange()
-	for i := range l {
-		p[i] = l[i]
-		for len(p[i]) < maxLen {
-			p[i] += " "
+	for i, name := range l.Names {
+		padded.Names[i] = name
+		for len(padded.Names[i]) < maxLen {
+			padded.Names[i] += " "
 		}
 	}
-	return p
+	return &padded
 }

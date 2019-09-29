@@ -14,6 +14,7 @@ var textFormatterPool sync.Pool
 type TextFormatter struct {
 	parent    *TextFormatter
 	writer    io.Writer
+	levels    *Levels
 	format    *Format
 	sliceMode sliceMode
 	buf       []byte
@@ -21,12 +22,6 @@ type TextFormatter struct {
 }
 
 func NewTextFormatter(writer io.Writer, format *Format, colorizer Colorizer) *TextFormatter {
-	if min, max := format.Levels.NameLenRange(); min != max {
-		paddedFormat := *format
-		paddedFormat.Levels = format.Levels.CopyWithRightPaddedNames()
-		format = &paddedFormat
-	}
-
 	return &TextFormatter{
 		writer:    writer,
 		format:    format,
@@ -36,7 +31,7 @@ func NewTextFormatter(writer io.Writer, format *Format, colorizer Colorizer) *Te
 }
 
 func (f *TextFormatter) NewChild() Formatter {
-	child, ok := jsonFormatterPool.Get().(*TextFormatter)
+	child, ok := textFormatterPool.Get().(*TextFormatter)
 	if ok {
 		child.writer = f.writer
 		child.format = f.format
@@ -48,14 +43,17 @@ func (f *TextFormatter) NewChild() Formatter {
 	return child
 }
 
-func (f *TextFormatter) WriteMsg(t time.Time, level Level, msg string) {
+func (f *TextFormatter) WriteMsg(t time.Time, levels *Levels, level Level, msg string) {
 	// Write timestamp
 	timestamp := t.Format(f.format.TimestampFormat)
 	f.buf = append(f.buf, f.colorizer.ColorizeTimestamp(timestamp)...)
 	f.buf = append(f.buf, ' ')
 
 	// Write level
-	str := f.colorizer.ColorizeLevel(f.format.Levels.Name(level))
+	if min, max := levels.NameLenRange(); min != max {
+		levels = levels.CopyWithRightPaddedNames() // TODO optimize performance
+	}
+	str := f.colorizer.ColorizeLevel(levels.Name(level))
 	f.buf = append(f.buf, '|')
 	f.buf = append(f.buf, str...)
 	f.buf = append(f.buf, '|')
@@ -91,6 +89,7 @@ func (f *TextFormatter) FlushAndFree() {
 	// Free
 	f.parent = nil
 	f.writer = nil
+	f.levels = nil
 	f.format = nil
 	f.sliceMode = sliceModeNone
 	f.buf = f.buf[:0]
