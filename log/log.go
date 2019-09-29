@@ -47,6 +47,10 @@ func Context(ctx context.Context) context.Context {
 	return GetLogger().Context(ctx)
 }
 
+func ContextLogger(ctx context.Context) *golog.Logger {
+	return golog.ContextLogger(ctx)
+}
+
 func Fatal(msg string) *golog.Message {
 	return GetLogger().Fatal(msg)
 }

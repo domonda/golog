@@ -8,11 +8,10 @@ import (
 )
 
 type Logger struct {
-	levelFilter  LevelFilter
-	formatter    Formatter
-	hooks        []Hook
-	withMessages []*Message
-	mtx          sync.Mutex
+	levelFilter LevelFilter
+	formatter   Formatter
+	hooks       []Hook
+	mtx         sync.Mutex
 }
 
 func NewLogger(levelFilter LevelFilter, formatters ...Formatter) *Logger {
@@ -34,17 +33,18 @@ func NewLogger(levelFilter LevelFilter, formatters ...Formatter) *Logger {
 	}
 }
 
-func newLoggerWithMessage(message *Message) *Logger {
-	l := message.logger
+func (l *Logger) WithFormatter(formatter Formatter) *Logger {
+	if l == nil {
+		return nil
+	}
 	return &Logger{
-		levelFilter:  l.levelFilter,
-		formatter:    l.formatter,
-		hooks:        l.hooks,
-		withMessages: append(l.withMessages, message),
+		levelFilter: l.levelFilter,
+		formatter:   formatter,
+		hooks:       l.hooks,
 	}
 }
 
-func Context(ctx context.Context) *Logger {
+func ContextLogger(ctx context.Context) *Logger {
 	l, _ := ctx.Value(ctxKey{}).(*Logger)
 	return l
 }

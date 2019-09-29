@@ -41,7 +41,7 @@ func (m *Message) NewLogger() *Logger {
 	if m == nil {
 		return nil
 	}
-	return newLoggerWithMessage(m)
+	return m.logger.WithFormatter(m.formatter.NewChild())
 }
 
 // Loggable lets a value that implements the Loggable log itself
