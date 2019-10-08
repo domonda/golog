@@ -3,6 +3,7 @@ package golog
 import (
 	"fmt"
 	"log"
+	"os"
 )
 
 // LevelWriter writes unstructured messages to a Logger with a fixed Level.
@@ -12,6 +13,7 @@ import (
 type LevelWriter struct {
 	logger *Logger
 	level  Level
+	exit   bool
 }
 
 // Write implements io.Writer
@@ -26,6 +28,9 @@ func (w *LevelWriter) Msg(msg string) {
 		return
 	}
 	w.logger.NewMessage(w.level, msg).Log()
+	if w.exit {
+		os.Exit(1)
+	}
 }
 
 func (w *LevelWriter) Print(v ...interface{}) {
@@ -42,6 +47,9 @@ func (w *LevelWriter) Printf(format string, v ...interface{}) {
 		return
 	}
 	w.logger.NewMessagef(w.level, format, v...).Log()
+	if w.exit {
+		os.Exit(1)
+	}
 }
 
 // Func returns a function with the log.Printf call signature.

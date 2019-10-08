@@ -144,3 +144,27 @@ func LogTrace(msg string) {
 func LogTracef(format string, args ...interface{}) {
 	GetLogger().LogTracef(format, args...)
 }
+
+func LogFatalAndExit(msg string) {
+	GetLogger().LogFatalAndExit(msg)
+}
+
+func LogFatalfAndExit(format string, args ...interface{}) {
+	GetLogger().LogFatalfAndExit(format, args...)
+}
+
+func LogErrorAndExit(msg string) {
+	GetLogger().LogErrorAndExit(msg)
+}
+
+func LogErrorfAndExit(format string, args ...interface{}) {
+	GetLogger().LogErrorfAndExit(format, args...)
+}
+
+func LogWarnAndExit(msg string) {
+	GetLogger().LogWarnAndExit(msg)
+}
+
+func LogWarnfAndExit(format string, args ...interface{}) {
+	GetLogger().LogWarnfAndExit(format, args...)
+}

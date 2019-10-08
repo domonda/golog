@@ -3,6 +3,7 @@ package golog
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"sync"
 )
 
@@ -53,26 +54,45 @@ func (m *Message) Loggable(key string, val Loggable) *Message {
 	return m
 }
 
-// Val logs val as string with the "%v" format of the fmt package
-func (m *Message) Val(key string, val interface{}) *Message {
+// Err logs an error
+func (m *Message) Err(key string, val error) *Message {
 	if m == nil {
 		return nil
 	}
 	m.formatter.WriteKey(key)
-	m.formatter.WriteString(fmt.Sprint(val))
+	m.formatter.WriteString(val.Error())
 	return m
 }
 
-// Val logs vals as string array with the "%v" format of the fmt package
-func (m *Message) Vals(key string, vals []interface{}) *Message {
+// Val logs val with the best matching typed log method
+// or uses Print if none was found.
+func (m *Message) Val(key string, val interface{}) *Message {
 	if m == nil {
 		return nil
 	}
-	m.formatter.WriteSliceKey(key)
-	for _, val := range vals {
-		m.formatter.WriteString(fmt.Sprint(val))
+
+	// TODO: detect type and call matching method
+
+	return m.Print(key, val)
+}
+
+// Print logs vals as string with the "%v" format of the fmt package.
+// If only one value is passed for vals, then it will be logged as single string,
+// else a slice of strings will be logged for vals.
+func (m *Message) Print(key string, vals ...interface{}) *Message {
+	if m == nil {
+		return nil
 	}
-	m.formatter.WriteSliceEnd()
+	if len(vals) == 1 {
+		m.formatter.WriteKey(key)
+		m.formatter.WriteString(fmt.Sprint(vals...))
+	} else {
+		m.formatter.WriteSliceKey(key)
+		for _, val := range vals {
+			m.formatter.WriteString(fmt.Sprint(val))
+		}
+		m.formatter.WriteSliceEnd()
+	}
 	return m
 }
 
@@ -97,7 +117,17 @@ func (m *Message) Ints(key string, vals []int) *Message {
 	return m
 }
 
-func (m *Message) Float64(key string, val float64) *Message {
+func (m *Message) Float32(key string, val float32) *Message {
+	if m == nil {
+		return nil
+	}
+	m.formatter.WriteKey(key)
+	m.formatter.WriteFloat(float64(val))
+	return m
+}
+
+// Float is not called Float64 on purpose
+func (m *Message) Float(key string, val float64) *Message {
 	if m == nil {
 		return nil
 	}
@@ -112,6 +142,18 @@ func (m *Message) Str(key, val string) *Message {
 	}
 	m.formatter.WriteKey(key)
 	m.formatter.WriteString(val)
+	return m
+}
+
+func (m *Message) Strs(key string, vals []string) *Message {
+	if m == nil {
+		return nil
+	}
+	m.formatter.WriteSliceKey(key)
+	for _, val := range vals {
+		m.formatter.WriteString(val)
+	}
+	m.formatter.WriteSliceEnd()
 	return m
 }
 
@@ -144,4 +186,9 @@ func (m *Message) Log() {
 	m.formatter = nil
 	m.logger = nil
 	messagePool.Put(m)
+}
+
+func (m *Message) LogAndExit() {
+	m.Log()
+	os.Exit(1)
 }

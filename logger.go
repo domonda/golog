@@ -229,30 +229,54 @@ func (l *Logger) LogTracef(format string, args ...interface{}) {
 	l.NewMessagef(l.levels.Trace, format, args...).Log()
 }
 
-func (l *Logger) NewLevelWriter(level Level) *LevelWriter {
-	return &LevelWriter{logger: l, level: level}
+func (l *Logger) LogFatalAndExit(msg string) {
+	l.NewMessage(l.levels.Fatal, msg).LogAndExit()
+}
+
+func (l *Logger) LogFatalfAndExit(format string, args ...interface{}) {
+	l.NewMessagef(l.levels.Fatal, format, args...).LogAndExit()
+}
+
+func (l *Logger) LogErrorAndExit(msg string) {
+	l.NewMessage(l.levels.Error, msg).LogAndExit()
+}
+
+func (l *Logger) LogErrorfAndExit(format string, args ...interface{}) {
+	l.NewMessagef(l.levels.Error, format, args...).LogAndExit()
+}
+
+func (l *Logger) LogWarnAndExit(msg string) {
+	l.NewMessage(l.levels.Warn, msg).LogAndExit()
+}
+
+func (l *Logger) LogWarnfAndExit(format string, args ...interface{}) {
+	l.NewMessagef(l.levels.Warn, format, args...).LogAndExit()
+}
+
+func (l *Logger) NewLevelWriter(level Level, exit bool) *LevelWriter {
+	return &LevelWriter{logger: l, level: level, exit: exit}
 }
 
 func (l *Logger) FatalWriter() *LevelWriter {
-	return l.NewLevelWriter(l.levels.Fatal)
+	return l.NewLevelWriter(l.levels.Fatal, true)
 }
 
 func (l *Logger) ErrorWriter() *LevelWriter {
-	return l.NewLevelWriter(l.levels.Error)
+	return l.NewLevelWriter(l.levels.Error, true)
 }
 
 func (l *Logger) WarnWriter() *LevelWriter {
-	return l.NewLevelWriter(l.levels.Warn)
+	return l.NewLevelWriter(l.levels.Warn, true)
 }
 
 func (l *Logger) InfoWriter() *LevelWriter {
-	return l.NewLevelWriter(l.levels.Info)
+	return l.NewLevelWriter(l.levels.Info, true)
 }
 
 func (l *Logger) DebugWriter() *LevelWriter {
-	return l.NewLevelWriter(l.levels.Debug)
+	return l.NewLevelWriter(l.levels.Debug, true)
 }
 
 func (l *Logger) TraceWriter() *LevelWriter {
-	return l.NewLevelWriter(l.levels.Trace)
+	return l.NewLevelWriter(l.levels.Trace, true)
 }
