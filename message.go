@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"reflect"
 	"sync"
 )
 
@@ -60,8 +61,69 @@ func (m *Message) Err(key string, val error) *Message {
 		return nil
 	}
 	m.formatter.WriteKey(key)
-	m.formatter.WriteString(val.Error())
+	m.formatter.WriteString(val.Error()) // TODO specialized WriteError ?
 	return m
+}
+
+func (m *Message) Errs(key string, vals []error) *Message {
+	if m == nil {
+		return nil
+	}
+	m.formatter.WriteSliceKey(key)
+	for _, val := range vals {
+		m.formatter.WriteString(val.Error())
+	}
+	m.formatter.WriteSliceEnd()
+	return m
+}
+
+func (m *Message) writeVal(key string, val interface{}) {
+	m.formatter.WriteKey(key)
+
+	if l, ok := val.(Loggable); ok {
+		l.LogMessage(m, key)
+	}
+
+	v := reflect.ValueOf(val)
+	for v.Kind() == reflect.Ptr && !v.IsNil() {
+		v = v.Elem()
+		val = v.Interface()
+	}
+
+	switch x := val.(type) {
+	case Loggable:
+		x.LogMessage(m, key)
+	case bool:
+		m.formatter.WriteBool(x)
+	case int:
+		m.formatter.WriteInt(int64(x))
+	case int8:
+		m.formatter.WriteInt(int64(x))
+	case int16:
+		m.formatter.WriteInt(int64(x))
+	case int32:
+		m.formatter.WriteInt(int64(x))
+	case int64:
+		m.formatter.WriteInt(x)
+	case uint:
+		m.formatter.WriteUint(uint64(x))
+	case uint8:
+		m.formatter.WriteUint(uint64(x))
+	case uint16:
+		m.formatter.WriteUint(uint64(x))
+	case uint32:
+		m.formatter.WriteUint(uint64(x))
+	case uint64:
+		m.formatter.WriteUint(x)
+	case string:
+		m.formatter.WriteString(x)
+	case error:
+		m.formatter.WriteString(x.Error())
+	case nil:
+		m.formatter.WriteString("<nil>") // TODO add a special WriteNil ?
+	default:
+		m.formatter.WriteString(fmt.Sprint(val))
+	}
 }
 
 // Val logs val with the best matching typed log method
@@ -70,10 +132,20 @@ func (m *Message) Val(key string, val interface{}) *Message {
 	if m == nil {
 		return nil
 	}
+	m.writeVal(key, val)
+	return m
+}
 
-	// TODO: detect type and call matching method
-
-	return m.Print(key, val)
+func (m *Message) Vals(key string, vals []interface{}) *Message {
+	if m == nil {
+		return nil
+	}
+	m.formatter.WriteSliceKey(key)
+	for _, val := range vals {
+		m.writeVal("", val) // TODO do we want empty string?
+	}
+	m.formatter.WriteSliceEnd()
+	return m
 }
 
 // Print logs vals as string with the "%v" format of the fmt package.
@@ -93,6 +165,27 @@ func (m *Message) Print(key string, vals ...interface{}) *Message {
 		}
 		m.formatter.WriteSliceEnd()
 	}
+	return m
+}
+
+func (m *Message) Bool(key string, val bool) *Message {
+	if m == nil {
+		return nil
+	}
+	m.formatter.WriteKey(key)
+	m.formatter.WriteBool(val)
+	return m
+}
+
+func (m *Message) Bools(key string, vals []bool) *Message {
+	if m == nil {
+		return nil
+	}
+	m.formatter.WriteSliceKey(key)
+	for _, val := range vals {
+		m.formatter.WriteBool(val)
+	}
+	m.formatter.WriteSliceEnd()
 	return m
 }
 
@@ -117,12 +210,213 @@ func (m *Message) Ints(key string, vals []int) *Message {
 	return m
 }
 
+func (m *Message) Int8(key string, val int8) *Message {
+	if m == nil {
+		return nil
+	}
+	m.formatter.WriteKey(key)
+	m.formatter.WriteInt(int64(val))
+	return m
+}
+
+func (m *Message) Int8s(key string, vals []int8) *Message {
+	if m == nil {
+		return nil
+	}
+	m.formatter.WriteSliceKey(key)
+	for _, val := range vals {
+		m.formatter.WriteInt(int64(val))
+	}
+	m.formatter.WriteSliceEnd()
+	return m
+}
+
+func (m *Message) Int16(key string, val int16) *Message {
+	if m == nil {
+		return nil
+	}
+	m.formatter.WriteKey(key)
+	m.formatter.WriteInt(int64(val))
+	return m
+}
+
+func (m *Message) Int16s(key string, vals []int16) *Message {
+	if m == nil {
+		return nil
+	}
+	m.formatter.WriteSliceKey(key)
+	for _, val := range vals {
+		m.formatter.WriteInt(int64(val))
+	}
+	m.formatter.WriteSliceEnd()
+	return m
+}
+
+func (m *Message) Int32(key string, val int32) *Message {
+	if m == nil {
+		return nil
+	}
+	m.formatter.WriteKey(key)
+	m.formatter.WriteInt(int64(val))
+	return m
+}
+
+func (m *Message) Int32s(key string, vals []int32) *Message {
+	if m == nil {
+		return nil
+	}
+	m.formatter.WriteSliceKey(key)
+	for _, val := range vals {
+		m.formatter.WriteInt(int64(val))
+	}
+	m.formatter.WriteSliceEnd()
+	return m
+}
+
+func (m *Message) Int64(key string, val int64) *Message {
+	if m == nil {
+		return nil
+	}
+	m.formatter.WriteKey(key)
+	m.formatter.WriteInt(val)
+	return m
+}
+
+func (m *Message) Int64s(key string, vals []int64) *Message {
+	if m == nil {
+		return nil
+	}
+	m.formatter.WriteSliceKey(key)
+	for _, val := range vals {
+		m.formatter.WriteInt(val)
+	}
+	m.formatter.WriteSliceEnd()
+	return m
+}
+
+func (m *Message) Uint(key string, val uint) *Message {
+	if m == nil {
+		return nil
+	}
+	m.formatter.WriteKey(key)
+	m.formatter.WriteUint(uint64(val))
+	return m
+}
+
+func (m *Message) Uints(key string, vals []uint) *Message {
+	if m == nil {
+		return nil
+	}
+	m.formatter.WriteSliceKey(key)
+	for _, val := range vals {
+		m.formatter.WriteUint(uint64(val))
+	}
+	m.formatter.WriteSliceEnd()
+	return m
+}
+
+func (m *Message) Uint8(key string, val uint8) *Message {
+	if m == nil {
+		return nil
+	}
+	m.formatter.WriteKey(key)
+	m.formatter.WriteUint(uint64(val))
+	return m
+}
+
+func (m *Message) Uint8s(key string, vals []uint8) *Message {
+	if m == nil {
+		return nil
+	}
+	m.formatter.WriteSliceKey(key)
+	for _, val := range vals {
+		m.formatter.WriteUint(uint64(val))
+	}
+	m.formatter.WriteSliceEnd()
+	return m
+}
+
+func (m *Message) Uint16(key string, val uint16) *Message {
+	if m == nil {
+		return nil
+	}
+	m.formatter.WriteKey(key)
+	m.formatter.WriteUint(uint64(val))
+	return m
+}
+
+func (m *Message) Uint16s(key string, vals []uint16) *Message {
+	if m == nil {
+		return nil
+	}
+	m.formatter.WriteSliceKey(key)
+	for _, val := range vals {
+		m.formatter.WriteUint(uint64(val))
+	}
+	m.formatter.WriteSliceEnd()
+	return m
+}
+
+func (m *Message) Uint32(key string, val uint32) *Message {
+	if m == nil {
+		return nil
+	}
+	m.formatter.WriteKey(key)
+	m.formatter.WriteUint(uint64(val))
+	return m
+}
+
+func (m *Message) Uint32s(key string, vals []uint32) *Message {
+	if m == nil {
+		return nil
+	}
+	m.formatter.WriteSliceKey(key)
+	for _, val := range vals {
+		m.formatter.WriteUint(uint64(val))
+	}
+	m.formatter.WriteSliceEnd()
+	return m
+}
+
+func (m *Message) Uint64(key string, val uint64) *Message {
+	if m == nil {
+		return nil
+	}
+	m.formatter.WriteKey(key)
+	m.formatter.WriteUint(val)
+	return m
+}
+
+func (m *Message) Uint64s(key string, vals []uint64) *Message {
+	if m == nil {
+		return nil
+	}
+	m.formatter.WriteSliceKey(key)
+	for _, val := range vals {
+		m.formatter.WriteUint(val)
+	}
+	m.formatter.WriteSliceEnd()
+	return m
+}
+
 func (m *Message) Float32(key string, val float32) *Message {
 	if m == nil {
 		return nil
 	}
 	m.formatter.WriteKey(key)
 	m.formatter.WriteFloat(float64(val))
+	return m
+}
+
+func (m *Message) Float32s(key string, vals []float32) *Message {
+	if m == nil {
+		return nil
+	}
+	m.formatter.WriteSliceKey(key)
+	for _, val := range vals {
+		m.formatter.WriteFloat(float64(val))
+	}
+	m.formatter.WriteSliceEnd()
 	return m
 }
 
@@ -133,6 +427,18 @@ func (m *Message) Float(key string, val float64) *Message {
 	}
 	m.formatter.WriteKey(key)
 	m.formatter.WriteFloat(val)
+	return m
+}
+
+func (m *Message) Floats(key string, vals []float64) *Message {
+	if m == nil {
+		return nil
+	}
+	m.formatter.WriteSliceKey(key)
+	for _, val := range vals {
+		m.formatter.WriteFloat(val)
+	}
+	m.formatter.WriteSliceEnd()
 	return m
 }
 
@@ -163,6 +469,18 @@ func (m *Message) UUID(key string, val [16]byte) *Message {
 	}
 	m.formatter.WriteKey(key)
 	m.formatter.WriteUUID(val)
+	return m
+}
+
+func (m *Message) UUIDs(key string, vals [][16]byte) *Message {
+	if m == nil {
+		return nil
+	}
+	m.formatter.WriteSliceKey(key)
+	for _, val := range vals {
+		m.formatter.WriteUUID(val)
+	}
+	m.formatter.WriteSliceEnd()
 	return m
 }
 
