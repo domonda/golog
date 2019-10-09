@@ -10,6 +10,7 @@ type Colorizer interface {
 	ColorizeUint(string) string
 	ColorizeFloat(string) string
 	ColorizeString(string) string
+	ColorizeError(string) string
 	ColorizeUUID(string) string
 	ColorizeTimestamp(string) string
 	ColorizeLevel(string) string
@@ -29,6 +30,7 @@ func (noColorizer) ColorizeInt(str string) string       { return str }
 func (noColorizer) ColorizeUint(str string) string      { return str }
 func (noColorizer) ColorizeFloat(str string) string     { return str }
 func (noColorizer) ColorizeString(str string) string    { return str }
+func (noColorizer) ColorizeError(str string) string     { return str }
 func (noColorizer) ColorizeUUID(str string) string      { return str }
 func (noColorizer) ColorizeTimestamp(str string) string { return str }
 func (noColorizer) ColorizeLevel(str string) string     { return str }
@@ -42,6 +44,7 @@ type ConsoleColorizer struct {
 	UintColor      *color.Color
 	FloatColor     *color.Color
 	StringColor    *color.Color
+	ErrorColor     *color.Color
 	UUIDColor      *color.Color
 	TimespampColor *color.Color
 	LevelColor     *color.Color
@@ -95,6 +98,13 @@ func (c *ConsoleColorizer) ColorizeString(str string) string {
 		return str
 	}
 	return c.StringColor.Sprint(str)
+}
+
+func (c *ConsoleColorizer) ColorizeError(str string) string {
+	if c.ErrorColor == nil {
+		return str
+	}
+	return c.ErrorColor.Sprint(str)
 }
 
 func (c *ConsoleColorizer) ColorizeUUID(str string) string {

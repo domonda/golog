@@ -165,6 +165,12 @@ func (f *TextFormatter) WriteString(val string) {
 	f.buf = append(f.buf, str...)
 }
 
+func (f *TextFormatter) WriteError(val error) {
+	f.writeSliceSep()
+	str := f.colorizer.ColorizeError(strconv.Quote(val.Error()))
+	f.buf = append(f.buf, str...)
+}
+
 // func (f *TextFormatter) WriteBytes(val []byte) {
 // 	f.writeSliceSep()
 // 	hexVal := make([]byte, len(val)*2+2)

@@ -100,6 +100,12 @@ func (mf MultiFormatter) WriteString(val string) {
 	}
 }
 
+func (mf MultiFormatter) WriteError(val error) {
+	for _, f := range mf {
+		f.WriteError(val)
+	}
+}
+
 func (mf MultiFormatter) WriteUUID(val [16]byte) {
 	for _, f := range mf {
 		f.WriteUUID(val)

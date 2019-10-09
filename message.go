@@ -61,7 +61,7 @@ func (m *Message) Err(key string, val error) *Message {
 		return nil
 	}
 	m.formatter.WriteKey(key)
-	m.formatter.WriteString(val.Error()) // TODO specialized WriteError ?
+	m.formatter.WriteError(val)
 	return m
 }
 
@@ -71,7 +71,7 @@ func (m *Message) Errs(key string, vals []error) *Message {
 	}
 	m.formatter.WriteSliceKey(key)
 	for _, val := range vals {
-		m.formatter.WriteString(val.Error())
+		m.formatter.WriteError(val)
 	}
 	m.formatter.WriteSliceEnd()
 	return m
@@ -118,7 +118,7 @@ func (m *Message) writeVal(key string, val interface{}) {
 	case string:
 		m.formatter.WriteString(x)
 	case error:
-		m.formatter.WriteString(x.Error())
+		m.formatter.WriteError(x)
 	case nil:
 		m.formatter.WriteString("<nil>") // TODO add a special WriteNil ?
 	default:

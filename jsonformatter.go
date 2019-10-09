@@ -124,6 +124,10 @@ func (f *JSONFormatter) WriteString(val string) {
 	f.buf = encjson.AppendString(f.buf, val)
 }
 
+func (f *JSONFormatter) WriteError(val error) {
+	f.buf = encjson.AppendString(f.buf, val.Error())
+}
+
 func (f *JSONFormatter) WriteUUID(val [16]byte) {
 	f.buf = encjson.AppendUUID(f.buf, val)
 }
