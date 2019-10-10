@@ -1,6 +1,7 @@
 package golog
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -43,7 +44,7 @@ func (m *Message) NewLogger() *Logger {
 	if m == nil {
 		return nil
 	}
-	return m.logger.WithFormatter(m.formatter.NewChild())
+	return m.logger.newWithFormatter(m.formatter.NewChild())
 }
 
 // Loggable lets a value that implements the Loggable log itself
@@ -53,6 +54,13 @@ func (m *Message) Loggable(key string, val Loggable) *Message {
 	}
 	val.LogMessage(m, key)
 	return m
+}
+
+func (m *Message) With(writeFunc func(*Message) *Message) *Message {
+	if m == nil {
+		return nil
+	}
+	return writeFunc(m)
 }
 
 // Err logs an error
@@ -488,10 +496,13 @@ func (m *Message) JSON(key string, val []byte) *Message {
 	if m == nil {
 		return nil
 	}
-
-	if json.Valid(val) {
-		m.formatter.WriteKey(key)
-		m.formatter.WriteJSON(val)
+	buf := bytes.NewBuffer(make([]byte, 0, len(val)))
+	err := json.Compact(buf, val)
+	m.formatter.WriteKey(key)
+	if err == nil {
+		m.formatter.WriteJSON(buf.Bytes())
+	} else {
+		m.formatter.WriteJSON(nil)
 	}
 	return m
 }

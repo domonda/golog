@@ -31,7 +31,7 @@ func NewLogger(levels *Levels, levelFilter LevelFilter, formatters ...Formatter)
 	return l
 }
 
-func (l *Logger) WithFormatter(formatter Formatter) *Logger {
+func (l *Logger) newWithFormatter(formatter Formatter) *Logger {
 	if l == nil {
 		return nil
 	}
@@ -77,6 +77,30 @@ func (l *Logger) SetLevelFilter(filter LevelFilter) {
 
 func (l *Logger) GetLevels() *Levels {
 	return l.levels
+}
+
+func (l *Logger) GetLevelFatal() Level {
+	return l.levels.Fatal
+}
+
+func (l *Logger) GetLevelError() Level {
+	return l.levels.Error
+}
+
+func (l *Logger) GetLevelWarn() Level {
+	return l.levels.Warn
+}
+
+func (l *Logger) GetLevelInfo() Level {
+	return l.levels.Info
+}
+
+func (l *Logger) GetLevelDebug() Level {
+	return l.levels.Debug
+}
+
+func (l *Logger) GetLevelTrace() Level {
+	return l.levels.Trace
 }
 
 func (l *Logger) GetLevelFilter() LevelFilter {
