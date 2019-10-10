@@ -25,6 +25,6 @@ func ExampleJSONFormatter() {
 	log.NewMessageAt(t, log.GetLevels().Error, "This is an error").Log()
 
 	// Output:
-	// {"time":"2006-01-02 15:04:05","level":"INFO","msg":"My log message","int":66,"str":"Hello\tWorld!\n"}
-	// {"time":"2006-01-02 15:04:05","level":"ERROR","msg":"This is an error"}
+	// {"time":"2006-01-02 15:04:05","level":"INFO","msg":"My log message","int":66,"str":"Hello\tWorld!\n"},
+	// {"time":"2006-01-02 15:04:05","level":"ERROR","msg":"This is an error"},
 }
