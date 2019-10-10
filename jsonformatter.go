@@ -72,7 +72,7 @@ func (f *JSONFormatter) appendParent(buf []byte) []byte {
 
 func (f *JSONFormatter) FlushAndFree() {
 	// Flush
-	f.buf = append(f.buf, '}', '\n')
+	f.buf = append(f.buf, '}', ',', '\n')
 	_, err := f.writer.Write(f.buf)
 	if err != nil && ErrorHandler != nil {
 		ErrorHandler(fmt.Errorf("golog.JSONFormatter error: %w", err))
@@ -133,5 +133,8 @@ func (f *JSONFormatter) WriteUUID(val [16]byte) {
 }
 
 func (f *JSONFormatter) WriteJSON(val []byte) {
+	if len(val) == 0 {
+		val = []byte("null")
+	}
 	f.buf = append(f.buf, val...)
 }
