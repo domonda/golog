@@ -4,6 +4,7 @@ import "github.com/fatih/color"
 
 type Colorizer interface {
 	ColorizeKey(string) string
+	ColorizeNil(string) string
 	ColorizeTrue(string) string
 	ColorizeFalse(string) string
 	ColorizeInt(string) string
@@ -24,6 +25,7 @@ var _ Colorizer = noColorizer(0) // make sure noColorizer implements Colorizer
 type noColorizer int
 
 func (noColorizer) ColorizeKey(str string) string       { return str }
+func (noColorizer) ColorizeNil(str string) string       { return str }
 func (noColorizer) ColorizeTrue(str string) string      { return str }
 func (noColorizer) ColorizeFalse(str string) string     { return str }
 func (noColorizer) ColorizeInt(str string) string       { return str }
@@ -38,6 +40,7 @@ func (noColorizer) ColorizeMsg(str string) string       { return str }
 
 type ConsoleColorizer struct {
 	KeyColor       *color.Color
+	NilColor       *color.Color
 	TrueColor      *color.Color
 	FalseColor     *color.Color
 	IntColor       *color.Color
@@ -56,6 +59,13 @@ func (c *ConsoleColorizer) ColorizeKey(str string) string {
 		return str
 	}
 	return c.KeyColor.Sprint(str)
+}
+
+func (c *ConsoleColorizer) ColorizeNil(str string) string {
+	if c.NilColor == nil {
+		return str
+	}
+	return c.NilColor.Sprint(str)
 }
 
 func (c *ConsoleColorizer) ColorizeTrue(str string) string {

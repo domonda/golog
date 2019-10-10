@@ -16,9 +16,11 @@ type Formatter interface {
 	WriteSliceKey(key string)
 	WriteSliceEnd()
 
+	WriteNil()
 	WriteBool(val bool)
 	WriteInt(val int64)
 	WriteUint(val uint64)
+	// WritePtr(val uintptr)
 	WriteFloat(val float64)
 	WriteString(val string)
 	WriteError(val error)

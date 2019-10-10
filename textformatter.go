@@ -130,6 +130,12 @@ func (f *TextFormatter) writeSliceSep() {
 	}
 }
 
+func (f *TextFormatter) WriteNil() {
+	f.writeSliceSep()
+	str := f.colorizer.ColorizeString("nil")
+	f.buf = append(f.buf, str...)
+}
+
 func (f *TextFormatter) WriteBool(val bool) {
 	f.writeSliceSep()
 	var str string

@@ -70,6 +70,12 @@ func (mf MultiFormatter) WriteSliceEnd() {
 	}
 }
 
+func (mf MultiFormatter) WriteNil() {
+	for _, f := range mf {
+		f.WriteNil()
+	}
+}
+
 func (mf MultiFormatter) WriteBool(val bool) {
 	for _, f := range mf {
 		f.WriteBool(val)

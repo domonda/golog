@@ -21,6 +21,7 @@ func writeMessage(message *Message) *Message {
 	}
 
 	return message.
+		Nil("Nil").
 		Bool("True", true).
 		Bool("False", false).
 		Bools("Bools", []bool{true, false, true}).
@@ -61,6 +62,7 @@ func writeMessage(message *Message) *Message {
 }
 
 const exptectedTextMessage = `2006-01-02 15:04:05 |INFO | My log message ` +
+	`Nil=nil ` +
 	`True=true ` +
 	`False=false ` +
 	`Bools=[true,false,true] ` +
@@ -102,6 +104,7 @@ const exptectedTextMessage = `2006-01-02 15:04:05 |INFO | My log message ` +
 
 const exptectedJSONMessage = `{` +
 	`"time":"2006-01-02 15:04:05","level":"INFO","message":"My log message",` +
+	`"Nil":null,` +
 	`"True":true,` +
 	`"False":false,` +
 	`"Bools":[true,false,true],` +

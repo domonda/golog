@@ -104,6 +104,10 @@ func (f *JSONFormatter) WriteSliceEnd() {
 	f.buf = encjson.AppendArrayEnd(f.buf)
 }
 
+func (f *JSONFormatter) WriteNil() {
+	f.buf = encjson.AppendNull(f.buf)
+}
+
 func (f *JSONFormatter) WriteBool(val bool) {
 	f.buf = encjson.AppendBool(f.buf, val)
 }

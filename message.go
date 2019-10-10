@@ -128,7 +128,7 @@ func (m *Message) writeVal(key string, val interface{}) {
 	case error:
 		m.formatter.WriteError(x)
 	case nil:
-		m.formatter.WriteString("<nil>") // TODO add a special WriteNil ?
+		m.formatter.WriteNil()
 	default:
 		m.formatter.WriteString(fmt.Sprint(val))
 	}
@@ -176,12 +176,34 @@ func (m *Message) Print(key string, vals ...interface{}) *Message {
 	return m
 }
 
+func (m *Message) Nil(key string) *Message {
+	if m == nil {
+		return nil
+	}
+	m.formatter.WriteKey(key)
+	m.formatter.WriteNil()
+	return m
+}
+
 func (m *Message) Bool(key string, val bool) *Message {
 	if m == nil {
 		return nil
 	}
 	m.formatter.WriteKey(key)
 	m.formatter.WriteBool(val)
+	return m
+}
+
+func (m *Message) BoolPtr(key string, val *bool) *Message {
+	if m == nil {
+		return nil
+	}
+	m.formatter.WriteKey(key)
+	if val != nil {
+		m.formatter.WriteBool(*val)
+	} else {
+		m.formatter.WriteNil()
+	}
 	return m
 }
 
@@ -206,6 +228,19 @@ func (m *Message) Int(key string, val int) *Message {
 	return m
 }
 
+func (m *Message) IntPtr(key string, val *int) *Message {
+	if m == nil {
+		return nil
+	}
+	m.formatter.WriteKey(key)
+	if val != nil {
+		m.formatter.WriteInt(int64(*val))
+	} else {
+		m.formatter.WriteNil()
+	}
+	return m
+}
+
 func (m *Message) Ints(key string, vals []int) *Message {
 	if m == nil {
 		return nil
@@ -224,6 +259,19 @@ func (m *Message) Int8(key string, val int8) *Message {
 	}
 	m.formatter.WriteKey(key)
 	m.formatter.WriteInt(int64(val))
+	return m
+}
+
+func (m *Message) Int8Ptr(key string, val *int8) *Message {
+	if m == nil {
+		return nil
+	}
+	m.formatter.WriteKey(key)
+	if val != nil {
+		m.formatter.WriteInt(int64(*val))
+	} else {
+		m.formatter.WriteNil()
+	}
 	return m
 }
 
@@ -248,6 +296,19 @@ func (m *Message) Int16(key string, val int16) *Message {
 	return m
 }
 
+func (m *Message) Int16Ptr(key string, val *int16) *Message {
+	if m == nil {
+		return nil
+	}
+	m.formatter.WriteKey(key)
+	if val != nil {
+		m.formatter.WriteInt(int64(*val))
+	} else {
+		m.formatter.WriteNil()
+	}
+	return m
+}
+
 func (m *Message) Int16s(key string, vals []int16) *Message {
 	if m == nil {
 		return nil
@@ -266,6 +327,19 @@ func (m *Message) Int32(key string, val int32) *Message {
 	}
 	m.formatter.WriteKey(key)
 	m.formatter.WriteInt(int64(val))
+	return m
+}
+
+func (m *Message) Int32Ptr(key string, val *int32) *Message {
+	if m == nil {
+		return nil
+	}
+	m.formatter.WriteKey(key)
+	if val != nil {
+		m.formatter.WriteInt(int64(*val))
+	} else {
+		m.formatter.WriteNil()
+	}
 	return m
 }
 
@@ -290,6 +364,19 @@ func (m *Message) Int64(key string, val int64) *Message {
 	return m
 }
 
+func (m *Message) Int64Ptr(key string, val *int64) *Message {
+	if m == nil {
+		return nil
+	}
+	m.formatter.WriteKey(key)
+	if val != nil {
+		m.formatter.WriteInt(*val)
+	} else {
+		m.formatter.WriteNil()
+	}
+	return m
+}
+
 func (m *Message) Int64s(key string, vals []int64) *Message {
 	if m == nil {
 		return nil
@@ -308,6 +395,19 @@ func (m *Message) Uint(key string, val uint) *Message {
 	}
 	m.formatter.WriteKey(key)
 	m.formatter.WriteUint(uint64(val))
+	return m
+}
+
+func (m *Message) UintPtr(key string, val *uint) *Message {
+	if m == nil {
+		return nil
+	}
+	m.formatter.WriteKey(key)
+	if val != nil {
+		m.formatter.WriteUint(uint64(*val))
+	} else {
+		m.formatter.WriteNil()
+	}
 	return m
 }
 
@@ -332,6 +432,19 @@ func (m *Message) Uint8(key string, val uint8) *Message {
 	return m
 }
 
+func (m *Message) Uint8Ptr(key string, val *uint8) *Message {
+	if m == nil {
+		return nil
+	}
+	m.formatter.WriteKey(key)
+	if val != nil {
+		m.formatter.WriteUint(uint64(*val))
+	} else {
+		m.formatter.WriteNil()
+	}
+	return m
+}
+
 func (m *Message) Uint8s(key string, vals []uint8) *Message {
 	if m == nil {
 		return nil
@@ -350,6 +463,19 @@ func (m *Message) Uint16(key string, val uint16) *Message {
 	}
 	m.formatter.WriteKey(key)
 	m.formatter.WriteUint(uint64(val))
+	return m
+}
+
+func (m *Message) Uint16Ptr(key string, val *uint16) *Message {
+	if m == nil {
+		return nil
+	}
+	m.formatter.WriteKey(key)
+	if val != nil {
+		m.formatter.WriteUint(uint64(*val))
+	} else {
+		m.formatter.WriteNil()
+	}
 	return m
 }
 
@@ -374,6 +500,19 @@ func (m *Message) Uint32(key string, val uint32) *Message {
 	return m
 }
 
+func (m *Message) Uint32Ptr(key string, val *uint32) *Message {
+	if m == nil {
+		return nil
+	}
+	m.formatter.WriteKey(key)
+	if val != nil {
+		m.formatter.WriteUint(uint64(*val))
+	} else {
+		m.formatter.WriteNil()
+	}
+	return m
+}
+
 func (m *Message) Uint32s(key string, vals []uint32) *Message {
 	if m == nil {
 		return nil
@@ -395,6 +534,19 @@ func (m *Message) Uint64(key string, val uint64) *Message {
 	return m
 }
 
+func (m *Message) Uint64Ptr(key string, val *uint64) *Message {
+	if m == nil {
+		return nil
+	}
+	m.formatter.WriteKey(key)
+	if val != nil {
+		m.formatter.WriteUint(*val)
+	} else {
+		m.formatter.WriteNil()
+	}
+	return m
+}
+
 func (m *Message) Uint64s(key string, vals []uint64) *Message {
 	if m == nil {
 		return nil
@@ -413,6 +565,19 @@ func (m *Message) Float32(key string, val float32) *Message {
 	}
 	m.formatter.WriteKey(key)
 	m.formatter.WriteFloat(float64(val))
+	return m
+}
+
+func (m *Message) Float32Ptr(key string, val *float32) *Message {
+	if m == nil {
+		return nil
+	}
+	m.formatter.WriteKey(key)
+	if val != nil {
+		m.formatter.WriteFloat(float64(*val))
+	} else {
+		m.formatter.WriteNil()
+	}
 	return m
 }
 
@@ -438,6 +603,19 @@ func (m *Message) Float(key string, val float64) *Message {
 	return m
 }
 
+func (m *Message) FloatPtr(key string, val *float64) *Message {
+	if m == nil {
+		return nil
+	}
+	m.formatter.WriteKey(key)
+	if val != nil {
+		m.formatter.WriteFloat(*val)
+	} else {
+		m.formatter.WriteNil()
+	}
+	return m
+}
+
 func (m *Message) Floats(key string, vals []float64) *Message {
 	if m == nil {
 		return nil
@@ -459,6 +637,19 @@ func (m *Message) Str(key, val string) *Message {
 	return m
 }
 
+func (m *Message) StrPtr(key string, val *string) *Message {
+	if m == nil {
+		return nil
+	}
+	m.formatter.WriteKey(key)
+	if val != nil {
+		m.formatter.WriteString(*val)
+	} else {
+		m.formatter.WriteNil()
+	}
+	return m
+}
+
 func (m *Message) Strs(key string, vals []string) *Message {
 	if m == nil {
 		return nil
@@ -477,6 +668,19 @@ func (m *Message) UUID(key string, val [16]byte) *Message {
 	}
 	m.formatter.WriteKey(key)
 	m.formatter.WriteUUID(val)
+	return m
+}
+
+func (m *Message) UUIDPtr(key string, val *[16]byte) *Message {
+	if m == nil {
+		return nil
+	}
+	m.formatter.WriteKey(key)
+	if val != nil {
+		m.formatter.WriteUUID(*val)
+	} else {
+		m.formatter.WriteNil()
+	}
 	return m
 }
 
