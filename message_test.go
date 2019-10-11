@@ -62,7 +62,7 @@ func TestMessage(t *testing.T) {
 	textOutput.Reset()
 	jsonOutput.Reset()
 
-	subLog := log.Record().Str("SuperStr", "SuperStr").Strs("SuperStrs", []string{"A", "B", "C"}).IntPtr("SuperNilInt", nil).NewLogger()
+	subLog := log.With().Str("SuperStr", "SuperStr").Strs("SuperStrs", []string{"A", "B", "C"}).IntPtr("SuperNilInt", nil).NewLogger()
 	for i := 0; i < numLines; i++ {
 		subLog.NewMessageAt(at, log.GetLevelInfo(), "My log message").Exec(writeMessage).Log()
 	}
@@ -74,8 +74,8 @@ func TestMessage(t *testing.T) {
 	textOutput.Reset()
 	jsonOutput.Reset()
 
-	subLog = log.Record().UUID("RequestID", uu.IDMustFromString("62d38a15-8fc2-4520-b768-9d5d08d2c498")).NewLogger()
-	subSubLog := subLog.Record().Str("SuperStr", "SuperStr").Strs("SuperStrs", []string{"A", "B", "C"}).IntPtr("SuperNilInt", nil).NewLogger()
+	subLog = log.With().UUID("RequestID", uu.IDMustFromString("62d38a15-8fc2-4520-b768-9d5d08d2c498")).NewLogger()
+	subSubLog := subLog.With().Str("SuperStr", "SuperStr").Strs("SuperStrs", []string{"A", "B", "C"}).IntPtr("SuperNilInt", nil).NewLogger()
 	for i := 0; i < numLines; i++ {
 		subSubLog.NewMessageAt(at, log.GetLevelInfo(), "My log message").Exec(writeMessage).Log()
 	}

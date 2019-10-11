@@ -31,7 +31,7 @@ func NewLogger(levels *Levels, levelFilter LevelFilter, formatters ...Formatter)
 	return l
 }
 
-func (l *Logger) CloneWithHooks(hooks ...Hook) *Logger {
+func (l *Logger) WithHooks(hooks ...Hook) *Logger {
 	if l == nil {
 		return nil
 	}
@@ -119,12 +119,12 @@ func (l *Logger) IsActive(level Level) bool {
 	return active
 }
 
-// Record returns a new Message that can be used to record
+// With returns a new Message that can be used to record
 // the prefix for a sub-logger.
 //
 // Example:
-//   log := log.Record().Str("requestID", requestID).NewLogger()
-func (l *Logger) Record() *Message {
+//   log := log.With().UUID("requestID", requestID).NewLogger()
+func (l *Logger) With() *Message {
 	if l == nil {
 		return nil
 	}

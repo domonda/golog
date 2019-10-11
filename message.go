@@ -41,7 +41,7 @@ func (m *Message) NewLogger() *Logger {
 	if !ok {
 		panic("golog.Message was not created by Logger.Record()")
 	}
-	return m.logger.CloneWithHooks(recorded.hooks...)
+	return m.logger.WithHooks(recorded.hooks...)
 }
 
 // Loggable lets a value that implements the Loggable log itself
