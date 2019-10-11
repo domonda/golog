@@ -1,7 +1,7 @@
 package golog
 
-// LevelFilterNone allows all log levels.
-const LevelFilterNone LevelFilter = 0
+// AllLevels allows all log levels.
+const AllLevels LevelFilter = 0
 
 // LevelFilter is a bit mask filter for levels 0..63,
 // where a set bit filters out and zero allows a log level.
@@ -17,6 +17,14 @@ func LevelFilterBelow(level Level) LevelFilter {
 
 func LevelFilterExclusive(level Level) LevelFilter {
 	return ^(LevelFilter(1) << level)
+}
+
+func LevelFilterCombine(filters ...LevelFilter) LevelFilter {
+	var combined LevelFilter
+	for _, filter := range filters {
+		combined |= filter
+	}
+	return combined
 }
 
 func (f LevelFilter) IsActive(level Level) bool {

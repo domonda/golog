@@ -25,14 +25,14 @@ var (
 	loggerMtx sync.Mutex
 )
 
-func GetLogger() *golog.Logger {
+func Logger() *golog.Logger {
 	loggerMtx.Lock()
+	defer loggerMtx.Unlock()
+
 	if logger == nil {
-		logger = golog.NewLogger(Levels, LevelFilter, Formatter)
+		logger = golog.NewLogger(golog.NewConfig(Levels, LevelFilter, Formatter))
 	}
-	l := logger
-	loggerMtx.Unlock()
-	return l
+	return logger
 }
 
 func SetLogger(l *golog.Logger) {
@@ -42,129 +42,129 @@ func SetLogger(l *golog.Logger) {
 }
 
 func Context(ctx context.Context) context.Context {
-	return GetLogger().Context(ctx)
+	return Logger().Context(ctx)
 }
 
 func ContextLogger(ctx context.Context) *golog.Logger {
 	return golog.ContextLogger(ctx)
 }
 
-func Fatal(msg string) *golog.Message {
-	return GetLogger().Fatal(msg)
+func Fatal(text string) *golog.Message {
+	return Logger().Fatal(text)
 }
 
 func Fatalf(format string, args ...interface{}) *golog.Message {
-	return GetLogger().Fatalf(format, args...)
+	return Logger().Fatalf(format, args...)
 }
 
-func Error(msg string) *golog.Message {
-	return GetLogger().Error(msg)
+func Error(text string) *golog.Message {
+	return Logger().Error(text)
 }
 
 func Errorf(format string, args ...interface{}) *golog.Message {
-	return GetLogger().Errorf(format, args...)
+	return Logger().Errorf(format, args...)
 }
 
-func Warn(msg string) *golog.Message {
-	return GetLogger().Warn(msg)
+func Warn(text string) *golog.Message {
+	return Logger().Warn(text)
 }
 
 func Warnf(format string, args ...interface{}) *golog.Message {
-	return GetLogger().Warnf(format, args...)
+	return Logger().Warnf(format, args...)
 }
 
-func Info(msg string) *golog.Message {
-	return GetLogger().Info(msg)
+func Info(text string) *golog.Message {
+	return Logger().Info(text)
 }
 
 func Infof(format string, args ...interface{}) *golog.Message {
-	return GetLogger().Infof(format, args...)
+	return Logger().Infof(format, args...)
 }
 
-func Debug(msg string) *golog.Message {
-	return GetLogger().Debug(msg)
+func Debug(text string) *golog.Message {
+	return Logger().Debug(text)
 }
 
 func Debugf(format string, args ...interface{}) *golog.Message {
-	return GetLogger().Debugf(format, args...)
+	return Logger().Debugf(format, args...)
 }
 
-func Trace(msg string) *golog.Message {
-	return GetLogger().Trace(msg)
+func Trace(text string) *golog.Message {
+	return Logger().Trace(text)
 }
 
 func Tracef(format string, args ...interface{}) *golog.Message {
-	return GetLogger().Tracef(format, args...)
+	return Logger().Tracef(format, args...)
 }
 
-func LogFatal(msg string) {
-	GetLogger().LogFatal(msg)
+func LogFatal(text string) {
+	Logger().LogFatal(text)
 }
 
 func LogFatalf(format string, args ...interface{}) {
-	GetLogger().LogFatalf(format, args...)
+	Logger().LogFatalf(format, args...)
 }
 
-func LogError(msg string) {
-	GetLogger().LogError(msg)
+func LogError(text string) {
+	Logger().LogError(text)
 }
 
 func LogErrorf(format string, args ...interface{}) {
-	GetLogger().LogErrorf(format, args...)
+	Logger().LogErrorf(format, args...)
 }
 
-func LogWarn(msg string) {
-	GetLogger().LogWarn(msg)
+func LogWarn(text string) {
+	Logger().LogWarn(text)
 }
 
 func LogWarnf(format string, args ...interface{}) {
-	GetLogger().LogWarnf(format, args...)
+	Logger().LogWarnf(format, args...)
 }
 
-func LogInfo(msg string) {
-	GetLogger().LogInfo(msg)
+func LogInfo(text string) {
+	Logger().LogInfo(text)
 }
 
 func LogInfof(format string, args ...interface{}) {
-	GetLogger().LogInfof(format, args...)
+	Logger().LogInfof(format, args...)
 }
 
-func LogDebug(msg string) {
-	GetLogger().LogDebug(msg)
+func LogDebug(text string) {
+	Logger().LogDebug(text)
 }
 
 func LogDebugf(format string, args ...interface{}) {
-	GetLogger().LogDebugf(format, args...)
+	Logger().LogDebugf(format, args...)
 }
 
-func LogTrace(msg string) {
-	GetLogger().LogTrace(msg)
+func LogTrace(text string) {
+	Logger().LogTrace(text)
 }
 
 func LogTracef(format string, args ...interface{}) {
-	GetLogger().LogTracef(format, args...)
+	Logger().LogTracef(format, args...)
 }
 
-func LogFatalAndExit(msg string) {
-	GetLogger().LogFatalAndExit(msg)
+func LogFatalAndExit(text string) {
+	Logger().LogFatalAndExit(text)
 }
 
 func LogFatalfAndExit(format string, args ...interface{}) {
-	GetLogger().LogFatalfAndExit(format, args...)
+	Logger().LogFatalfAndExit(format, args...)
 }
 
-func LogErrorAndExit(msg string) {
-	GetLogger().LogErrorAndExit(msg)
+func LogErrorAndExit(text string) {
+	Logger().LogErrorAndExit(text)
 }
 
 func LogErrorfAndExit(format string, args ...interface{}) {
-	GetLogger().LogErrorfAndExit(format, args...)
+	Logger().LogErrorfAndExit(format, args...)
 }
 
-func LogWarnAndExit(msg string) {
-	GetLogger().LogWarnAndExit(msg)
+func LogWarnAndExit(text string) {
+	Logger().LogWarnAndExit(text)
 }
 
 func LogWarnfAndExit(format string, args ...interface{}) {
-	GetLogger().LogWarnfAndExit(format, args...)
+	Logger().LogWarnfAndExit(format, args...)
 }

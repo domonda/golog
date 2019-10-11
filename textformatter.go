@@ -39,7 +39,7 @@ func (f *TextFormatter) Clone() Formatter {
 	return NewTextFormatter(f.writer, f.format, f.colorizer)
 }
 
-func (f *TextFormatter) WriteMsg(t time.Time, levels *Levels, level Level, msg string) {
+func (f *TextFormatter) WriteText(t time.Time, levels *Levels, level Level, text string) {
 	// Write timestamp
 	timestamp := t.Format(f.format.TimestampFormat)
 	f.buf = append(f.buf, f.colorizer.ColorizeTimestamp(timestamp)...)
@@ -55,9 +55,9 @@ func (f *TextFormatter) WriteMsg(t time.Time, levels *Levels, level Level, msg s
 	f.buf = append(f.buf, '|')
 
 	// Write message
-	if msg != "" {
+	if text != "" {
 		f.buf = append(f.buf, ' ')
-		f.buf = append(f.buf, f.colorizer.ColorizeMsg(msg)...)
+		f.buf = append(f.buf, f.colorizer.ColorizeMsg(text)...)
 	}
 }
 

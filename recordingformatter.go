@@ -16,7 +16,7 @@ func (r *recordingFormatter) Clone() Formatter {
 	panic("should never happen")
 }
 
-func (r *recordingFormatter) WriteMsg(t time.Time, levels *Levels, level Level, msg string) {
+func (r *recordingFormatter) WriteText(t time.Time, levels *Levels, level Level, text string) {
 	panic("should never happen")
 }
 

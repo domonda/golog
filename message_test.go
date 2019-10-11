@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"io"
 	"math"
 	"strings"
 	"testing"
@@ -14,9 +15,7 @@ import (
 	"github.com/domonda/go-types/uu"
 )
 
-func TestMessage(t *testing.T) {
-	at, _ := time.Parse("2006-01-02 15:04:05", "2006-01-02 15:04:05")
-
+func newTestConfig(textWriter, jsonWriter io.Writer) Config {
 	format := &Format{
 		TimestampFormat: "2006-01-02 15:04:05",
 		TimestampKey:    "time",
@@ -24,17 +23,24 @@ func TestMessage(t *testing.T) {
 		MessageKey:      "message",
 	}
 
+	textFormatter := NewTextFormatter(textWriter, format, NoColorizer)
+	jsonFormatter := NewJSONFormatter(jsonWriter, format)
+
+	return NewConfig(DefaultLevels, AllLevels, textFormatter, jsonFormatter)
+}
+
+func TestMessage(t *testing.T) {
+	at, _ := time.Parse("2006-01-02 15:04:05", "2006-01-02 15:04:05")
+
 	textOutput := bytes.NewBuffer(nil)
-	textFormatter := NewTextFormatter(textOutput, format, NoColorizer)
-
 	jsonOutput := bytes.NewBuffer(nil)
-	jsonFormatter := NewJSONFormatter(jsonOutput, format)
 
-	log := NewLogger(DefaultLevels, LevelFilterNone, textFormatter, jsonFormatter)
+	config := newTestConfig(textOutput, jsonOutput)
+	log := NewLogger(config)
 
 	numLines := 10
 	for i := 0; i < numLines; i++ {
-		log.NewMessageAt(at, log.GetLevelInfo(), "My log message").Exec(writeMessage).Log()
+		log.NewMessageAt(at, config.Info(), "My log message").Exec(writeMessage).Log()
 	}
 
 	checkOutput := func(exptectedTextLine, exptectedJSONLine string) {
@@ -64,7 +70,7 @@ func TestMessage(t *testing.T) {
 
 	subLog := log.With().Str("SuperStr", "SuperStr").Strs("SuperStrs", []string{"A", "B", "C"}).IntPtr("SuperNilInt", nil).NewLogger()
 	for i := 0; i < numLines; i++ {
-		subLog.NewMessageAt(at, log.GetLevelInfo(), "My log message").Exec(writeMessage).Log()
+		subLog.NewMessageAt(at, config.Info(), "My log message").Exec(writeMessage).Log()
 	}
 
 	checkOutput(exptectedTextMessageSub, exptectedJSONMessageSub)
@@ -77,7 +83,7 @@ func TestMessage(t *testing.T) {
 	subLog = log.With().UUID("RequestID", uu.IDMustFromString("62d38a15-8fc2-4520-b768-9d5d08d2c498")).NewLogger()
 	subSubLog := subLog.With().Str("SuperStr", "SuperStr").Strs("SuperStrs", []string{"A", "B", "C"}).IntPtr("SuperNilInt", nil).NewLogger()
 	for i := 0; i < numLines; i++ {
-		subSubLog.NewMessageAt(at, log.GetLevelInfo(), "My log message").Exec(writeMessage).Log()
+		subSubLog.NewMessageAt(at, config.Info(), "My log message").Exec(writeMessage).Log()
 	}
 
 	checkOutput(exptectedTextMessageSubSub, exptectedJSONMessageSubSub)

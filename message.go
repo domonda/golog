@@ -12,20 +12,23 @@ import (
 type Message struct {
 	logger    *Logger
 	formatter Formatter
+	text      string
 }
 
 var messagePool sync.Pool
 
-func newMessage(logger *Logger, formatter Formatter) *Message {
+func newMessage(logger *Logger, formatter Formatter, text string) *Message {
 	if m, ok := messagePool.Get().(*Message); ok {
 		m.logger = logger
 		m.formatter = formatter
+		m.text = text
 		return m
 	}
 
 	return &Message{
 		logger:    logger,
 		formatter: formatter,
+		text:      text,
 	}
 }
 
@@ -709,6 +712,8 @@ func (m *Message) JSON(key string, val []byte) *Message {
 	return m
 }
 
+// Log writes the complete log message
+// and returns the Message to a sync.Pool.
 func (m *Message) Log() {
 	if m == nil {
 		return
@@ -716,10 +721,20 @@ func (m *Message) Log() {
 	m.formatter.FlushAndFree()
 	m.formatter = nil
 	m.logger = nil
+	m.text = ""
 	messagePool.Put(m)
 }
 
+// LogAndExit writes the complete log message
+// and calls os.Exit(1).
 func (m *Message) LogAndExit() {
 	m.Log()
 	os.Exit(1)
+}
+
+// LogAndPanic writes the complete log message
+// and panics with the message text.
+func (m *Message) LogAndPanic() {
+	m.Log()
+	panic(m.text)
 }
