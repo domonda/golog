@@ -5,7 +5,7 @@ import (
 )
 
 type Formatter interface {
-	NewChild() Formatter
+	Clone() Formatter
 	WriteMsg(t time.Time, levels *Levels, level Level, msg string)
 	FlushAndFree()
 
@@ -20,10 +20,10 @@ type Formatter interface {
 	WriteBool(val bool)
 	WriteInt(val int64)
 	WriteUint(val uint64)
-	// WritePtr(val uintptr)
 	WriteFloat(val float64)
 	WriteString(val string)
 	WriteError(val error)
 	WriteUUID(val [16]byte)
 	WriteJSON(val []byte)
+	// WritePtr(val uintptr)
 }

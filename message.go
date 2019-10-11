@@ -11,29 +11,22 @@ import (
 
 type Message struct {
 	logger    *Logger
-	level     Level
 	formatter Formatter
 }
 
 var messagePool sync.Pool
 
-func newMessage(logger *Logger, level Level, formatter Formatter) *Message {
+func newMessage(logger *Logger, formatter Formatter) *Message {
 	if m, ok := messagePool.Get().(*Message); ok {
 		m.logger = logger
-		m.level = level
 		m.formatter = formatter
 		return m
 	}
 
 	return &Message{
 		logger:    logger,
-		level:     level,
 		formatter: formatter,
 	}
-}
-
-func (m *Message) GetLevel() Level {
-	return m.level
 }
 
 func (m *Message) IsActive() bool {
@@ -44,7 +37,11 @@ func (m *Message) NewLogger() *Logger {
 	if m == nil {
 		return nil
 	}
-	return m.logger.newWithFormatter(m.formatter.NewChild())
+	recorded, ok := m.formatter.(*recordingFormatter)
+	if !ok {
+		panic("golog.Message was not created by Logger.Record()")
+	}
+	return m.logger.CloneWithHooks(recorded.hooks...)
 }
 
 // Loggable lets a value that implements the Loggable log itself
@@ -56,11 +53,12 @@ func (m *Message) Loggable(key string, val Loggable) *Message {
 	return m
 }
 
-func (m *Message) With(writeFunc func(*Message) *Message) *Message {
+func (m *Message) Exec(writeFunc func(*Message)) *Message {
 	if m == nil {
 		return nil
 	}
-	return writeFunc(m)
+	writeFunc(m)
+	return m
 }
 
 // Err logs an error

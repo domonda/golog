@@ -31,15 +31,15 @@ func NewLogger(levels *Levels, levelFilter LevelFilter, formatters ...Formatter)
 	return l
 }
 
-func (l *Logger) newWithFormatter(formatter Formatter) *Logger {
+func (l *Logger) CloneWithHooks(hooks ...Hook) *Logger {
 	if l == nil {
 		return nil
 	}
 	return &Logger{
 		levels:      l.levels,
 		levelFilter: l.levelFilter,
-		formatter:   formatter,
-		hooks:       l.hooks,
+		formatter:   l.formatter,
+		hooks:       append(l.hooks, hooks...),
 	}
 }
 
@@ -119,23 +119,23 @@ func (l *Logger) IsActive(level Level) bool {
 	return active
 }
 
-// With returns a new Message that can be used to record
+// Record returns a new Message that can be used to record
 // the prefix for a sub-logger.
 //
 // Example:
-//   log := log.With().Str("requestID", requestID).NewLogger()
-func (l *Logger) With() *Message {
+//   log := log.Record().Str("requestID", requestID).NewLogger()
+func (l *Logger) Record() *Message {
 	if l == nil {
 		return nil
 	}
-	return newMessage(l, LevelInvalid, l.formatter.NewChild())
+	return newMessage(l, new(recordingFormatter))
 }
 
 func (l *Logger) NewMessageAt(t time.Time, level Level, msg string) *Message {
 	if !l.IsActive(level) {
 		return nil
 	}
-	m := newMessage(l, level, l.formatter.NewChild())
+	m := newMessage(l, l.formatter.Clone())
 	m.formatter.WriteMsg(t, l.levels, level, msg)
 	for _, hook := range l.hooks {
 		hook.Log(m)

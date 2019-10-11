@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"math"
+	"strings"
 	"testing"
 	"time"
 
@@ -13,14 +14,87 @@ import (
 	"github.com/domonda/go-types/uu"
 )
 
-func writeMessage(message *Message) *Message {
+func TestMessage(t *testing.T) {
+	at, _ := time.Parse("2006-01-02 15:04:05", "2006-01-02 15:04:05")
+
+	format := &Format{
+		TimestampFormat: "2006-01-02 15:04:05",
+		TimestampKey:    "time",
+		LevelKey:        "level",
+		MessageKey:      "message",
+	}
+
+	textOutput := bytes.NewBuffer(nil)
+	textFormatter := NewTextFormatter(textOutput, format, NoColorizer)
+
+	jsonOutput := bytes.NewBuffer(nil)
+	jsonFormatter := NewJSONFormatter(jsonOutput, format)
+
+	log := NewLogger(DefaultLevels, LevelFilterNone, textFormatter, jsonFormatter)
+
+	numLines := 10
+	for i := 0; i < numLines; i++ {
+		log.NewMessageAt(at, log.GetLevelInfo(), "My log message").Exec(writeMessage).Log()
+	}
+
+	checkOutput := func(exptectedTextLine, exptectedJSONLine string) {
+		textLines := strings.Split(textOutput.String(), "\n")
+		assert.Len(t, textLines, numLines+1, "strings.Split created empty last line")
+		assert.Equal(t, "", textLines[len(textLines)-1], "strings.Split created empty last line")
+		for _, line := range textLines[:numLines] {
+			assert.Equal(t, exptectedTextLine, line)
+		}
+
+		jsonLines := strings.Split(jsonOutput.String(), "\n")
+		assert.Len(t, jsonLines, numLines+1, "strings.Split created empty last line")
+		assert.Equal(t, "", jsonLines[len(jsonLines)-1], "strings.Split created empty last line")
+		for _, line := range jsonLines[:numLines] {
+			assert.Equal(t, exptectedJSONLine, line)
+			jsonObj := []byte(strings.TrimSuffix(line, ","))
+			assert.True(t, json.Valid(jsonObj), "valid JSON message")
+		}
+	}
+
+	checkOutput(exptectedTextMessage, exptectedJSONMessage)
+
+	// Test sub-logger
+
+	textOutput.Reset()
+	jsonOutput.Reset()
+
+	subLog := log.Record().Str("SuperStr", "SuperStr").Strs("SuperStrs", []string{"A", "B", "C"}).IntPtr("SuperNilInt", nil).NewLogger()
+	for i := 0; i < numLines; i++ {
+		subLog.NewMessageAt(at, log.GetLevelInfo(), "My log message").Exec(writeMessage).Log()
+	}
+
+	checkOutput(exptectedTextMessageSub, exptectedJSONMessageSub)
+
+	// Test sub-sub-logger
+
+	textOutput.Reset()
+	jsonOutput.Reset()
+
+	subLog = log.Record().UUID("RequestID", uu.IDMustFromString("62d38a15-8fc2-4520-b768-9d5d08d2c498")).NewLogger()
+	subSubLog := subLog.Record().Str("SuperStr", "SuperStr").Strs("SuperStrs", []string{"A", "B", "C"}).IntPtr("SuperNilInt", nil).NewLogger()
+	for i := 0; i < numLines; i++ {
+		subSubLog.NewMessageAt(at, log.GetLevelInfo(), "My log message").Exec(writeMessage).Log()
+	}
+
+	checkOutput(exptectedTextMessageSubSub, exptectedJSONMessageSubSub)
+
+	// fmt.Println(textOutput.String())
+	// fmt.Println(jsonOutput.String())
+	// t.FailNow()
+}
+
+func writeMessage(message *Message) {
 	uuid := uu.IDMustFromString("b14882b9-bfdd-45a4-9c84-1d717211c050")
 	uuids := [][16]byte{
 		uu.IDMustFromString("fab60526-bf52-4ec2-9db3-f5860250de5c"),
 		uu.IDMustFromString("78adb219-460c-41e9-ac39-12d4d0420aa0"),
 	}
 
-	return message.
+	message.
 		Nil("Nil").
 		Bool("True", true).
 		Bool("False", false).
@@ -61,115 +135,105 @@ func writeMessage(message *Message) *Message {
 		JSON("InvalidJSON", []byte(`"a":1`))
 }
 
-const exptectedTextMessage = `2006-01-02 15:04:05 |INFO | My log message ` +
-	`Nil=nil ` +
-	`True=true ` +
-	`False=false ` +
-	`Bools=[true,false,true] ` +
-	`Int=-123 ` +
-	`Ints=[-1,0,1,123] ` +
-	`Int8=-123 ` +
-	`Int8s=[-1,0,1,123] ` +
-	`Int16=-123 ` +
-	`Int16s=[-1,0,1,123] ` +
-	`Int32=-123 ` +
-	`Int32s=[-1,0,1,123] ` +
-	`Int64=-123 ` +
-	`Int64s=[-1,0,1,123] ` +
-	`Uint=123 ` +
-	`Uints=[0,1,123] ` +
-	`Uint8=123 ` +
-	`Uint8s=[0,1,123] ` +
-	`Uint16=123 ` +
-	`Uint16s=[0,1,123] ` +
-	`Uint32=123 ` +
-	`Uint32s=[0,1,123] ` +
-	`Uint64=123 ` +
-	`Uint64s=[0,1,123] ` +
-	`Float32=-1.5 ` +
-	`Float32s=[-1.5,0,NaN,+Inf,-Inf] ` +
-	`Float=123 ` +
-	`Floats=[-1.9999,0,NaN,+Inf,-Inf] ` +
-	`Str="Hello\n\"World\"!" ` +
-	`Strs=["A","B","C"] ` +
-	`Err="this is an error!" ` +
-	`Errs=["error \"A\"","error \"B\""] ` +
-	`PrintSingle="one arg" ` +
-	`PrintMulti=["false","123","0.5","string","error"] ` +
-	`UUID=b14882b9-bfdd-45a4-9c84-1d717211c050 ` +
-	`UUIDs=[fab60526-bf52-4ec2-9db3-f5860250de5c,78adb219-460c-41e9-ac39-12d4d0420aa0] ` +
-	`JSON=[{"a":1,"b":[2,3],"c":null,"d":{"x":1.5}},null] ` +
-	`InvalidJSON=` +
-	"\n"
+const (
+	exptectedTextMessage       = exptectedTextMessageInto + exptectedTextMessageValues
+	exptectedTextMessageSub    = exptectedTextMessageInto + exptectedTextMessageSuperValues + exptectedTextMessageValues
+	exptectedTextMessageSubSub = exptectedTextMessageInto + exptectedTextMessageSuperSuperValues + exptectedTextMessageSuperValues + exptectedTextMessageValues
 
-const exptectedJSONMessage = `{` +
-	`"time":"2006-01-02 15:04:05","level":"INFO","message":"My log message",` +
-	`"Nil":null,` +
-	`"True":true,` +
-	`"False":false,` +
-	`"Bools":[true,false,true],` +
-	`"Int":-123,` +
-	`"Ints":[-1,0,1,123],` +
-	`"Int8":-123,` +
-	`"Int8s":[-1,0,1,123],` +
-	`"Int16":-123,` +
-	`"Int16s":[-1,0,1,123],` +
-	`"Int32":-123,` +
-	`"Int32s":[-1,0,1,123],` +
-	`"Int64":-123,` +
-	`"Int64s":[-1,0,1,123],` +
-	`"Uint":123,` +
-	`"Uints":[0,1,123],` +
-	`"Uint8":123,` +
-	`"Uint8s":[0,1,123],` +
-	`"Uint16":123,` +
-	`"Uint16s":[0,1,123],` +
-	`"Uint32":123,` +
-	`"Uint32s":[0,1,123],` +
-	`"Uint64":123,` +
-	`"Uint64s":[0,1,123],` +
-	`"Float32":-1.5,` +
-	`"Float32s":[-1.5,0,"NaN","+Inf","-Inf"],` +
-	`"Float":123,` +
-	`"Floats":[-1.9999,0,"NaN","+Inf","-Inf"],` +
-	`"Str":"Hello\n\"World\"!",` +
-	`"Strs":["A","B","C"],` +
-	`"Err":"this is an error!",` +
-	`"Errs":["error \"A\"","error \"B\""],` +
-	`"PrintSingle":"one arg",` +
-	`"PrintMulti":["false","123","0.5","string","error"],` +
-	`"UUID":"b14882b9-bfdd-45a4-9c84-1d717211c050",` +
-	`"UUIDs":["fab60526-bf52-4ec2-9db3-f5860250de5c","78adb219-460c-41e9-ac39-12d4d0420aa0"],` +
-	`"JSON":[{"a":1,"b":[2,3],"c":null,"d":{"x":1.5}},null],` +
-	`"InvalidJSON":null` +
-	"},\n"
+	exptectedTextMessageInto = `2006-01-02 15:04:05 |INFO | My log message`
 
-func TestMessage(t *testing.T) {
-	at, _ := time.Parse("2006-01-02 15:04:05", "2006-01-02 15:04:05")
+	exptectedTextMessageSuperSuperValues = ` RequestID=62d38a15-8fc2-4520-b768-9d5d08d2c498`
+	exptectedTextMessageSuperValues      = ` SuperStr="SuperStr" SuperStrs=["A","B","C"] SuperNilInt=nil`
 
-	format := &Format{
-		TimestampFormat: "2006-01-02 15:04:05",
-		TimestampKey:    "time",
-		LevelKey:        "level",
-		MessageKey:      "message",
-	}
+	exptectedTextMessageValues = ` ` +
+		`Nil=nil ` +
+		`True=true ` +
+		`False=false ` +
+		`Bools=[true,false,true] ` +
+		`Int=-123 ` +
+		`Ints=[-1,0,1,123] ` +
+		`Int8=-123 ` +
+		`Int8s=[-1,0,1,123] ` +
+		`Int16=-123 ` +
+		`Int16s=[-1,0,1,123] ` +
+		`Int32=-123 ` +
+		`Int32s=[-1,0,1,123] ` +
+		`Int64=-123 ` +
+		`Int64s=[-1,0,1,123] ` +
+		`Uint=123 ` +
+		`Uints=[0,1,123] ` +
+		`Uint8=123 ` +
+		`Uint8s=[0,1,123] ` +
+		`Uint16=123 ` +
+		`Uint16s=[0,1,123] ` +
+		`Uint32=123 ` +
+		`Uint32s=[0,1,123] ` +
+		`Uint64=123 ` +
+		`Uint64s=[0,1,123] ` +
+		`Float32=-1.5 ` +
+		`Float32s=[-1.5,0,NaN,+Inf,-Inf] ` +
+		`Float=123 ` +
+		`Floats=[-1.9999,0,NaN,+Inf,-Inf] ` +
+		`Str="Hello\n\"World\"!" ` +
+		`Strs=["A","B","C"] ` +
+		`Err="this is an error!" ` +
+		`Errs=["error \"A\"","error \"B\""] ` +
+		`PrintSingle="one arg" ` +
+		`PrintMulti=["false","123","0.5","string","error"] ` +
+		`UUID=b14882b9-bfdd-45a4-9c84-1d717211c050 ` +
+		`UUIDs=[fab60526-bf52-4ec2-9db3-f5860250de5c,78adb219-460c-41e9-ac39-12d4d0420aa0] ` +
+		`JSON=[{"a":1,"b":[2,3],"c":null,"d":{"x":1.5}},null] ` +
+		`InvalidJSON=`
+)
 
-	textOutput := bytes.NewBuffer(nil)
-	textFormatter := NewTextFormatter(textOutput, format, NoColorizer)
+const (
+	exptectedJSONMessage       = exptectedJSONMessageIntro + exptectedJSONMessageValus
+	exptectedJSONMessageSub    = exptectedJSONMessageIntro + exptectedJSONMessageSuperValues + exptectedJSONMessageValus
+	exptectedJSONMessageSubSub = exptectedJSONMessageIntro + exptectedJSONMessageSuperSuperValues + exptectedJSONMessageSuperValues + exptectedJSONMessageValus
 
-	jsonOutput := bytes.NewBuffer(nil)
-	jsonFormatter := NewJSONFormatter(jsonOutput, format)
+	exptectedJSONMessageIntro = `{` +
+		`"time":"2006-01-02 15:04:05","level":"INFO","message":"My log message",`
 
-	log := NewLogger(DefaultLevels, LevelFilterNone, textFormatter, jsonFormatter)
+	exptectedJSONMessageSuperSuperValues = `"RequestID":"62d38a15-8fc2-4520-b768-9d5d08d2c498",`
+	exptectedJSONMessageSuperValues      = `"SuperStr":"SuperStr","SuperStrs":["A","B","C"],"SuperNilInt":null,`
 
-	log.NewMessageAt(at, log.GetLevelInfo(), "My log message").With(writeMessage).Log()
-
-	assert.Equal(t, exptectedTextMessage, textOutput.String())
-	assert.Equal(t, exptectedJSONMessage, jsonOutput.String())
-
-	jsonObj := bytes.TrimSuffix(jsonOutput.Bytes(), []byte{',', '\n'})
-	assert.True(t, json.Valid(jsonObj), "valid JSON message")
-
-	// fmt.Println(jsonOutput.String())
-	// t.FailNow()
-}
+	exptectedJSONMessageValus = `"Nil":null,` +
+		`"True":true,` +
+		`"False":false,` +
+		`"Bools":[true,false,true],` +
+		`"Int":-123,` +
+		`"Ints":[-1,0,1,123],` +
+		`"Int8":-123,` +
+		`"Int8s":[-1,0,1,123],` +
+		`"Int16":-123,` +
+		`"Int16s":[-1,0,1,123],` +
+		`"Int32":-123,` +
+		`"Int32s":[-1,0,1,123],` +
+		`"Int64":-123,` +
+		`"Int64s":[-1,0,1,123],` +
+		`"Uint":123,` +
+		`"Uints":[0,1,123],` +
+		`"Uint8":123,` +
+		`"Uint8s":[0,1,123],` +
+		`"Uint16":123,` +
+		`"Uint16s":[0,1,123],` +
+		`"Uint32":123,` +
+		`"Uint32s":[0,1,123],` +
+		`"Uint64":123,` +
+		`"Uint64s":[0,1,123],` +
+		`"Float32":-1.5,` +
+		`"Float32s":[-1.5,0,"NaN","+Inf","-Inf"],` +
+		`"Float":123,` +
+		`"Floats":[-1.9999,0,"NaN","+Inf","-Inf"],` +
+		`"Str":"Hello\n\"World\"!",` +
+		`"Strs":["A","B","C"],` +
+		`"Err":"this is an error!",` +
+		`"Errs":["error \"A\"","error \"B\""],` +
+		`"PrintSingle":"one arg",` +
+		`"PrintMulti":["false","123","0.5","string","error"],` +
+		`"UUID":"b14882b9-bfdd-45a4-9c84-1d717211c050",` +
+		`"UUIDs":["fab60526-bf52-4ec2-9db3-f5860250de5c","78adb219-460c-41e9-ac39-12d4d0420aa0"],` +
+		`"JSON":[{"a":1,"b":[2,3],"c":null,"d":{"x":1.5}},null],` +
+		`"InvalidJSON":null` +
+		"},"
+)

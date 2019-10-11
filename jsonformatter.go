@@ -12,7 +12,6 @@ import (
 var jsonFormatterPool sync.Pool
 
 type JSONFormatter struct {
-	parent *JSONFormatter
 	writer io.Writer
 	format *Format
 	buf    []byte
@@ -26,16 +25,13 @@ func NewJSONFormatter(writer io.Writer, format *Format) *JSONFormatter {
 	}
 }
 
-func (f *JSONFormatter) NewChild() Formatter {
-	child, ok := jsonFormatterPool.Get().(*JSONFormatter)
-	if ok {
-		child.writer = f.writer
-		child.format = f.format
-	} else {
-		child = NewJSONFormatter(f.writer, f.format)
+func (f *JSONFormatter) Clone() Formatter {
+	if clone, ok := jsonFormatterPool.Get().(*JSONFormatter); ok {
+		clone.writer = f.writer
+		clone.format = f.format
+		return clone
 	}
-	child.parent = f
-	return child
+	return NewJSONFormatter(f.writer, f.format)
 }
 
 func (f *JSONFormatter) WriteMsg(t time.Time, levels *Levels, level Level, msg string) {
@@ -55,19 +51,6 @@ func (f *JSONFormatter) WriteMsg(t time.Time, levels *Levels, level Level, msg s
 		f.buf = encjson.AppendKey(f.buf, f.format.MessageKey)
 		f.buf = encjson.AppendString(f.buf, msg)
 	}
-
-	f.buf = f.appendParent(f.buf)
-}
-
-func (f *JSONFormatter) appendParent(buf []byte) []byte {
-	if f.parent != nil {
-		buf = f.parent.appendParent(buf)
-		if len(f.parent.buf) > 0 {
-			buf = append(buf, ',')
-			buf = append(buf, f.parent.buf...)
-		}
-	}
-	return buf
 }
 
 func (f *JSONFormatter) FlushAndFree() {
@@ -79,7 +62,6 @@ func (f *JSONFormatter) FlushAndFree() {
 	}
 
 	// Free
-	f.parent = nil
 	f.writer = nil
 	f.format = nil
 	f.buf = f.buf[:0]

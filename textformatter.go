@@ -12,7 +12,6 @@ import (
 var textFormatterPool sync.Pool
 
 type TextFormatter struct {
-	parent    *TextFormatter
 	writer    io.Writer
 	levels    *Levels
 	format    *Format
@@ -30,17 +29,14 @@ func NewTextFormatter(writer io.Writer, format *Format, colorizer Colorizer) *Te
 	}
 }
 
-func (f *TextFormatter) NewChild() Formatter {
-	child, ok := textFormatterPool.Get().(*TextFormatter)
-	if ok {
-		child.writer = f.writer
-		child.format = f.format
-		child.colorizer = f.colorizer
-	} else {
-		child = NewTextFormatter(f.writer, f.format, f.colorizer)
+func (f *TextFormatter) Clone() Formatter {
+	if clone, ok := textFormatterPool.Get().(*TextFormatter); ok {
+		clone.writer = f.writer
+		clone.format = f.format
+		clone.colorizer = f.colorizer
+		return clone
 	}
-	child.parent = f
-	return child
+	return NewTextFormatter(f.writer, f.format, f.colorizer)
 }
 
 func (f *TextFormatter) WriteMsg(t time.Time, levels *Levels, level Level, msg string) {
@@ -63,19 +59,6 @@ func (f *TextFormatter) WriteMsg(t time.Time, levels *Levels, level Level, msg s
 		f.buf = append(f.buf, ' ')
 		f.buf = append(f.buf, f.colorizer.ColorizeMsg(msg)...)
 	}
-
-	f.buf = f.appendParent(f.buf)
-}
-
-func (f *TextFormatter) appendParent(buf []byte) []byte {
-	if f.parent != nil {
-		buf = f.parent.appendParent(buf)
-		if len(f.parent.buf) > 0 {
-			buf = append(buf, ' ')
-			buf = append(buf, f.parent.buf...)
-		}
-	}
-	return buf
 }
 
 func (f *TextFormatter) FlushAndFree() {
@@ -87,7 +70,6 @@ func (f *TextFormatter) FlushAndFree() {
 	}
 
 	// Free
-	f.parent = nil
 	f.writer = nil
 	f.levels = nil
 	f.format = nil

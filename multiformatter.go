@@ -10,7 +10,7 @@ type MultiFormatter []Formatter
 
 var multiFormatterPool sync.Pool
 
-func getMultiFormatter(l int) MultiFormatter {
+func newMultiFormatter(l int) MultiFormatter {
 	if f, ok := multiFormatterPool.Get().(MultiFormatter); ok && l <= cap(f) {
 		return f[:l]
 	}
@@ -18,12 +18,12 @@ func getMultiFormatter(l int) MultiFormatter {
 	return make(MultiFormatter, l)
 }
 
-func (mf MultiFormatter) NewChild() Formatter {
-	child := getMultiFormatter(len(mf))
+func (mf MultiFormatter) Clone() Formatter {
+	clone := newMultiFormatter(len(mf))
 	for i, f := range mf {
-		child[i] = f.NewChild()
+		clone[i] = f.Clone()
 	}
-	return child
+	return clone
 }
 
 func (mf MultiFormatter) WriteMsg(t time.Time, levels *Levels, level Level, msg string) {
