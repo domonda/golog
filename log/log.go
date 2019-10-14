@@ -38,6 +38,10 @@ func WithHooks(hooks ...golog.Hook) *golog.Logger {
 	return Logger.WithHooks(hooks...)
 }
 
+func WithLevelFilter(filter golog.LevelFilter) *golog.Logger {
+	return Logger.WithLevelFilter(filter)
+}
+
 func With() *golog.Message {
 	return Logger.With()
 }

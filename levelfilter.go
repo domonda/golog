@@ -27,6 +27,14 @@ func LevelFilterCombine(filters ...LevelFilter) LevelFilter {
 	return combined
 }
 
+func newLevelFilterOrNil(filters []LevelFilter) *LevelFilter {
+	if len(filters) == 0 {
+		return nil
+	}
+	combined := LevelFilterCombine(filters...)
+	return &combined
+}
+
 func (f LevelFilter) IsActive(level Level) bool {
 	return (level <= LevelMax) && (f&(LevelFilter(1)<<level) == 0)
 }

@@ -61,6 +61,16 @@ func (l *Logger) WithHooks(hooks ...Hook) *Logger {
 	}
 }
 
+func (l *Logger) WithLevelFilter(filter LevelFilter) *Logger {
+	if l == nil {
+		return nil
+	}
+	return &Logger{
+		config: NewDerivedConfig(&l.config, filter),
+		hooks:  l.hooks,
+	}
+}
+
 // With returns a new Message that can be used to record
 // the prefix for a sub-logger.
 //
