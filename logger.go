@@ -23,16 +23,6 @@ func NewLogger(config Config, hooks ...Hook) *Logger {
 	}
 }
 
-func (l *Logger) WithHooks(hooks ...Hook) *Logger {
-	if l == nil {
-		return nil
-	}
-	return &Logger{
-		config: l.config,
-		hooks:  append(l.hooks, hooks...),
-	}
-}
-
 func ContextLogger(ctx context.Context) *Logger {
 	l, _ := ctx.Value(ctxKey{}).(*Logger)
 	return l
@@ -59,6 +49,16 @@ func (l *Logger) IsActive(level Level) bool {
 	active := l.config.IsActive(level)
 	l.mtx.Unlock()
 	return active
+}
+
+func (l *Logger) WithHooks(hooks ...Hook) *Logger {
+	if l == nil {
+		return nil
+	}
+	return &Logger{
+		config: l.config,
+		hooks:  append(l.hooks, hooks...),
+	}
 }
 
 // With returns a new Message that can be used to record

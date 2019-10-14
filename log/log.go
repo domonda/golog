@@ -34,6 +34,14 @@ func ContextLogger(ctx context.Context) *golog.Logger {
 	return golog.ContextLogger(ctx)
 }
 
+func WithHooks(hooks ...golog.Hook) *golog.Logger {
+	return Logger.WithHooks(hooks...)
+}
+
+func With() *golog.Message {
+	return Logger.With()
+}
+
 func Fatal(text string) *golog.Message {
 	return Logger.Fatal(text)
 }
