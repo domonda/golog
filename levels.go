@@ -9,13 +9,13 @@ var DefaultLevels = &Levels{
 	Info:  3,
 	Debug: 4,
 	Trace: 5,
-	Names: []string{
-		"FATAL", // 0
-		"ERROR", // 1
-		"WARN",  // 2
-		"INFO",  // 3
-		"DEBUG", // 4
-		"TRACE", // 5
+	Names: map[Level]string{
+		0: "FATAL",
+		1: "ERROR",
+		2: "WARN",
+		3: "INFO",
+		4: "DEBUG",
+		5: "TRACE",
 	},
 }
 
@@ -26,14 +26,14 @@ type Levels struct {
 	Info  Level
 	Debug Level
 	Trace Level
-	Names []string
+	Names map[Level]string
 }
 
 func (l *Levels) Name(level Level) string {
-	if int(level) >= len(l.Names) {
-		return strconv.Itoa(int(level))
+	if name, ok := l.Names[level]; ok {
+		return name
 	}
-	return l.Names[level]
+	return strconv.Itoa(int(level))
 }
 
 func (l *Levels) FatalName() string {
@@ -61,9 +61,9 @@ func (l *Levels) TraceName() string {
 }
 
 func (l *Levels) LevelOfName(name string) Level {
-	for i := range l.Names {
-		if l.Names[i] == name {
-			return Level(i)
+	for level, levelName := range l.Names {
+		if name == levelName {
+			return level
 		}
 	}
 	if i, err := strconv.Atoi(name); err == nil && i >= LevelMin && i <= LevelMax {
@@ -87,12 +87,12 @@ func (l *Levels) NameLenRange() (min, max int) {
 
 func (l *Levels) CopyWithLeftPaddedNames() *Levels {
 	padded := *l
-	padded.Names = make([]string, len(l.Names))
+	padded.Names = make(map[Level]string, len(l.Names))
 	_, maxLen := l.NameLenRange()
-	for i, name := range l.Names {
-		padded.Names[i] = name
-		for len(padded.Names[i]) < maxLen {
-			padded.Names[i] = " " + padded.Names[i]
+	for level, name := range l.Names {
+		padded.Names[level] = name
+		for len(padded.Names[level]) < maxLen {
+			padded.Names[level] = " " + padded.Names[level]
 		}
 	}
 	return &padded
@@ -100,12 +100,12 @@ func (l *Levels) CopyWithLeftPaddedNames() *Levels {
 
 func (l *Levels) CopyWithRightPaddedNames() *Levels {
 	padded := *l
-	padded.Names = make([]string, len(l.Names))
+	padded.Names = make(map[Level]string, len(l.Names))
 	_, maxLen := l.NameLenRange()
-	for i, name := range l.Names {
-		padded.Names[i] = name
-		for len(padded.Names[i]) < maxLen {
-			padded.Names[i] += " "
+	for level, name := range l.Names {
+		padded.Names[level] = name
+		for len(padded.Names[level]) < maxLen {
+			padded.Names[level] += " "
 		}
 	}
 	return &padded
