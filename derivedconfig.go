@@ -3,19 +3,31 @@ package golog
 import "sync"
 
 type DerivedConfig struct {
-	parent    *Config
-	filter    LevelFilter
-	filterMtx sync.Mutex
+	parent *Config
+	filter LevelFilter
+	mutex  sync.Mutex
 }
 
 func NewDerivedConfig(parent *Config, filters ...LevelFilter) *DerivedConfig {
+	if parent == nil || *parent == nil {
+		panic("golog.DerivedConfig parent must not be nil")
+	}
 	return &DerivedConfig{parent: parent, filter: LevelFilterCombine(filters...)}
 }
 
+func (c *DerivedConfig) SetParent(parent *Config) {
+	if parent == nil || *parent == nil {
+		panic("golog.DerivedConfig parent must not be nil")
+	}
+	c.mutex.Lock()
+	c.parent = parent
+	c.mutex.Unlock()
+}
+
 func (c *DerivedConfig) SetFilter(filters ...LevelFilter) {
-	c.filterMtx.Lock()
+	c.mutex.Lock()
 	c.filter = LevelFilterCombine(filters...)
-	c.filterMtx.Unlock()
+	c.mutex.Unlock()
 }
 
 func (c *DerivedConfig) Formatter() Formatter {
@@ -27,9 +39,9 @@ func (c *DerivedConfig) Levels() *Levels {
 }
 
 func (c *DerivedConfig) IsActive(level Level) bool {
-	c.filterMtx.Lock()
-	active := (*c.parent).IsActive(level) && c.filter.IsActive(level)
-	c.filterMtx.Unlock()
+	c.mutex.Lock()
+	active := c.filter.IsActive(level) && (*c.parent).IsActive(level)
+	c.mutex.Unlock()
 	return active
 }
 
