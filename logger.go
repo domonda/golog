@@ -205,28 +205,20 @@ func (l *Logger) LogTracef(format string, args ...interface{}) {
 	l.NewMessagef(l.config.Trace(), format, args...).Log()
 }
 
-func (l *Logger) LogFatalAndExit(text string) {
-	l.NewMessage(l.config.Fatal(), text).LogAndExit()
+func (l *Logger) LogFatalAndPanic(text string) {
+	l.NewMessage(l.config.Fatal(), text).LogAndPanic()
 }
 
-func (l *Logger) LogFatalfAndExit(format string, args ...interface{}) {
-	l.NewMessagef(l.config.Fatal(), format, args...).LogAndExit()
+func (l *Logger) LogFatalfAndPanic(format string, args ...interface{}) {
+	l.NewMessagef(l.config.Fatal(), format, args...).LogAndPanic()
 }
 
-func (l *Logger) LogErrorAndExit(text string) {
-	l.NewMessage(l.config.Error(), text).LogAndExit()
+func (l *Logger) LogErrorAndPanic(text string) {
+	l.NewMessage(l.config.Error(), text).LogAndPanic()
 }
 
-func (l *Logger) LogErrorfAndExit(format string, args ...interface{}) {
-	l.NewMessagef(l.config.Error(), format, args...).LogAndExit()
-}
-
-func (l *Logger) LogWarnAndExit(text string) {
-	l.NewMessage(l.config.Warn(), text).LogAndExit()
-}
-
-func (l *Logger) LogWarnfAndExit(format string, args ...interface{}) {
-	l.NewMessagef(l.config.Warn(), format, args...).LogAndExit()
+func (l *Logger) LogErrorfAndPanic(format string, args ...interface{}) {
+	l.NewMessagef(l.config.Error(), format, args...).LogAndPanic()
 }
 
 func (l *Logger) NewLevelWriter(level Level, exit bool) *LevelWriter {

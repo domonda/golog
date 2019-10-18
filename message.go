@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"os"
 	"reflect"
 	"sync"
 )
@@ -730,13 +729,6 @@ func (m *Message) Log() {
 	m.logger = nil
 	m.text = ""
 	messagePool.Put(m)
-}
-
-// LogAndExit writes the complete log message
-// and calls os.Exit(1).
-func (m *Message) LogAndExit() {
-	m.Log()
-	os.Exit(1)
 }
 
 // LogAndPanic writes the complete log message

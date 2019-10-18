@@ -142,28 +142,20 @@ func LogTracef(format string, args ...interface{}) {
 	Logger.LogTracef(format, args...)
 }
 
-func LogFatalAndExit(text string) {
-	Logger.LogFatalAndExit(text)
+func LogFatalAndPanic(text string) {
+	Logger.LogFatalAndPanic(text)
 }
 
-func LogFatalfAndExit(format string, args ...interface{}) {
-	Logger.LogFatalfAndExit(format, args...)
+func LogFatalfAndPanic(format string, args ...interface{}) {
+	Logger.LogFatalfAndPanic(format, args...)
 }
 
-func LogErrorAndExit(text string) {
-	Logger.LogErrorAndExit(text)
+func LogErrorAndPanic(text string) {
+	Logger.LogErrorAndPanic(text)
 }
 
-func LogErrorfAndExit(format string, args ...interface{}) {
-	Logger.LogErrorfAndExit(format, args...)
-}
-
-func LogWarnAndExit(text string) {
-	Logger.LogWarnAndExit(text)
-}
-
-func LogWarnfAndExit(format string, args ...interface{}) {
-	Logger.LogWarnfAndExit(format, args...)
+func LogErrorfAndPanic(format string, args ...interface{}) {
+	Logger.LogErrorfAndPanic(format, args...)
 }
 
 func NewLevelWriter(level golog.Level, exit bool) *golog.LevelWriter {
