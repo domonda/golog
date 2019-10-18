@@ -12,7 +12,7 @@ type recordingFormatter struct {
 	sliceHook Hook
 }
 
-func (r *recordingFormatter) Clone() Formatter {
+func (r *recordingFormatter) Clone(level Level) Formatter {
 	panic("should never happen")
 }
 

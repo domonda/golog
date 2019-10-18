@@ -87,7 +87,7 @@ func (l *Logger) NewMessageAt(t time.Time, level Level, text string) *Message {
 	if !l.IsActive(level) {
 		return nil
 	}
-	m := newMessage(l, l.config.Formatter().Clone(), text)
+	m := newMessage(l, l.config.Formatter().Clone(level), text)
 	m.formatter.WriteText(t, l.config.Levels(), level, text)
 	for _, hook := range l.hooks {
 		hook.Log(m)

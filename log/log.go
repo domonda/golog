@@ -23,7 +23,7 @@ var (
 
 	Config = golog.NewDerivedConfig(&DefaultConfig)
 
-	Logger = golog.NewLogger(Config)
+	Logger = golog.NewLogger(Config) // TODO make private
 )
 
 func Context(ctx context.Context) context.Context {
@@ -164,4 +164,32 @@ func LogWarnAndExit(text string) {
 
 func LogWarnfAndExit(format string, args ...interface{}) {
 	Logger.LogWarnfAndExit(format, args...)
+}
+
+func NewLevelWriter(level golog.Level, exit bool) *golog.LevelWriter {
+	return Logger.NewLevelWriter(level, exit)
+}
+
+func FatalWriter() *golog.LevelWriter {
+	return Logger.FatalWriter()
+}
+
+func ErrorWriter() *golog.LevelWriter {
+	return Logger.ErrorWriter()
+}
+
+func WarnWriter() *golog.LevelWriter {
+	return Logger.WarnWriter()
+}
+
+func InfoWriter() *golog.LevelWriter {
+	return Logger.InfoWriter()
+}
+
+func DebugWriter() *golog.LevelWriter {
+	return Logger.DebugWriter()
+}
+
+func TraceWriter() *golog.LevelWriter {
+	return Logger.TraceWriter()
 }

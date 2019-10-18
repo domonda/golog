@@ -8,11 +8,11 @@ const AllLevels LevelFilter = 0
 type LevelFilter uint64
 
 func LevelFilterAbove(level Level) LevelFilter {
-	return ^((LevelFilter(1) << level) - 1)
+	return ^((LevelFilter(1) << (level + 1)) - 1)
 }
 
 func LevelFilterBelow(level Level) LevelFilter {
-	return (LevelFilter(1) << level) - 1
+	return (LevelFilter(1) << (level + 1)) - 1
 }
 
 func LevelFilterExclusive(level Level) LevelFilter {

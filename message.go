@@ -64,7 +64,10 @@ func (m *Message) Exec(writeFunc func(*Message)) *Message {
 	return m
 }
 
-// Err logs an error
+// func (m *Message) Err(val error) *Message {
+// 	return m.NamedErr("error", val) // TODO
+// }
+
 func (m *Message) Err(key string, val error) *Message {
 	if m == nil {
 		return nil
@@ -661,6 +664,10 @@ func (m *Message) Strs(key string, vals []string) *Message {
 	}
 	m.formatter.WriteSliceEnd()
 	return m
+}
+
+func (m *Message) Stringer(key string, val fmt.Stringer) *Message {
+	return m.Str(key, val.String())
 }
 
 func (m *Message) UUID(key string, val [16]byte) *Message {

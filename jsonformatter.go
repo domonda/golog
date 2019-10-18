@@ -25,7 +25,7 @@ func NewJSONFormatter(writer io.Writer, format *Format) *JSONFormatter {
 	}
 }
 
-func (f *JSONFormatter) Clone() Formatter {
+func (f *JSONFormatter) Clone(level Level) Formatter {
 	if clone, ok := jsonFormatterPool.Get().(*JSONFormatter); ok {
 		clone.writer = f.writer
 		clone.format = f.format

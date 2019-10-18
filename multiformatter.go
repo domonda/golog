@@ -18,10 +18,10 @@ func newMultiFormatter(l int) MultiFormatter {
 	return make(MultiFormatter, l)
 }
 
-func (mf MultiFormatter) Clone() Formatter {
+func (mf MultiFormatter) Clone(level Level) Formatter {
 	clone := newMultiFormatter(len(mf))
 	for i, f := range mf {
-		clone[i] = f.Clone()
+		clone[i] = f.Clone(level)
 	}
 	return clone
 }

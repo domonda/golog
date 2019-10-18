@@ -9,6 +9,14 @@ import (
 	"time"
 )
 
+type sliceMode int
+
+const (
+	sliceModeNone       sliceMode = 0
+	sliceModeFirstElem  sliceMode = 1
+	sliceModeSecondElem sliceMode = 2
+)
+
 var textFormatterPool sync.Pool
 
 type TextFormatter struct {
@@ -29,7 +37,7 @@ func NewTextFormatter(writer io.Writer, format *Format, colorizer Colorizer) *Te
 	}
 }
 
-func (f *TextFormatter) Clone() Formatter {
+func (f *TextFormatter) Clone(level Level) Formatter {
 	if clone, ok := textFormatterPool.Get().(*TextFormatter); ok {
 		clone.writer = f.writer
 		clone.format = f.format
