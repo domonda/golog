@@ -8,22 +8,26 @@ import (
 )
 
 var (
-	DefaultFormat = &golog.Format{
+	Levels = golog.DefaultLevels
+
+	Format = &golog.Format{
 		TimestampKey:    "time",
 		TimestampFormat: "2006-01-02 15:04:05.999",
 		LevelKey:        "level",
 		MessageKey:      "message",
 	}
 
-	DefaultConfig = golog.NewConfig(
-		golog.DefaultLevels,
-		golog.DefaultLevels.Debug.FilterOutBelow(),
-		golog.NewTextFormatter(os.Stdout, DefaultFormat, golog.NoColorizer),
+	Config = golog.NewConfig(
+		Levels,
+		Levels.Debug.FilterOutBelow(),
+		golog.NewTextFormatter(os.Stdout, Format, golog.NoColorizer),
 	)
 
-	Config = golog.NewDerivedConfig(&DefaultConfig)
-
-	Logger = golog.NewLogger(Config)
+	// Logger uses a golog.DerivedConfig referencing the
+	// exported package variable Config.
+	// This way Config can be changed after initialization of Logger
+	// without the need to create and set a new golog.Logger.
+	Logger = golog.NewLogger(golog.NewDerivedConfig(&Config))
 )
 
 func Context(ctx context.Context) context.Context {
