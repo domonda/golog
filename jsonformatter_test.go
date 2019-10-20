@@ -13,7 +13,7 @@ func ExampleJSONFormatter() {
 		MessageKey:      "message",
 	}
 	formatter := NewJSONFormatter(os.Stdout, format)
-	config := NewConfig(DefaultLevels, NoFilter, formatter)
+	config := NewConfig(&DefaultLevels, NoFilter, formatter)
 	log := NewLogger(config)
 
 	// Use fixed time for reproducable example output

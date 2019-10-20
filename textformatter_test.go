@@ -13,7 +13,7 @@ func ExampleTextFormatter() {
 		MessageKey:      "message",
 	}
 	formatter := NewTextFormatter(os.Stdout, format, NoColorizer)
-	config := NewConfig(DefaultLevels, NoFilter, formatter)
+	config := NewConfig(&DefaultLevels, NoFilter, formatter)
 	log := NewLogger(config)
 
 	// Use fixed time for reproducable example output

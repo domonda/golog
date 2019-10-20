@@ -2,7 +2,7 @@ package golog
 
 import "strconv"
 
-var DefaultLevels = &Levels{
+var DefaultLevels = Levels{
 	Trace: -10,
 	Debug: -1,
 	Info:  0,
@@ -20,12 +20,12 @@ var DefaultLevels = &Levels{
 }
 
 type Levels struct {
-	Fatal Level
-	Error Level
-	Warn  Level
-	Info  Level
-	Debug Level
 	Trace Level
+	Debug Level
+	Info  Level
+	Warn  Level
+	Error Level
+	Fatal Level
 	Names map[Level]string
 }
 

@@ -10,7 +10,7 @@ import (
 var (
 	Levels = golog.DefaultLevels
 
-	Format = &golog.Format{
+	Format = golog.Format{
 		TimestampKey:    "time",
 		TimestampFormat: "2006-01-02 15:04:05.999",
 		LevelKey:        "level",
@@ -18,9 +18,9 @@ var (
 	}
 
 	Config = golog.NewConfig(
-		Levels,
+		&Levels,
 		Levels.Debug.FilterOutBelow(),
-		golog.NewTextFormatter(os.Stdout, Format, golog.NoColorizer),
+		golog.NewTextFormatter(os.Stdout, &Format, golog.NoColorizer),
 	)
 
 	// Logger uses a golog.DerivedConfig referencing the
