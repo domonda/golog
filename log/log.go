@@ -17,13 +17,13 @@ var (
 
 	DefaultConfig = golog.NewConfig(
 		golog.DefaultLevels,
-		golog.DefaultLevels.Debug.FilterAbove(),
+		golog.DefaultLevels.Debug.FilterOutBelow(),
 		golog.NewTextFormatter(os.Stdout, DefaultFormat, golog.NoColorizer),
 	)
 
 	Config = golog.NewDerivedConfig(&DefaultConfig)
 
-	Logger = golog.NewLogger(Config) // TODO make private
+	Logger = golog.NewLogger(Config)
 )
 
 func Context(ctx context.Context) context.Context {

@@ -1,22 +1,25 @@
 package golog
 
 const (
-	LevelMin = 0
-	LevelMax = 63
-
-	LevelInvalid Level = 255
+	LevelMin     Level = -32
+	LevelMax     Level = 31
+	LevelInvalid Level = -128
 )
 
-type Level uint8
+type Level int8
 
 func (l Level) Valid() bool {
-	return l <= LevelMax
+	return l >= LevelMin && l <= LevelMax
 }
 
-func (l Level) FilterAbove() LevelFilter {
-	return LevelFilterAbove(l)
+func (l Level) FilterOutAbove() LevelFilter {
+	return LevelFilterOutAbove(l)
 }
 
-func (l Level) FilterExclusive() LevelFilter {
-	return LevelFilterExclusive(l)
+func (l Level) FilterOutBelow() LevelFilter {
+	return LevelFilterOutBelow(l)
+}
+
+func (l Level) FilterOutAllOther() LevelFilter {
+	return LevelFilterOutAllOther(l)
 }

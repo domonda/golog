@@ -3,19 +3,19 @@ package golog
 import "strconv"
 
 var DefaultLevels = &Levels{
-	Fatal: 0,
-	Error: 1,
-	Warn:  2,
-	Info:  3,
-	Debug: 4,
-	Trace: 5,
+	Trace: -10,
+	Debug: -1,
+	Info:  0,
+	Warn:  10,
+	Error: 20,
+	Fatal: 30,
 	Names: map[Level]string{
-		0: "FATAL",
-		1: "ERROR",
-		2: "WARN",
-		3: "INFO",
-		4: "DEBUG",
-		5: "TRACE",
+		-10: "TRACE",
+		-1:  "DEBUG",
+		0:   "INFO",
+		10:  "WARN",
+		20:  "ERROR",
+		30:  "FATAL",
 	},
 }
 
@@ -66,7 +66,7 @@ func (l *Levels) LevelOfName(name string) Level {
 			return level
 		}
 	}
-	if i, err := strconv.Atoi(name); err == nil && i >= LevelMin && i <= LevelMax {
+	if i, err := strconv.Atoi(name); err == nil && i >= int(LevelMin) && i <= int(LevelMax) {
 		return Level(i)
 	}
 	return LevelInvalid

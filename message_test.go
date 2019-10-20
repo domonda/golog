@@ -26,7 +26,7 @@ func newTestConfig(textWriter, jsonWriter io.Writer) Config {
 	textFormatter := NewTextFormatter(textWriter, format, NoColorizer)
 	jsonFormatter := NewJSONFormatter(jsonWriter, format)
 
-	return NewConfig(DefaultLevels, AllLevels, textFormatter, jsonFormatter)
+	return NewConfig(DefaultLevels, NoFilter, textFormatter, jsonFormatter)
 }
 
 func TestMessage(t *testing.T) {

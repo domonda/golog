@@ -13,7 +13,17 @@ func NewDerivedConfig(parent *Config, filters ...LevelFilter) *DerivedConfig {
 	if parent == nil || *parent == nil {
 		panic("golog.DerivedConfig parent must not be nil")
 	}
-	return &DerivedConfig{parent: parent, filter: newLevelFilterOrNil(filters)}
+	return &DerivedConfig{
+		parent: parent,
+		filter: newLevelFilterOrNil(filters),
+	}
+}
+
+func (c *DerivedConfig) Parent() Config {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+
+	return *c.parent
 }
 
 func (c *DerivedConfig) SetParent(parent *Config) {
@@ -43,8 +53,10 @@ func (c *DerivedConfig) IsActive(level Level) bool {
 	var active bool
 	c.mutex.Lock()
 	if c.filter != nil {
-		active = (*c.filter).IsActive(level)
+		// If DerivedConfig has its own filter, use it
+		active = c.filter.IsActive(level)
 	} else {
+		// else use the filter of the parent Config
 		active = (*c.parent).IsActive(level)
 	}
 	c.mutex.Unlock()
