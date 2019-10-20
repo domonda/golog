@@ -3,15 +3,15 @@ package golog
 import "strconv"
 
 var DefaultLevels = Levels{
-	Trace: -10,
-	Debug: -1,
+	Trace: -20,
+	Debug: -10,
 	Info:  0,
 	Warn:  10,
 	Error: 20,
 	Fatal: 30,
 	Names: map[Level]string{
-		-10: "TRACE",
-		-1:  "DEBUG",
+		-20: "TRACE",
+		-10: "DEBUG",
 		0:   "INFO",
 		10:  "WARN",
 		20:  "ERROR",
