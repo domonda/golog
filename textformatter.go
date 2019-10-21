@@ -57,7 +57,7 @@ func (f *TextFormatter) WriteText(t time.Time, levels *Levels, level Level, text
 	if min, max := levels.NameLenRange(); min != max {
 		levels = levels.CopyWithRightPaddedNames() // TODO optimize performance
 	}
-	str := f.colorizer.ColorizeLevel(levels.Name(level))
+	str := f.colorizer.ColorizeLevel(levels, level)
 	f.buf = append(f.buf, '|')
 	f.buf = append(f.buf, str...)
 	f.buf = append(f.buf, '|')
@@ -122,7 +122,7 @@ func (f *TextFormatter) writeSliceSep() {
 
 func (f *TextFormatter) WriteNil() {
 	f.writeSliceSep()
-	str := f.colorizer.ColorizeString("nil")
+	str := f.colorizer.ColorizeNil("nil")
 	f.buf = append(f.buf, str...)
 }
 

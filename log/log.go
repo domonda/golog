@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/fatih/color"
+
 	"github.com/domonda/golog"
 )
 
@@ -18,10 +20,34 @@ var (
 		MessageKey:      "message",
 	}
 
+	Colorizer = golog.ConsoleColorizer{
+		TimespampColor: color.New(color.FgHiBlack),
+
+		OtherLevelColor: color.New(color.FgWhite),
+		FatalLevelColor: color.New(color.FgHiRed),
+		ErrorLevelColor: color.New(color.FgRed),
+		WarnLevelColor:  color.New(color.FgYellow),
+		InfoLevelColor:  color.New(color.FgCyan),
+		DebugLevelColor: color.New(color.FgHiBlack),
+		TraceLevelColor: color.New(color.FgHiBlack),
+
+		MsgColor:    color.New(color.FgHiWhite),
+		KeyColor:    color.New(color.FgCyan),
+		NilColor:    color.New(color.FgHiBlack),
+		TrueColor:   color.New(color.FgGreen),
+		FalseColor:  color.New(color.FgYellow),
+		IntColor:    color.New(color.FgHiBlue),
+		UintColor:   color.New(color.FgHiBlue),
+		FloatColor:  color.New(color.FgHiBlue),
+		UUIDColor:   color.New(color.FgHiBlue),
+		StringColor: color.New(color.FgWhite),
+		ErrorColor:  color.New(color.FgRed),
+	}
+
 	Config = golog.NewConfig(
 		&Levels,
 		Levels.Debug.FilterOutBelow(),
-		golog.NewTextFormatter(os.Stdout, &Format, golog.NoColorizer),
+		golog.NewTextFormatter(os.Stdout, &Format, &Colorizer),
 	)
 
 	// Logger uses a golog.DerivedConfig referencing the
