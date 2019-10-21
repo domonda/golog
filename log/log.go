@@ -13,7 +13,7 @@ var (
 
 	Format = golog.Format{
 		TimestampKey:    "time",
-		TimestampFormat: "2006-01-02 15:04:05.999",
+		TimestampFormat: "2006-01-02 15:04:05.99",
 		LevelKey:        "level",
 		MessageKey:      "message",
 	}
