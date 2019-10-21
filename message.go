@@ -63,11 +63,12 @@ func (m *Message) Exec(writeFunc func(*Message)) *Message {
 	return m
 }
 
-// func (m *Message) Err(val error) *Message {
-// 	return m.NamedErr("error", val) // TODO
-// }
+// Err is a shortcut for Error("error", val)
+func (m *Message) Err(val error) *Message {
+	return m.Error("error", val)
+}
 
-func (m *Message) Err(key string, val error) *Message {
+func (m *Message) Error(key string, val error) *Message {
 	if m == nil {
 		return nil
 	}
@@ -76,7 +77,7 @@ func (m *Message) Err(key string, val error) *Message {
 	return m
 }
 
-func (m *Message) Errs(key string, vals []error) *Message {
+func (m *Message) Errors(key string, vals []error) *Message {
 	if m == nil {
 		return nil
 	}

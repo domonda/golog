@@ -126,7 +126,7 @@ type ErrorHook struct {
 }
 
 func (h *ErrorHook) Log(message *Message) {
-	message.Err(h.Key, h.Val)
+	message.Error(h.Key, h.Val)
 }
 
 type ErrorsHook struct {
@@ -135,7 +135,7 @@ type ErrorsHook struct {
 }
 
 func (h *ErrorsHook) Log(message *Message) {
-	message.Errs(h.Key, h.Vals)
+	message.Errors(h.Key, h.Vals)
 }
 
 // UUID

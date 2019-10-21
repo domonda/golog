@@ -131,8 +131,9 @@ func writeMessage(message *Message) {
 		Floats("Floats", []float64{-1.9999, 0, math.NaN(), math.Inf(+1), math.Inf(-1)}).
 		Str("Str", "Hello\n\"World\"!").
 		Strs("Strs", []string{"A", "B", "C"}).
-		Err("Err", errors.New("this is an error!")).
-		Errs("Errs", []error{errors.New("error \"A\""), errors.New("error \"B\"")}).
+		Err(errors.New("this is an error!")).
+		Error("Error", errors.New("this is an error!")).
+		Errors("Errors", []error{errors.New("error \"A\""), errors.New("error \"B\"")}).
 		Print("PrintSingle", "one arg").
 		Print("PrintMulti", false, 123, 0.5, "string", errors.New("error")).
 		UUID("UUID", uuid).
@@ -182,8 +183,9 @@ const (
 		`Floats=[-1.9999,0,NaN,+Inf,-Inf] ` +
 		`Str="Hello\n\"World\"!" ` +
 		`Strs=["A","B","C"] ` +
-		`Err="this is an error!" ` +
-		`Errs=["error \"A\"","error \"B\""] ` +
+		`error="this is an error!" ` +
+		`Error="this is an error!" ` +
+		`Errors=["error \"A\"","error \"B\""] ` +
 		`PrintSingle="one arg" ` +
 		`PrintMulti=["false","123","0.5","string","error"] ` +
 		`UUID=b14882b9-bfdd-45a4-9c84-1d717211c050 ` +
@@ -233,8 +235,9 @@ const (
 		`"Floats":[-1.9999,0,"NaN","+Inf","-Inf"],` +
 		`"Str":"Hello\n\"World\"!",` +
 		`"Strs":["A","B","C"],` +
-		`"Err":"this is an error!",` +
-		`"Errs":["error \"A\"","error \"B\""],` +
+		`"error":"this is an error!",` +
+		`"Error":"this is an error!",` +
+		`"Errors":["error \"A\"","error \"B\""],` +
 		`"PrintSingle":"one arg",` +
 		`"PrintMulti":["false","123","0.5","string","error"],` +
 		`"UUID":"b14882b9-bfdd-45a4-9c84-1d717211c050",` +

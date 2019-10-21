@@ -121,8 +121,9 @@ func (l *Logger) Error(text string) *Message {
 	return l.NewMessage(l.config.Error(), text)
 }
 
+// Errorf uses fmt.Errorf underneath to support Go 1.13 wrapped error formatting with %w
 func (l *Logger) Errorf(format string, args ...interface{}) *Message {
-	return l.NewMessagef(l.config.Error(), format, args...)
+	return l.NewMessage(l.config.Error(), fmt.Errorf(format, args...).Error())
 }
 
 func (l *Logger) Warn(text string) *Message {
@@ -155,70 +156,6 @@ func (l *Logger) Trace(text string) *Message {
 
 func (l *Logger) Tracef(format string, args ...interface{}) *Message {
 	return l.NewMessagef(l.config.Trace(), format, args...)
-}
-
-func (l *Logger) LogFatal(text string) {
-	l.NewMessage(l.config.Fatal(), text).Log()
-}
-
-func (l *Logger) LogFatalf(format string, args ...interface{}) {
-	l.NewMessagef(l.config.Fatal(), format, args...).Log()
-}
-
-func (l *Logger) LogError(text string) {
-	l.NewMessage(l.config.Error(), text).Log()
-}
-
-func (l *Logger) LogErrorf(format string, args ...interface{}) {
-	l.NewMessagef(l.config.Error(), format, args...).Log()
-}
-
-func (l *Logger) LogWarn(text string) {
-	l.NewMessage(l.config.Warn(), text).Log()
-}
-
-func (l *Logger) LogWarnf(format string, args ...interface{}) {
-	l.NewMessagef(l.config.Warn(), format, args...).Log()
-}
-
-func (l *Logger) LogInfo(text string) {
-	l.NewMessage(l.config.Info(), text).Log()
-}
-
-func (l *Logger) LogInfof(format string, args ...interface{}) {
-	l.NewMessagef(l.config.Info(), format, args...).Log()
-}
-
-func (l *Logger) LogDebug(text string) {
-	l.NewMessage(l.config.Debug(), text).Log()
-}
-
-func (l *Logger) LogDebugf(format string, args ...interface{}) {
-	l.NewMessagef(l.config.Debug(), format, args...).Log()
-}
-
-func (l *Logger) LogTrace(text string) {
-	l.NewMessage(l.config.Trace(), text).Log()
-}
-
-func (l *Logger) LogTracef(format string, args ...interface{}) {
-	l.NewMessagef(l.config.Trace(), format, args...).Log()
-}
-
-func (l *Logger) LogFatalAndPanic(text string) {
-	l.NewMessage(l.config.Fatal(), text).LogAndPanic()
-}
-
-func (l *Logger) LogFatalfAndPanic(format string, args ...interface{}) {
-	l.NewMessagef(l.config.Fatal(), format, args...).LogAndPanic()
-}
-
-func (l *Logger) LogErrorAndPanic(text string) {
-	l.NewMessage(l.config.Error(), text).LogAndPanic()
-}
-
-func (l *Logger) LogErrorfAndPanic(format string, args ...interface{}) {
-	l.NewMessagef(l.config.Error(), format, args...).LogAndPanic()
 }
 
 func (l *Logger) NewLevelWriter(level Level, exit bool) *LevelWriter {
