@@ -2,6 +2,7 @@ package log
 
 import (
 	"context"
+	"fmt"
 	"os"
 
 	"github.com/domonda/golog"
@@ -48,6 +49,12 @@ func WithLevelFilter(filter golog.LevelFilter) *golog.Logger {
 
 func With() *golog.Message {
 	return Logger.With()
+}
+
+// FatalAndPanic is a shortcut for Fatal(fmt.Sprint(p)).LogAndPanic()
+func FatalAndPanic(p interface{}) {
+	Logger.Fatal(fmt.Sprint(p)).Log()
+	panic(p)
 }
 
 func Fatal(text string) *golog.Message {

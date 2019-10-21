@@ -109,6 +109,12 @@ func (l *Logger) NewMessagef(level Level, format string, args ...interface{}) *M
 	return l.NewMessageAt(time.Now(), level, fmt.Sprintf(format, args...))
 }
 
+// FatalAndPanic is a shortcut for Fatal(fmt.Sprint(p)).LogAndPanic()
+func (l *Logger) FatalAndPanic(p interface{}) {
+	l.Fatal(fmt.Sprint(p)).Log()
+	panic(p)
+}
+
 func (l *Logger) Fatal(text string) *Message {
 	return l.NewMessage(l.config.Fatal(), text)
 }
