@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 )
 
 // LevelWriter writes unstructured messages to a Logger with a fixed Level.
@@ -18,7 +19,7 @@ type LevelWriter struct {
 
 // Write implements io.Writer
 func (w *LevelWriter) Write(data []byte) (int, error) {
-	w.Msg(string(data))
+	w.Msg(strings.TrimSpace(string(data)))
 	return len(data), nil
 }
 
