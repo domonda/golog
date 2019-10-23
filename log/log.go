@@ -131,8 +131,8 @@ func Tracef(format string, args ...interface{}) *golog.Message {
 	return Logger.Tracef(format, args...)
 }
 
-func NewLevelWriter(level golog.Level, exit bool) *golog.LevelWriter {
-	return Logger.NewLevelWriter(level, exit)
+func NewLevelWriter(level golog.Level) *golog.LevelWriter {
+	return Logger.NewLevelWriter(level)
 }
 
 func FatalWriter() *golog.LevelWriter {

@@ -164,30 +164,30 @@ func (l *Logger) Tracef(format string, args ...interface{}) *Message {
 	return l.NewMessagef(l.config.Trace(), format, args...)
 }
 
-func (l *Logger) NewLevelWriter(level Level, exit bool) *LevelWriter {
-	return &LevelWriter{logger: l, level: level, exit: exit}
+func (l *Logger) NewLevelWriter(level Level) *LevelWriter {
+	return &LevelWriter{logger: l, level: level}
 }
 
 func (l *Logger) FatalWriter() *LevelWriter {
-	return l.NewLevelWriter(l.config.Fatal(), true)
+	return l.NewLevelWriter(l.config.Fatal())
 }
 
 func (l *Logger) ErrorWriter() *LevelWriter {
-	return l.NewLevelWriter(l.config.Error(), true)
+	return l.NewLevelWriter(l.config.Error())
 }
 
 func (l *Logger) WarnWriter() *LevelWriter {
-	return l.NewLevelWriter(l.config.Warn(), true)
+	return l.NewLevelWriter(l.config.Warn())
 }
 
 func (l *Logger) InfoWriter() *LevelWriter {
-	return l.NewLevelWriter(l.config.Info(), true)
+	return l.NewLevelWriter(l.config.Info())
 }
 
 func (l *Logger) DebugWriter() *LevelWriter {
-	return l.NewLevelWriter(l.config.Debug(), true)
+	return l.NewLevelWriter(l.config.Debug())
 }
 
 func (l *Logger) TraceWriter() *LevelWriter {
-	return l.NewLevelWriter(l.config.Trace(), true)
+	return l.NewLevelWriter(l.config.Trace())
 }
