@@ -46,7 +46,7 @@ var (
 
 	Config = golog.NewConfig(
 		&Levels,
-		Levels.Debug.FilterOutBelow(),
+		Levels.LevelOfNameOrDefault(os.Getenv("LOG_LEVEL"), Levels.Debug).FilterOutBelow(),
 		golog.NewTextFormatter(os.Stdout, &Format, &Colorizer),
 	)
 
