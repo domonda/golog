@@ -135,8 +135,8 @@ func NewLevelWriter(level golog.Level, exit bool) *golog.LevelWriter {
 	return Logger.NewLevelWriter(level, exit)
 }
 
-func FatalWriter() *golog.LevelWriter {
-	return Logger.FatalWriter()
+func FatalWriter(exit bool) *golog.LevelWriter {
+	return Logger.FatalWriter(exit)
 }
 
 func ErrorWriter() *golog.LevelWriter {
