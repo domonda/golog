@@ -6,7 +6,7 @@ import (
 
 type Formatter interface {
 	Clone(level Level) Formatter
-	WriteText(t time.Time, levels *Levels, level Level, text string)
+	WriteText(t time.Time, levels *Levels, level Level, prefix, text string)
 	FlushAndFree()
 
 	// String is here only for debugging

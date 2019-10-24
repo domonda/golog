@@ -34,7 +34,7 @@ func (f *JSONFormatter) Clone(level Level) Formatter {
 	return NewJSONFormatter(f.writer, f.format)
 }
 
-func (f *JSONFormatter) WriteText(t time.Time, levels *Levels, level Level, text string) {
+func (f *JSONFormatter) WriteText(t time.Time, levels *Levels, level Level, prefix, text string) {
 	f.buf = append(f.buf, '{')
 
 	if f.format.TimestampKey != "" {
@@ -49,7 +49,7 @@ func (f *JSONFormatter) WriteText(t time.Time, levels *Levels, level Level, text
 
 	if f.format.MessageKey != "" && text != "" {
 		f.buf = encjson.AppendKey(f.buf, f.format.MessageKey)
-		f.buf = encjson.AppendString(f.buf, text)
+		f.buf = encjson.AppendString(f.buf, prefix+text)
 	}
 }
 

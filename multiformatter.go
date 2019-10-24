@@ -26,9 +26,9 @@ func (mf MultiFormatter) Clone(level Level) Formatter {
 	return clone
 }
 
-func (mf MultiFormatter) WriteText(t time.Time, levels *Levels, level Level, text string) {
+func (mf MultiFormatter) WriteText(t time.Time, levels *Levels, level Level, prefix, text string) {
 	for _, f := range mf {
-		f.WriteText(t, levels, level, text)
+		f.WriteText(t, levels, level, prefix, text)
 	}
 }
 

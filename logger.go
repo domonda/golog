@@ -9,6 +9,7 @@ import (
 
 type Logger struct {
 	config Config
+	prefix string
 	hooks  []Hook
 	mtx    sync.Mutex
 }
@@ -19,6 +20,17 @@ func NewLogger(config Config, hooks ...Hook) *Logger {
 	}
 	return &Logger{
 		config: config,
+		hooks:  hooks,
+	}
+}
+
+func NewLoggerWithPrefix(config Config, prefix string, hooks ...Hook) *Logger {
+	if config == nil {
+		return nil
+	}
+	return &Logger{
+		config: config,
+		prefix: prefix,
 		hooks:  hooks,
 	}
 }
@@ -57,7 +69,19 @@ func (l *Logger) WithHooks(hooks ...Hook) *Logger {
 	}
 	return &Logger{
 		config: l.config,
+		prefix: l.prefix,
 		hooks:  append(l.hooks, hooks...),
+	}
+}
+
+func (l *Logger) WithPrefix(prefix string) *Logger {
+	if l == nil {
+		return nil
+	}
+	return &Logger{
+		config: l.config,
+		hooks:  l.hooks,
+		prefix: prefix,
 	}
 }
 
@@ -67,6 +91,7 @@ func (l *Logger) WithLevelFilter(filter LevelFilter) *Logger {
 	}
 	return &Logger{
 		config: NewDerivedConfig(&l.config, filter),
+		prefix: l.prefix,
 		hooks:  l.hooks,
 	}
 }
@@ -88,7 +113,7 @@ func (l *Logger) NewMessageAt(t time.Time, level Level, text string) *Message {
 		return nil
 	}
 	m := newMessage(l, l.config.Formatter().Clone(level), text)
-	m.formatter.WriteText(t, l.config.Levels(), level, text)
+	m.formatter.WriteText(t, l.config.Levels(), level, l.prefix, text)
 	for _, hook := range l.hooks {
 		hook.Log(m)
 	}

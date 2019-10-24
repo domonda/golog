@@ -23,8 +23,8 @@ func (f *FilteredFormatter) Clone(level Level) Formatter {
 	return NewFilteredFormatter(f.filter, f.wrapped.Clone(level))
 }
 
-func (f *FilteredFormatter) WriteText(t time.Time, levels *Levels, level Level, text string) {
-	f.wrapped.WriteText(t, levels, level, text)
+func (f *FilteredFormatter) WriteText(t time.Time, levels *Levels, level Level, prefix, text string) {
+	f.wrapped.WriteText(t, levels, level, prefix, text)
 }
 
 func (f *FilteredFormatter) FlushAndFree() {

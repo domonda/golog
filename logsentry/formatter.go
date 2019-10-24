@@ -37,7 +37,7 @@ func (f *Formatter) Clone(level golog.Level) golog.Formatter {
 	return NewFormatter(f.filter, f.hub) // Clone hub too?
 }
 
-func (f *Formatter) WriteText(t time.Time, levels *golog.Levels, level golog.Level, text string) {
+func (f *Formatter) WriteText(t time.Time, levels *golog.Levels, level golog.Level, prefix, text string) {
 	switch level {
 	case levels.Fatal:
 		f.level = sentry.LevelFatal
@@ -55,7 +55,7 @@ func (f *Formatter) WriteText(t time.Time, levels *golog.Levels, level golog.Lev
 		f.level = UnknownLevel
 	}
 
-	f.message = text
+	f.message = prefix + text
 }
 
 func (f *Formatter) FlushAndFree() {

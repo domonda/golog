@@ -73,6 +73,10 @@ func WithLevelFilter(filter golog.LevelFilter) *golog.Logger {
 	return Logger.WithLevelFilter(filter)
 }
 
+func WithPrefix(prefix string) *golog.Logger {
+	return Logger.WithPrefix(prefix)
+}
+
 func With() *golog.Message {
 	return Logger.With()
 }
