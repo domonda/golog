@@ -55,7 +55,20 @@ var (
 	// This way Config can be changed after initialization of Logger
 	// without the need to create and set a new golog.Logger.
 	Logger = golog.NewLogger(golog.NewDerivedConfig(&Config))
+
+	Registry                     golog.Registry
+	AddImportPathToPackageLogger = false
 )
+
+func NewPackageLogger(packageName string, filters ...golog.LevelFilter) *golog.Logger {
+	config := golog.NewDerivedConfig(&Config, filters...)
+	pkg := Registry.AddPackageConfig(config)
+	logger := golog.NewLoggerWithPrefix(config, packageName+": ")
+	if AddImportPathToPackageLogger {
+		logger = logger.With().Str("pkg", pkg).NewLogger()
+	}
+	return logger
+}
 
 func Context(ctx context.Context) context.Context {
 	return Logger.Context(ctx)
