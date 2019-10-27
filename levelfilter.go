@@ -72,3 +72,23 @@ func (f *LevelFilter) SetActive(level Level, active bool) {
 		*f |= levelBitMask
 	}
 }
+
+func (f *LevelFilter) ActiveLevelNames(levels *Levels) []string {
+	var names []string
+	for l := LevelMin; l <= LevelMax; l++ {
+		if levels.HasName(l) && f.IsActive(l) {
+			names = append(names, levels.Name(l))
+		}
+	}
+	return names
+}
+
+func (f *LevelFilter) InactiveLevelNames(levels *Levels) []string {
+	var names []string
+	for l := LevelMin; l <= LevelMax; l++ {
+		if levels.HasName(l) && !f.IsActive(l) {
+			names = append(names, levels.Name(l))
+		}
+	}
+	return names
+}

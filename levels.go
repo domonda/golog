@@ -38,6 +38,11 @@ func (l *Levels) Name(level Level) string {
 	return strconv.Itoa(int(level))
 }
 
+func (l *Levels) HasName(level Level) bool {
+	_, has := l.Names[level]
+	return has
+}
+
 func (l *Levels) FatalName() string {
 	return l.Name(l.Fatal)
 }
