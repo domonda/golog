@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"reflect"
 	"sync"
+
+	"github.com/ungerik/go-reflection"
 )
 
 type Message struct {
@@ -89,50 +91,63 @@ func (m *Message) Errors(key string, vals []error) *Message {
 	return m
 }
 
-func (m *Message) writeVal(key string, val interface{}) {
+func (m *Message) writeVal(key string, val reflect.Value) {
 	m.formatter.WriteKey(key)
 
-	if l, ok := val.(Loggable); ok {
-		l.LogMessage(m, key)
-	}
-
-	v := reflect.ValueOf(val)
-	for v.Kind() == reflect.Ptr && !v.IsNil() {
-		v = v.Elem()
-		val = v.Interface()
-	}
-
-	switch x := val.(type) {
-	case Loggable:
-		x.LogMessage(m, key)
-	case bool:
-		m.formatter.WriteBool(x)
-	case int:
-		m.formatter.WriteInt(int64(x))
-	case int8:
-		m.formatter.WriteInt(int64(x))
-	case int16:
-		m.formatter.WriteInt(int64(x))
-	case int32:
-		m.formatter.WriteInt(int64(x))
-	case int64:
-		m.formatter.WriteInt(x)
-	case uint:
-		m.formatter.WriteUint(uint64(x))
-	case uint8:
-		m.formatter.WriteUint(uint64(x))
-	case uint16:
-		m.formatter.WriteUint(uint64(x))
-	case uint32:
-		m.formatter.WriteUint(uint64(x))
-	case uint64:
-		m.formatter.WriteUint(x)
-	case string:
-		m.formatter.WriteString(x)
-	case error:
-		m.formatter.WriteError(x)
+	switch x := val.Interface().(type) {
 	case nil:
 		m.formatter.WriteNil()
+		return
+	case error:
+		m.formatter.WriteError(x)
+		return
+	case Loggable:
+		x.LogMessage(m, key)
+		return
+	}
+
+	// Deref pointers
+	for val.Kind() == reflect.Ptr && !val.IsNil() {
+		val = val.Elem()
+	}
+
+	switch x := val.Interface().(type) {
+	case nil:
+		m.formatter.WriteNil()
+		return
+	case error:
+		m.formatter.WriteError(x)
+		return
+	case Loggable:
+		x.LogMessage(m, key)
+		return
+	}
+
+	switch val.Kind() {
+	case reflect.Bool:
+		m.formatter.WriteBool(val.Bool())
+	case reflect.Int:
+		m.formatter.WriteInt(val.Int())
+	case reflect.Int8:
+		m.formatter.WriteInt(val.Int())
+	case reflect.Int16:
+		m.formatter.WriteInt(val.Int())
+	case reflect.Int32:
+		m.formatter.WriteInt(val.Int())
+	case reflect.Int64:
+		m.formatter.WriteInt(val.Int())
+	case reflect.Uint:
+		m.formatter.WriteUint(val.Uint())
+	case reflect.Uint8:
+		m.formatter.WriteUint(val.Uint())
+	case reflect.Uint16:
+		m.formatter.WriteUint(val.Uint())
+	case reflect.Uint32:
+		m.formatter.WriteUint(val.Uint())
+	case reflect.Uint64:
+		m.formatter.WriteUint(val.Uint())
+	case reflect.String:
+		m.formatter.WriteString(val.String())
 	default:
 		m.formatter.WriteString(fmt.Sprint(val))
 	}
@@ -144,7 +159,7 @@ func (m *Message) Val(key string, val interface{}) *Message {
 	if m == nil {
 		return nil
 	}
-	m.writeVal(key, val)
+	m.writeVal(key, reflect.ValueOf(val))
 	return m
 }
 
@@ -154,9 +169,20 @@ func (m *Message) Vals(key string, vals []interface{}) *Message {
 	}
 	m.formatter.WriteSliceKey(key)
 	for _, val := range vals {
-		m.writeVal("", val) // TODO do we want empty string?
+		m.writeVal("", reflect.ValueOf(val)) // TODO do we want empty string?
 	}
 	m.formatter.WriteSliceEnd()
+	return m
+}
+
+// StructFields calls Val(fieldName, fieldValue) for every exported struct field
+func (m *Message) StructFields(strct interface{}) *Message {
+	if m == nil {
+		return nil
+	}
+	reflection.EnumFlatExportedStructFields(strct, func(field reflect.StructField, value reflect.Value) {
+		m.writeVal(field.Name, value)
+	})
 	return m
 }
 
