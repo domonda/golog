@@ -35,6 +35,10 @@ func NewLoggerWithPrefix(config Config, prefix string, hooks ...Hook) *Logger {
 	}
 }
 
+// ContextLogger returns a Logger if ctx has one
+// or a nil Logger wich is still valid to use
+// but does not produce any log output.
+// See Logger.Context
 func ContextLogger(ctx context.Context) *Logger {
 	l, _ := ctx.Value(ctxKey{}).(*Logger)
 	return l
@@ -42,11 +46,15 @@ func ContextLogger(ctx context.Context) *Logger {
 
 type ctxKey struct{}
 
-func (l *Logger) Context(ctx context.Context) context.Context {
+// Context returns a new context.Context with this Logger.
+// If this Logger is a nil Logger, then the passed in
+// parent context is returned.
+// See ContextLogger
+func (l *Logger) Context(parent context.Context) context.Context {
 	if l == nil {
-		return ctx
+		return parent
 	}
-	return context.WithValue(ctx, ctxKey{}, l)
+	return context.WithValue(parent, ctxKey{}, l)
 }
 
 func (l *Logger) Config() Config {

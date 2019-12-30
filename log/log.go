@@ -70,10 +70,16 @@ func NewPackageLogger(packageName string, filters ...golog.LevelFilter) *golog.L
 	return logger
 }
 
-func Context(ctx context.Context) context.Context {
-	return Logger.Context(ctx)
+// Context returns a new context.Context with the default Logger.
+// See ContextLogger
+func Context(parent context.Context) context.Context {
+	return Logger.Context(parent)
 }
 
+// ContextLogger returns a Logger if ctx has one
+// or a nil Logger wich is still valid to use
+// but does not produce any log output.
+// See Context
 func ContextLogger(ctx context.Context) *golog.Logger {
 	return golog.ContextLogger(ctx)
 }
