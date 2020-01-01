@@ -3,6 +3,7 @@ package golog
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"sync"
 	"time"
 )
@@ -35,21 +36,21 @@ func NewLoggerWithPrefix(config Config, prefix string, hooks ...Hook) *Logger {
 	}
 }
 
-// ContextLogger returns a Logger if ctx has one
+type ctxKey struct{}
+
+// FromContext returns a Logger if ctx has one
 // or a nil Logger wich is still valid to use
 // but does not produce any log output.
 // See Logger.Context
-func ContextLogger(ctx context.Context) *Logger {
+func FromContext(ctx context.Context) *Logger {
 	l, _ := ctx.Value(ctxKey{}).(*Logger)
 	return l
 }
 
-type ctxKey struct{}
-
 // Context returns a new context.Context with this Logger.
 // If this Logger is a nil Logger, then the passed in
 // parent context is returned.
-// See ContextLogger
+// See FromContext
 func (l *Logger) Context(parent context.Context) context.Context {
 	if l == nil {
 		return parent
@@ -59,6 +60,27 @@ func (l *Logger) Context(parent context.Context) context.Context {
 
 func (l *Logger) Config() Config {
 	return l.config
+}
+
+// WithRequestContext creates a new requestLogger with the passed requestID,
+// logs a "HTTP request" info level message with the passed request
+// and returns the requestLogger together with a new context.Context
+// derived from the request.Context that has requestLogger added to it,
+// so functions receiving this ctx can get the requestLogger
+// by by calling golog.FromContext(ctx).
+//
+// Example:
+//   func ServeHTTP(response http.ResponseWriter, request *http.Request) {
+//       log, ctx := globalLogger.WithRequestContext(golog.NewUUID(), request)
+//       log.Debug("Using request sub-logger").Log()
+//       doSomething(ctx)
+//       ...
+//   }
+func (l *Logger) WithRequestContext(requestID interface{}, request *http.Request) (requestLogger *Logger, ctx context.Context) {
+	requestLogger = l.With().Val("requestID", requestID).NewLogger()
+	requestLogger.Info("HTTP request").Request(request).Log()
+	ctx = requestLogger.Context(request.Context())
+	return requestLogger, ctx
 }
 
 func (l *Logger) IsActive(level Level) bool {

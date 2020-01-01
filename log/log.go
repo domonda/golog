@@ -3,6 +3,7 @@ package log
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 
 	"github.com/fatih/color"
@@ -71,17 +72,41 @@ func NewPackageLogger(packageName string, filters ...golog.LevelFilter) *golog.L
 }
 
 // Context returns a new context.Context with the default Logger.
-// See ContextLogger
+// See WithContext
 func Context(parent context.Context) context.Context {
 	return Logger.Context(parent)
 }
 
-// ContextLogger returns a Logger if ctx has one
-// or a nil Logger wich is still valid to use
-// but does not produce any log output.
+// WithContext returns a golog.Logger if ctx has one
+// or the default Logger variable.
+// This behaviour differs from golog.FromContext
+// that returns a nil Logger if ctx has none.
 // See Context
-func ContextLogger(ctx context.Context) *golog.Logger {
-	return golog.ContextLogger(ctx)
+func WithContext(ctx context.Context) *golog.Logger {
+	if l := golog.FromContext(ctx); l != nil {
+		return l
+	}
+	return Logger
+}
+
+// WithRequestContext creates a new requestLogger with a new requestID,
+// logs a "HTTP request" info level message with the passed request
+// and returns requestLogger together with a new context.Context
+// derived from the request.Context that has requestLogger added to it,
+// so functions receiving this ctx can get the requestLogger
+// by by calling WithContext(ctx).
+//
+// Example:
+//   func ServeHTTP(response http.ResponseWriter, request *http.Request) {
+//       log, requestID, ctx := log.WithRequestContext(request)
+//       log.Debug("Using request sub-logger").Log()
+//       doSomething(ctx, requestID)
+//       ...
+//   }
+func WithRequestContext(request *http.Request) (requestLogger *golog.Logger, requestID [16]byte, ctx context.Context) {
+	requestID = golog.NewUUID()
+	requestLogger, ctx = Logger.WithRequestContext(requestID, request)
+	return requestLogger, requestID, ctx
 }
 
 func WithHooks(hooks ...golog.Hook) *golog.Logger {

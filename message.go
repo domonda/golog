@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"reflect"
 	"sync"
 
@@ -53,7 +54,8 @@ func (m *Message) Loggable(key string, val Loggable) *Message {
 	if m == nil {
 		return nil
 	}
-	val.LogMessage(m, key)
+	m.formatter.WriteKey(key)
+	val.LogMessage(m)
 	return m
 }
 
@@ -91,18 +93,19 @@ func (m *Message) Errors(key string, vals []error) *Message {
 	return m
 }
 
-func (m *Message) writeVal(key string, val reflect.Value) {
-	m.formatter.WriteKey(key)
-
+func (m *Message) writeVal(val reflect.Value, noSlice bool) {
 	switch x := val.Interface().(type) {
 	case nil:
 		m.formatter.WriteNil()
 		return
+	case Loggable:
+		x.LogMessage(m)
+		return
 	case error:
 		m.formatter.WriteError(x)
 		return
-	case Loggable:
-		x.LogMessage(m, key)
+	case [16]byte:
+		m.formatter.WriteUUID(x)
 		return
 	}
 
@@ -115,11 +118,14 @@ func (m *Message) writeVal(key string, val reflect.Value) {
 	case nil:
 		m.formatter.WriteNil()
 		return
+	case Loggable:
+		x.LogMessage(m)
+		return
 	case error:
 		m.formatter.WriteError(x)
 		return
-	case Loggable:
-		x.LogMessage(m, key)
+	case [16]byte:
+		m.formatter.WriteUUID(x)
 		return
 	}
 
@@ -148,6 +154,14 @@ func (m *Message) writeVal(key string, val reflect.Value) {
 		m.formatter.WriteUint(val.Uint())
 	case reflect.String:
 		m.formatter.WriteString(val.String())
+	case reflect.Array, reflect.Slice:
+		if noSlice {
+			m.formatter.WriteString(fmt.Sprint(val))
+		} else {
+			for i := 0; i < val.Len(); i++ {
+				m.writeVal(val.Index(i), true)
+			}
+		}
 	default:
 		m.formatter.WriteString(fmt.Sprint(val))
 	}
@@ -159,7 +173,8 @@ func (m *Message) Val(key string, val interface{}) *Message {
 	if m == nil {
 		return nil
 	}
-	m.writeVal(key, reflect.ValueOf(val))
+	m.formatter.WriteKey(key)
+	m.writeVal(reflect.ValueOf(val), true)
 	return m
 }
 
@@ -169,7 +184,7 @@ func (m *Message) Vals(key string, vals []interface{}) *Message {
 	}
 	m.formatter.WriteSliceKey(key)
 	for _, val := range vals {
-		m.writeVal("", reflect.ValueOf(val)) // TODO do we want empty string?
+		m.writeVal(reflect.ValueOf(val), true)
 	}
 	m.formatter.WriteSliceEnd()
 	return m
@@ -181,7 +196,8 @@ func (m *Message) StructFields(strct interface{}) *Message {
 		return nil
 	}
 	reflection.EnumFlatExportedStructFields(strct, func(field reflect.StructField, value reflect.Value) {
-		m.writeVal(field.Name, value)
+		m.formatter.WriteKey(field.Name)
+		m.writeVal(value, true)
 	})
 	return m
 }
@@ -741,6 +757,30 @@ func (m *Message) JSON(key string, val []byte) *Message {
 		m.formatter.WriteJSON(buf.Bytes())
 	} else {
 		m.formatter.WriteJSON(nil)
+	}
+	return m
+}
+
+// Request logs an http.Request.
+// The following keys are logged:
+// remote, method, uri,
+// and if available: headers, contentLength
+func (m *Message) Request(request *http.Request) *Message {
+	if m == nil {
+		return nil
+	}
+	m.Str("remote", request.RemoteAddr)
+	m.Str("method", request.Method)
+	m.Str("uri", request.RequestURI)
+	for header, values := range request.Header {
+		if len(values) == 1 {
+			m.Str(header, values[0])
+		} else {
+			m.Strs(header, values)
+		}
+	}
+	if request.ContentLength != -1 {
+		m.Int64("contentLength", request.ContentLength)
 	}
 	return m
 }
