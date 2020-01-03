@@ -68,10 +68,6 @@ func (l *Logger) RequestWithContext(request *http.Request) *http.Request {
 	return request.WithContext(l.Context(request.Context()))
 }
 
-func (l *Logger) Config() Config {
-	return l.config
-}
-
 // WithRequestID creates a new requestLogger with a new requestID (UUID),
 // logs the passed request's metdata with a golog.HTTPRequestMessage (default "HTTP request")
 // using golog.HTTPRequestLevel (default golog.DefaultLevels.Info)
@@ -129,25 +125,25 @@ func (l *Logger) HTTPMiddlewareFunc() func(next http.Handler) http.Handler {
 	}
 }
 
-func (l *Logger) IsActive(level Level) bool {
-	if l == nil {
-		return false
-	}
-	l.mtx.Lock()
-	active := l.config.IsActive(level)
-	l.mtx.Unlock()
-	return active
-}
-
+// WithHooks returns a new Logger with the passed
+// hooks appended to the existing hooks.
 func (l *Logger) WithHooks(hooks ...Hook) *Logger {
-	if l == nil {
-		return nil
+	if l == nil || len(hooks) == 0 {
+		return l
 	}
 	return &Logger{
 		config: l.config,
 		prefix: l.prefix,
 		hooks:  append(l.hooks, hooks...),
 	}
+}
+
+// WithContextHooks returns a new Logger with the
+// hooks from a context logger appended to the existing hooks,
+// if there was a Logger added as value to the context,
+// else l is returned unchanged.
+func (l *Logger) WithContextHooks(ctx context.Context) *Logger {
+	return l.WithHooks(FromContext(ctx).Hooks()...)
 }
 
 func (l *Logger) WithPrefix(prefix string) *Logger {
@@ -182,6 +178,37 @@ func (l *Logger) With() *Message {
 		return nil
 	}
 	return newMessage(l, new(recordingFormatter), "")
+}
+
+func (l *Logger) Config() Config {
+	if l == nil {
+		return nil
+	}
+	return l.config
+}
+
+func (l *Logger) Prefix() string {
+	if l == nil {
+		return ""
+	}
+	return l.prefix
+}
+
+func (l *Logger) Hooks() []Hook {
+	if l == nil {
+		return nil
+	}
+	return l.hooks
+}
+
+func (l *Logger) IsActive(level Level) bool {
+	if l == nil {
+		return false
+	}
+	l.mtx.Lock()
+	active := l.config.IsActive(level)
+	l.mtx.Unlock()
+	return active
 }
 
 func (l *Logger) NewMessageAt(t time.Time, level Level, text string) *Message {
