@@ -116,6 +116,17 @@ func Request(request *http.Request) (requestLogger *golog.Logger, requestID [16]
 	return requestLogger, requestID, ctx
 }
 
+// HTTPMiddlewareFunc returns a HTTP handler middleware function that
+// creates a new sub-logger with a requestID (UUID),
+// logs the request metadata using it,
+// and adds it as value to the context of the request
+// so it can be retrieved with WithContext(request.Context())
+// in further handlers after this middleware handler.
+// Compatible with github.com/gorilla/mux.MiddlewareFunc
+func HTTPMiddlewareFunc() func(next http.Handler) http.Handler {
+	return Logger.HTTPMiddlewareFunc()
+}
+
 func WithHooks(hooks ...golog.Hook) *golog.Logger {
 	return Logger.WithHooks(hooks...)
 }
