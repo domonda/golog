@@ -37,7 +37,7 @@ func main() {
 	}
 
 	log.Config = golog.NewConfig(
-		&log.Levels,
+		log.Levels,
 		golog.NoFilter,
 		golog.NewTextFormatter(os.Stdout, &log.Format, colorizer),
 	)

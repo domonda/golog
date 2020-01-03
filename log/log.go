@@ -12,7 +12,7 @@ import (
 )
 
 var (
-	Levels = golog.DefaultLevels
+	Levels = &golog.DefaultLevels
 
 	Format = golog.Format{
 		TimestampKey:    "time",
@@ -46,7 +46,7 @@ var (
 	}
 
 	Config = golog.NewConfig(
-		&Levels,
+		Levels,
 		Levels.LevelOfNameOrDefault(os.Getenv("LOG_LEVEL"), Levels.Debug).FilterOutBelow(),
 		golog.NewTextFormatter(os.Stdout, &Format, &Colorizer),
 	)
@@ -89,23 +89,30 @@ func WithContext(ctx context.Context) *golog.Logger {
 	return Logger
 }
 
-// WithRequestContext creates a new requestLogger with a new requestID,
-// logs a "HTTP request" info level message with the passed request
-// and returns requestLogger together with a new context.Context
-// derived from the request.Context that has requestLogger added to it,
+// Request creates a new requestLogger with a new requestID (UUID),
+// logs the passed request's metdata with a golog.HTTPRequestMessage (default "HTTP request")
+// using golog.HTTPRequestLevel (default golog.DefaultLevels.Info)
+// and returns the requestLogger and requestID together with a new context.Context
+// derived from the request.Context() that has requestLogger added as value,
 // so functions receiving this ctx can get the requestLogger
-// by by calling WithContext(ctx).
+// by calling WithContext(ctx).
 //
 // Example:
-//   func ServeHTTP(response http.ResponseWriter, request *http.Request) {
-//       log, requestID, ctx := log.WithRequestContext(request)
+//   func ServeHTTP(w http.ResponseWriter, r *http.Request) {
+//       log, requestID, ctx := log.Request(r)
 //       log.Debug("Using request sub-logger").Log()
-//       doSomething(ctx, requestID)
+//       doSomething(ctx)
 //       ...
 //   }
-func WithRequestContext(request *http.Request) (requestLogger *golog.Logger, requestID [16]byte, ctx context.Context) {
+//   func doSomething(ctx context.Context) {
+//       // Logger from ctx will implicitely add the requestID
+//       // value to the folloing log message:
+//       log.WithContext(ctx).Info("doSomething").Log()
+//       ...
+//   }
+func Request(request *http.Request) (requestLogger *golog.Logger, requestID [16]byte, ctx context.Context) {
 	requestID = golog.NewUUID()
-	requestLogger, ctx = Logger.WithRequestContext(requestID, request)
+	requestLogger, ctx = Logger.WithRequestIDContext(requestID, request)
 	return requestLogger, requestID, ctx
 }
 

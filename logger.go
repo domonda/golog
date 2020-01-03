@@ -58,29 +58,75 @@ func (l *Logger) Context(parent context.Context) context.Context {
 	return context.WithValue(parent, ctxKey{}, l)
 }
 
+// RequestWithContext returs a shallow copy of the passed request
+// with the logger added as value to its context,
+// so FromContext(request.Context()) will return it.
+func (l *Logger) RequestWithContext(request *http.Request) *http.Request {
+	if l == nil {
+		return request
+	}
+	return request.WithContext(l.Context(request.Context()))
+}
+
 func (l *Logger) Config() Config {
 	return l.config
 }
 
-// WithRequestContext creates a new requestLogger with the passed requestID,
-// logs a "HTTP request" info level message with the passed request
-// and returns the requestLogger together with a new context.Context
-// derived from the request.Context that has requestLogger added to it,
-// so functions receiving this ctx can get the requestLogger
-// by by calling golog.FromContext(ctx).
+// WithRequestID creates a new requestLogger with a new requestID (UUID),
+// logs the passed request's metdata with a golog.HTTPRequestMessage (default "HTTP request")
+// using golog.HTTPRequestLevel (default golog.DefaultLevels.Info)
+// and returns the requestLogger.
 //
 // Example:
-//   func ServeHTTP(response http.ResponseWriter, request *http.Request) {
-//       log, ctx := globalLogger.WithRequestContext(golog.NewUUID(), request)
+//   func ServeHTTP(w http.ResponseWriter, r *http.Request) {
+//       log := globalLogger.WithRequestID(golog.NewUUID(), r)
+//       log.Debug("Using request sub-logger").Log()
+//       ...
+//   }
+func (l *Logger) WithRequestID(requestID interface{}, requestToLog *http.Request) (requestLogger *Logger) {
+	requestLogger = l.With().Val("requestID", requestID).NewLogger()
+	requestLogger.NewMessage(*HTTPRequestLevel, HTTPRequestMessage).Request(requestToLog).Log()
+	return requestLogger
+}
+
+// WithRequestIDContext creates a new requestLogger with a new requestID (UUID),
+// logs the passed request's metdata with a golog.HTTPRequestMessage (default "HTTP request")
+// using golog.HTTPRequestLevel (default golog.DefaultLevels.Info)
+// and returns the requestLogger together with a new context.Context
+// derived from the request.Context() that has requestLogger added as value,
+// so functions receiving this ctx can get the requestLogger
+// by calling FromContext(ctx).
+//
+// Example:
+//   func ServeHTTP(w http.ResponseWriter, r *http.Request) {
+//       log, ctx := globalLogger.WithRequestIDContext(golog.NewUUID(), r)
 //       log.Debug("Using request sub-logger").Log()
 //       doSomething(ctx)
 //       ...
 //   }
-func (l *Logger) WithRequestContext(requestID interface{}, request *http.Request) (requestLogger *Logger, ctx context.Context) {
-	requestLogger = l.With().Val("requestID", requestID).NewLogger()
-	requestLogger.Info("HTTP request").Request(request).Log()
-	ctx = requestLogger.Context(request.Context())
+func (l *Logger) WithRequestIDContext(requestID interface{}, requestToLog *http.Request) (requestLogger *Logger, ctx context.Context) {
+	requestLogger = l.WithRequestID(requestID, requestToLog)
+	ctx = requestLogger.Context(requestToLog.Context())
 	return requestLogger, ctx
+}
+
+// HTTPMiddlewareFunc returns a HTTP handler middleware function that
+// creates a new sub-logger with a requestID (UUID),
+// logs the request metadata using it,
+// and adds it as value to the context of the request
+// so it can be retrieved with FromContext(request.Context())
+// in further handlers after this middleware handler.
+// Compatible with github.com/gorilla/mux.MiddlewareFunc
+func (l *Logger) HTTPMiddlewareFunc() func(next http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(
+			func(w http.ResponseWriter, r *http.Request) {
+				l = l.WithRequestID(NewUUID(), r)
+				r = l.RequestWithContext(r)
+				next.ServeHTTP(w, r)
+			},
+		)
+	}
 }
 
 func (l *Logger) IsActive(level Level) bool {
