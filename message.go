@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"reflect"
 	"sync"
+	"time"
 
 	"github.com/ungerik/go-reflection"
 )
@@ -709,6 +710,14 @@ func (m *Message) Strs(key string, vals []string) *Message {
 }
 
 func (m *Message) Stringer(key string, val fmt.Stringer) *Message {
+	return m.Str(key, val.String())
+}
+
+func (m *Message) Time(key string, val time.Time) *Message {
+	return m.Str(key, val.String())
+}
+
+func (m *Message) Duration(key string, val time.Duration) *Message {
 	return m.Str(key, val.String())
 }
 
