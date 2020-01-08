@@ -127,8 +127,8 @@ func HTTPMiddlewareFunc() func(next http.Handler) http.Handler {
 	return Logger.HTTPMiddlewareFunc()
 }
 
-func WithHooks(hooks ...golog.Hook) *golog.Logger {
-	return Logger.WithHooks(hooks...)
+func WithValues(values ...golog.NamedValue) *golog.Logger {
+	return Logger.WithValues(values...)
 }
 
 func WithLevelFilter(filter golog.LevelFilter) *golog.Logger {

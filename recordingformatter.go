@@ -6,10 +6,10 @@ import (
 )
 
 type recordingFormatter struct {
-	hooks     []Hook
-	key       string
-	slice     bool
-	sliceHook Hook
+	values     []NamedValue
+	key        string
+	slice      bool
+	sliceValue NamedValue
 }
 
 func (r *recordingFormatter) Clone(level Level) Formatter {
@@ -26,7 +26,7 @@ func (r *recordingFormatter) FlushAndFree() {
 
 // String is here only for debugging
 func (r *recordingFormatter) String() string {
-	return fmt.Sprintf("recordingFormatter with %d recored hooks", r.hooks)
+	return fmt.Sprintf("recordingFormatter with %d recored values", r.values)
 }
 
 func (r *recordingFormatter) WriteKey(key string) {
@@ -39,99 +39,99 @@ func (r *recordingFormatter) WriteSliceKey(key string) {
 }
 
 func (r *recordingFormatter) WriteSliceEnd() {
-	r.hooks = append(r.hooks, r.sliceHook)
-	r.sliceHook = nil
+	r.values = append(r.values, r.sliceValue)
+	r.sliceValue = nil
 	r.slice = false
 }
 
 func (r *recordingFormatter) WriteNil() {
-	r.hooks = append(r.hooks, &NilHook{Key: r.key})
+	r.values = append(r.values, &NilNamedValue{Key: r.key})
 }
 
 func (r *recordingFormatter) WriteBool(val bool) {
 	if !r.slice {
-		r.hooks = append(r.hooks, &BoolHook{Key: r.key, Val: val})
+		r.values = append(r.values, &BoolNamedValue{Key: r.key, Val: val})
 		return
 	}
-	if hook, ok := r.sliceHook.(*BoolsHook); ok {
+	if hook, ok := r.sliceValue.(*BoolsNamedValue); ok {
 		hook.Vals = append(hook.Vals, val)
 	} else {
-		r.sliceHook = &BoolsHook{Key: r.key, Vals: []bool{val}}
+		r.sliceValue = &BoolsNamedValue{Key: r.key, Vals: []bool{val}}
 	}
 }
 
 func (r *recordingFormatter) WriteInt(val int64) {
 	if !r.slice {
-		r.hooks = append(r.hooks, &IntHook{Key: r.key, Val: val})
+		r.values = append(r.values, &IntNamedValue{Key: r.key, Val: val})
 		return
 	}
-	if hook, ok := r.sliceHook.(*IntsHook); ok {
+	if hook, ok := r.sliceValue.(*IntsNamedValue); ok {
 		hook.Vals = append(hook.Vals, val)
 	} else {
-		r.sliceHook = &IntsHook{Key: r.key, Vals: []int64{val}}
+		r.sliceValue = &IntsNamedValue{Key: r.key, Vals: []int64{val}}
 	}
 }
 
 func (r *recordingFormatter) WriteUint(val uint64) {
 	if !r.slice {
-		r.hooks = append(r.hooks, &UintHook{Key: r.key, Val: val})
+		r.values = append(r.values, &UintNamedValue{Key: r.key, Val: val})
 		return
 	}
-	if hook, ok := r.sliceHook.(*UintsHook); ok {
+	if hook, ok := r.sliceValue.(*UintsNamedValue); ok {
 		hook.Vals = append(hook.Vals, val)
 	} else {
-		r.sliceHook = &UintsHook{Key: r.key, Vals: []uint64{val}}
+		r.sliceValue = &UintsNamedValue{Key: r.key, Vals: []uint64{val}}
 	}
 }
 
 func (r *recordingFormatter) WriteFloat(val float64) {
 	if !r.slice {
-		r.hooks = append(r.hooks, &FloatHook{Key: r.key, Val: val})
+		r.values = append(r.values, &FloatNamedValue{Key: r.key, Val: val})
 		return
 	}
-	if hook, ok := r.sliceHook.(*FloatsHook); ok {
+	if hook, ok := r.sliceValue.(*FloatsNamedValue); ok {
 		hook.Vals = append(hook.Vals, val)
 	} else {
-		r.sliceHook = &FloatsHook{Key: r.key, Vals: []float64{val}}
+		r.sliceValue = &FloatsNamedValue{Key: r.key, Vals: []float64{val}}
 	}
 }
 
 func (r *recordingFormatter) WriteString(val string) {
 	if !r.slice {
-		r.hooks = append(r.hooks, &StringHook{Key: r.key, Val: val})
+		r.values = append(r.values, &StringNamedValue{Key: r.key, Val: val})
 		return
 	}
-	if hook, ok := r.sliceHook.(*StringsHook); ok {
+	if hook, ok := r.sliceValue.(*StringsNamedValue); ok {
 		hook.Vals = append(hook.Vals, val)
 	} else {
-		r.sliceHook = &StringsHook{Key: r.key, Vals: []string{val}}
+		r.sliceValue = &StringsNamedValue{Key: r.key, Vals: []string{val}}
 	}
 }
 
 func (r *recordingFormatter) WriteError(val error) {
 	if !r.slice {
-		r.hooks = append(r.hooks, &ErrorHook{Key: r.key, Val: val})
+		r.values = append(r.values, &ErrorNamedValue{Key: r.key, Val: val})
 		return
 	}
-	if hook, ok := r.sliceHook.(*ErrorsHook); ok {
+	if hook, ok := r.sliceValue.(*ErrorsNamedValue); ok {
 		hook.Vals = append(hook.Vals, val)
 	} else {
-		r.sliceHook = &ErrorsHook{Key: r.key, Vals: []error{val}}
+		r.sliceValue = &ErrorsNamedValue{Key: r.key, Vals: []error{val}}
 	}
 }
 
 func (r *recordingFormatter) WriteUUID(val [16]byte) {
 	if !r.slice {
-		r.hooks = append(r.hooks, &UUIDHook{Key: r.key, Val: val})
+		r.values = append(r.values, &UUIDNamedValue{Key: r.key, Val: val})
 		return
 	}
-	if hook, ok := r.sliceHook.(*UUIDsHook); ok {
+	if hook, ok := r.sliceValue.(*UUIDsNamedValue); ok {
 		hook.Vals = append(hook.Vals, val)
 	} else {
-		r.sliceHook = &UUIDsHook{Key: r.key, Vals: [][16]byte{val}}
+		r.sliceValue = &UUIDsNamedValue{Key: r.key, Vals: [][16]byte{val}}
 	}
 }
 
 func (r *recordingFormatter) WriteJSON(val []byte) {
-	r.hooks = append(r.hooks, &JSONHook{Key: r.key, Val: val})
+	r.values = append(r.values, &JSONNamedValue{Key: r.key, Val: val})
 }

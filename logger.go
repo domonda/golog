@@ -11,28 +11,28 @@ import (
 type Logger struct {
 	config Config
 	prefix string
-	hooks  []Hook
+	values []NamedValue
 	mtx    sync.Mutex
 }
 
-func NewLogger(config Config, hooks ...Hook) *Logger {
+func NewLogger(config Config, values ...NamedValue) *Logger {
 	if config == nil {
 		return nil
 	}
 	return &Logger{
 		config: config,
-		hooks:  hooks,
+		values: values,
 	}
 }
 
-func NewLoggerWithPrefix(config Config, prefix string, hooks ...Hook) *Logger {
+func NewLoggerWithPrefix(config Config, prefix string, values ...NamedValue) *Logger {
 	if config == nil {
 		return nil
 	}
 	return &Logger{
 		config: config,
 		prefix: prefix,
-		hooks:  hooks,
+		values: values,
 	}
 }
 
@@ -125,25 +125,25 @@ func (l *Logger) HTTPMiddlewareFunc() func(next http.Handler) http.Handler {
 	}
 }
 
-// WithHooks returns a new Logger with the passed
-// hooks appended to the existing hooks.
-func (l *Logger) WithHooks(hooks ...Hook) *Logger {
-	if l == nil || len(hooks) == 0 {
+// WithValues returns a new Logger with the passed
+// values appended to the existing values.
+func (l *Logger) WithValues(values ...NamedValue) *Logger {
+	if l == nil || len(values) == 0 {
 		return l
 	}
 	return &Logger{
 		config: l.config,
 		prefix: l.prefix,
-		hooks:  append(l.hooks, hooks...),
+		values: append(l.values, values...),
 	}
 }
 
-// WithContextHooks returns a new Logger with the
-// hooks from a context logger appended to the existing hooks,
+// WithContextValues returns a new Logger with the
+// values from a context logger appended to the existing values,
 // if there was a Logger added as value to the context,
 // else l is returned unchanged.
-func (l *Logger) WithContextHooks(ctx context.Context) *Logger {
-	return l.WithHooks(FromContext(ctx).Hooks()...)
+func (l *Logger) WithContextValues(ctx context.Context) *Logger {
+	return l.WithValues(FromContext(ctx).Values()...)
 }
 
 func (l *Logger) WithPrefix(prefix string) *Logger {
@@ -152,7 +152,7 @@ func (l *Logger) WithPrefix(prefix string) *Logger {
 	}
 	return &Logger{
 		config: l.config,
-		hooks:  l.hooks,
+		values: l.values,
 		prefix: prefix,
 	}
 }
@@ -164,7 +164,7 @@ func (l *Logger) WithLevelFilter(filter LevelFilter) *Logger {
 	return &Logger{
 		config: NewDerivedConfig(&l.config, filter),
 		prefix: l.prefix,
-		hooks:  l.hooks,
+		values: l.values,
 	}
 }
 
@@ -194,11 +194,11 @@ func (l *Logger) Prefix() string {
 	return l.prefix
 }
 
-func (l *Logger) Hooks() []Hook {
+func (l *Logger) Values() []NamedValue {
 	if l == nil {
 		return nil
 	}
-	return l.hooks
+	return l.values
 }
 
 func (l *Logger) IsActive(level Level) bool {
@@ -217,7 +217,7 @@ func (l *Logger) NewMessageAt(t time.Time, level Level, text string) *Message {
 	}
 	m := newMessage(l, l.config.Formatter().Clone(level), text)
 	m.formatter.WriteText(t, l.config.Levels(), level, l.prefix, text)
-	for _, hook := range l.hooks {
+	for _, hook := range l.values {
 		hook.Log(m)
 	}
 	return m

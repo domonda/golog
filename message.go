@@ -47,16 +47,15 @@ func (m *Message) NewLogger() *Logger {
 	if !ok {
 		panic("golog.Message was not created by Logger.Record()")
 	}
-	return m.logger.WithHooks(recorded.hooks...)
+	return m.logger.WithValues(recorded.values...)
 }
 
-// Loggable lets a value that implements the Loggable log itself
-func (m *Message) Loggable(key string, val Loggable) *Message {
+// NamedValue lets a value that implements the NamedValue log itself
+func (m *Message) NamedValue(val NamedValue) *Message {
 	if m == nil {
 		return nil
 	}
-	m.formatter.WriteKey(key)
-	val.LogMessage(m)
+	val.Log(m)
 	return m
 }
 
@@ -99,8 +98,8 @@ func (m *Message) writeVal(val reflect.Value, noSlice bool) {
 	case nil:
 		m.formatter.WriteNil()
 		return
-	case Loggable:
-		x.LogMessage(m)
+	case NamedValue:
+		x.Log(m)
 		return
 	case error:
 		m.formatter.WriteError(x)
@@ -119,8 +118,8 @@ func (m *Message) writeVal(val reflect.Value, noSlice bool) {
 	case nil:
 		m.formatter.WriteNil()
 		return
-	case Loggable:
-		x.LogMessage(m)
+	case NamedValue:
+		x.Log(m)
 		return
 	case error:
 		m.formatter.WriteError(x)
