@@ -112,7 +112,7 @@ func WithContext(ctx context.Context) *golog.Logger {
 //   }
 func Request(request *http.Request) (requestLogger *golog.Logger, requestID [16]byte, ctx context.Context) {
 	requestID = golog.NewUUID()
-	requestLogger, ctx = Logger.WithRequestIDContext(requestID, request)
+	requestLogger, ctx = Logger.LogRequestWithIDContext(requestID, request)
 	return requestLogger, requestID, ctx
 }
 
@@ -139,6 +139,11 @@ func WithPrefix(prefix string) *golog.Logger {
 	return Logger.WithPrefix(prefix)
 }
 
+// With returns a new Message that can be used to record
+// the prefix for a sub-logger.
+//
+// Example:
+//   log := log.With().UUID("requestID", requestID).NewLogger()
 func With() *golog.Message {
 	return Logger.With()
 }

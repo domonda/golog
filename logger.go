@@ -9,30 +9,39 @@ import (
 )
 
 type Logger struct {
-	config Config
-	prefix string
-	values []NamedValue
-	mtx    sync.Mutex
+	config           Config
+	prefix           string
+	perMessageValues []NamedValue
+	mtx              sync.Mutex
 }
 
-func NewLogger(config Config, values ...NamedValue) *Logger {
+// NewLogger returns a Logger with the given config and perMessageValues.
+// If config is nil, then a nil Logger will be returned.
+// A nil Logger is still valid to use but will not log anything.
+// Any perMessageValues will be repeated for every new log message.
+func NewLogger(config Config, perMessageValues ...NamedValue) *Logger {
 	if config == nil {
 		return nil
 	}
 	return &Logger{
-		config: config,
-		values: values,
+		config:           config,
+		perMessageValues: perMessageValues,
 	}
 }
 
-func NewLoggerWithPrefix(config Config, prefix string, values ...NamedValue) *Logger {
+// NewLogger returns a Logger with the given config, prefix, and perMessageValues.
+// If config is nil, then a nil Logger will be returned.
+// A nil Logger is still valid to use but will not log anything.
+// Every log message will begin with the passed prefix.
+// Any perMessageValues will be repeated for every new log message.
+func NewLoggerWithPrefix(config Config, prefix string, perMessageValues ...NamedValue) *Logger {
 	if config == nil {
 		return nil
 	}
 	return &Logger{
-		config: config,
-		prefix: prefix,
-		values: values,
+		config:           config,
+		prefix:           prefix,
+		perMessageValues: perMessageValues,
 	}
 }
 
@@ -68,24 +77,24 @@ func (l *Logger) RequestWithContext(request *http.Request) *http.Request {
 	return request.WithContext(l.Context(request.Context()))
 }
 
-// WithRequestID creates a new requestLogger with a new requestID (UUID),
+// LogRequestWithID creates a new requestLogger with a new requestID (UUID),
 // logs the passed request's metdata with a golog.HTTPRequestMessage (default "HTTP request")
 // using golog.HTTPRequestLevel (default golog.DefaultLevels.Info)
 // and returns the requestLogger.
 //
 // Example:
 //   func ServeHTTP(w http.ResponseWriter, r *http.Request) {
-//       log := globalLogger.WithRequestID(golog.NewUUID(), r)
+//       log := globalLogger.LogRequestWithID(golog.NewUUID(), r)
 //       log.Debug("Using request sub-logger").Log()
 //       ...
 //   }
-func (l *Logger) WithRequestID(requestID interface{}, requestToLog *http.Request) (requestLogger *Logger) {
+func (l *Logger) LogRequestWithID(requestID interface{}, requestToLog *http.Request) (requestLogger *Logger) {
 	requestLogger = l.With().Val("requestID", requestID).NewLogger()
 	requestLogger.NewMessage(*HTTPRequestLevel, HTTPRequestMessage).Request(requestToLog).Log()
 	return requestLogger
 }
 
-// WithRequestIDContext creates a new requestLogger with a new requestID (UUID),
+// LogRequestWithIDContext creates a new requestLogger with a new requestID (UUID),
 // logs the passed request's metdata with a golog.HTTPRequestMessage (default "HTTP request")
 // using golog.HTTPRequestLevel (default golog.DefaultLevels.Info)
 // and returns the requestLogger together with a new context.Context
@@ -95,13 +104,13 @@ func (l *Logger) WithRequestID(requestID interface{}, requestToLog *http.Request
 //
 // Example:
 //   func ServeHTTP(w http.ResponseWriter, r *http.Request) {
-//       log, ctx := globalLogger.WithRequestIDContext(golog.NewUUID(), r)
+//       log, ctx := globalLogger.LogRequestWithIDContext(golog.NewUUID(), r)
 //       log.Debug("Using request sub-logger").Log()
 //       doSomething(ctx)
 //       ...
 //   }
-func (l *Logger) WithRequestIDContext(requestID interface{}, requestToLog *http.Request) (requestLogger *Logger, ctx context.Context) {
-	requestLogger = l.WithRequestID(requestID, requestToLog)
+func (l *Logger) LogRequestWithIDContext(requestID interface{}, requestToLog *http.Request) (requestLogger *Logger, ctx context.Context) {
+	requestLogger = l.LogRequestWithID(requestID, requestToLog)
 	ctx = requestLogger.Context(requestToLog.Context())
 	return requestLogger, ctx
 }
@@ -117,33 +126,32 @@ func (l *Logger) HTTPMiddlewareFunc() func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(
 			func(w http.ResponseWriter, r *http.Request) {
-				l = l.WithRequestID(NewUUID(), r)
-				r = l.RequestWithContext(r)
-				next.ServeHTTP(w, r)
+				requestLogger := l.LogRequestWithID(NewUUID(), r)
+				next.ServeHTTP(w, requestLogger.RequestWithContext(r))
 			},
 		)
 	}
 }
 
 // WithValues returns a new Logger with the passed
-// values appended to the existing values.
-func (l *Logger) WithValues(values ...NamedValue) *Logger {
-	if l == nil || len(values) == 0 {
+// perMessageValues appended to the existing perMessageValues.
+func (l *Logger) WithValues(perMessageValues ...NamedValue) *Logger {
+	if l == nil || len(perMessageValues) == 0 {
 		return l
 	}
 	return &Logger{
-		config: l.config,
-		prefix: l.prefix,
-		values: append(l.values, values...),
+		config:           l.config,
+		prefix:           l.prefix,
+		perMessageValues: append(l.perMessageValues, perMessageValues...),
 	}
 }
 
 // WithContextValues returns a new Logger with the
-// values from a context logger appended to the existing values,
+// perMessageValues from a context logger appended to the existing perMessageValues,
 // if there was a Logger added as value to the context,
 // else l is returned unchanged.
 func (l *Logger) WithContextValues(ctx context.Context) *Logger {
-	return l.WithValues(FromContext(ctx).Values()...)
+	return l.WithValues(FromContext(ctx).PerMessageValues()...)
 }
 
 func (l *Logger) WithPrefix(prefix string) *Logger {
@@ -151,9 +159,9 @@ func (l *Logger) WithPrefix(prefix string) *Logger {
 		return nil
 	}
 	return &Logger{
-		config: l.config,
-		values: l.values,
-		prefix: prefix,
+		config:           l.config,
+		perMessageValues: l.perMessageValues,
+		prefix:           prefix,
 	}
 }
 
@@ -162,9 +170,9 @@ func (l *Logger) WithLevelFilter(filter LevelFilter) *Logger {
 		return nil
 	}
 	return &Logger{
-		config: NewDerivedConfig(&l.config, filter),
-		prefix: l.prefix,
-		values: l.values,
+		config:           NewDerivedConfig(&l.config, filter),
+		prefix:           l.prefix,
+		perMessageValues: l.perMessageValues,
 	}
 }
 
@@ -194,11 +202,11 @@ func (l *Logger) Prefix() string {
 	return l.prefix
 }
 
-func (l *Logger) Values() []NamedValue {
+func (l *Logger) PerMessageValues() []NamedValue {
 	if l == nil {
 		return nil
 	}
-	return l.values
+	return l.perMessageValues
 }
 
 func (l *Logger) IsActive(level Level) bool {
@@ -217,8 +225,8 @@ func (l *Logger) NewMessageAt(t time.Time, level Level, text string) *Message {
 	}
 	m := newMessage(l, l.config.Formatter().Clone(level), text)
 	m.formatter.WriteText(t, l.config.Levels(), level, l.prefix, text)
-	for _, hook := range l.values {
-		hook.Log(m)
+	for _, namedValue := range l.perMessageValues {
+		namedValue.Log(m)
 	}
 	return m
 }

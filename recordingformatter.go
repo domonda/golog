@@ -53,8 +53,8 @@ func (r *recordingFormatter) WriteBool(val bool) {
 		r.values = append(r.values, &BoolNamedValue{Key: r.key, Val: val})
 		return
 	}
-	if hook, ok := r.sliceValue.(*BoolsNamedValue); ok {
-		hook.Vals = append(hook.Vals, val)
+	if slice, ok := r.sliceValue.(*BoolsNamedValue); ok {
+		slice.Vals = append(slice.Vals, val)
 	} else {
 		r.sliceValue = &BoolsNamedValue{Key: r.key, Vals: []bool{val}}
 	}
@@ -65,8 +65,8 @@ func (r *recordingFormatter) WriteInt(val int64) {
 		r.values = append(r.values, &IntNamedValue{Key: r.key, Val: val})
 		return
 	}
-	if hook, ok := r.sliceValue.(*IntsNamedValue); ok {
-		hook.Vals = append(hook.Vals, val)
+	if slice, ok := r.sliceValue.(*IntsNamedValue); ok {
+		slice.Vals = append(slice.Vals, val)
 	} else {
 		r.sliceValue = &IntsNamedValue{Key: r.key, Vals: []int64{val}}
 	}
@@ -77,8 +77,8 @@ func (r *recordingFormatter) WriteUint(val uint64) {
 		r.values = append(r.values, &UintNamedValue{Key: r.key, Val: val})
 		return
 	}
-	if hook, ok := r.sliceValue.(*UintsNamedValue); ok {
-		hook.Vals = append(hook.Vals, val)
+	if slice, ok := r.sliceValue.(*UintsNamedValue); ok {
+		slice.Vals = append(slice.Vals, val)
 	} else {
 		r.sliceValue = &UintsNamedValue{Key: r.key, Vals: []uint64{val}}
 	}
@@ -89,8 +89,8 @@ func (r *recordingFormatter) WriteFloat(val float64) {
 		r.values = append(r.values, &FloatNamedValue{Key: r.key, Val: val})
 		return
 	}
-	if hook, ok := r.sliceValue.(*FloatsNamedValue); ok {
-		hook.Vals = append(hook.Vals, val)
+	if slice, ok := r.sliceValue.(*FloatsNamedValue); ok {
+		slice.Vals = append(slice.Vals, val)
 	} else {
 		r.sliceValue = &FloatsNamedValue{Key: r.key, Vals: []float64{val}}
 	}
@@ -101,8 +101,8 @@ func (r *recordingFormatter) WriteString(val string) {
 		r.values = append(r.values, &StringNamedValue{Key: r.key, Val: val})
 		return
 	}
-	if hook, ok := r.sliceValue.(*StringsNamedValue); ok {
-		hook.Vals = append(hook.Vals, val)
+	if slice, ok := r.sliceValue.(*StringsNamedValue); ok {
+		slice.Vals = append(slice.Vals, val)
 	} else {
 		r.sliceValue = &StringsNamedValue{Key: r.key, Vals: []string{val}}
 	}
@@ -113,8 +113,8 @@ func (r *recordingFormatter) WriteError(val error) {
 		r.values = append(r.values, &ErrorNamedValue{Key: r.key, Val: val})
 		return
 	}
-	if hook, ok := r.sliceValue.(*ErrorsNamedValue); ok {
-		hook.Vals = append(hook.Vals, val)
+	if slice, ok := r.sliceValue.(*ErrorsNamedValue); ok {
+		slice.Vals = append(slice.Vals, val)
 	} else {
 		r.sliceValue = &ErrorsNamedValue{Key: r.key, Vals: []error{val}}
 	}
@@ -125,8 +125,8 @@ func (r *recordingFormatter) WriteUUID(val [16]byte) {
 		r.values = append(r.values, &UUIDNamedValue{Key: r.key, Val: val})
 		return
 	}
-	if hook, ok := r.sliceValue.(*UUIDsNamedValue); ok {
-		hook.Vals = append(hook.Vals, val)
+	if slice, ok := r.sliceValue.(*UUIDsNamedValue); ok {
+		slice.Vals = append(slice.Vals, val)
 	} else {
 		r.sliceValue = &UUIDsNamedValue{Key: r.key, Vals: [][16]byte{val}}
 	}
