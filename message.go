@@ -2,6 +2,7 @@ package golog
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -789,6 +790,17 @@ func (m *Message) Request(request *http.Request) *Message {
 	}
 	if request.ContentLength != -1 {
 		m.Int64("contentLength", request.ContentLength)
+	}
+	return m
+}
+
+// ContextValues logs Logger.PerMessageValues from a context logger if available.
+func (m *Message) ContextValues(ctx context.Context) *Message {
+	if m == nil {
+		return nil
+	}
+	for _, val := range FromContext(ctx).PerMessageValues() {
+		val.Log(m)
 	}
 	return m
 }
