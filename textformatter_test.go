@@ -1,6 +1,7 @@
 package golog
 
 import (
+	"errors"
 	"os"
 	"time"
 )
@@ -23,9 +24,13 @@ func ExampleTextFormatter() {
 		Int("int", 66).
 		Str("str", "Hello\tWorld!\n").
 		Log()
-	log.NewMessageAt(at, config.Error(), "This is an error").Log()
+	log.NewMessageAt(at, config.Error(), "This is an error").Err(errors.New("Multi\nLine\n\"Error\"")).Int("theInt", 666).Log()
 
 	// Output:
 	// 2006-01-02 15:04:05 |INFO | My log message int=66 str="Hello\tWorld!\n"
-	// 2006-01-02 15:04:05 |ERROR| This is an error
+	// 2006-01-02 15:04:05 |ERROR| This is an error error=`
+	// Multi
+	// Line
+	// "Error"
+	// ` theInt=666
 }

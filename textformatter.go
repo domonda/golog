@@ -163,7 +163,7 @@ func (f *TextFormatter) WriteString(val string) {
 
 func (f *TextFormatter) WriteError(val error) {
 	f.writeSliceSep()
-	str := f.colorizer.ColorizeError(strconv.Quote(val.Error()))
+	str := f.colorizer.ColorizeError("`\n" + val.Error() + "\n`")
 	f.buf = append(f.buf, str...)
 }
 
