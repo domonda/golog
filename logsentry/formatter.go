@@ -12,6 +12,9 @@ import (
 // can't be mapped to a sentry.LevelError.
 var UnknownLevel = sentry.LevelError
 
+// Compile time check Formatter implements interface golog.Formatter
+var _ golog.Formatter = new(Formatter)
+
 type Formatter struct {
 	filter  golog.LevelFilter
 	hub     *sentry.Hub
