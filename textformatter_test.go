@@ -24,7 +24,10 @@ func ExampleTextFormatter() {
 		Int("int", 66).
 		Str("str", "Hello\tWorld!\n").
 		Log()
-	log.NewMessageAt(at, config.Error(), "Something went wrong!").Err(errors.New("Multi\nLine\n\"Error\"")).Int("numberOfTheBeast", 666).Log()
+	log.NewMessageAt(at, config.Error(), "Something went wrong!").
+		Err(errors.New("Multi\nLine\n\"Error\"")).
+		Int("numberOfTheBeast", 666).
+		Log()
 
 	// Output:
 	// 2006-01-02 15:04:05 |INFO | My log message int=66 str="Hello\tWorld!\n"
