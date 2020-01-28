@@ -61,12 +61,15 @@ var (
 	AddImportPathToPackageLogger = false
 )
 
-func NewPackageLogger(packageName string, filters ...golog.LevelFilter) *golog.Logger {
+func NewPackageLogger(pkgName string, filters ...golog.LevelFilter) *golog.Logger {
+	if pkgName == "" {
+		panic("empty pkgName passed to NewPackageLogger")
+	}
 	config := golog.NewDerivedConfig(&Config, filters...)
-	pkg := Registry.AddPackageConfig(config)
-	logger := golog.NewLoggerWithPrefix(config, packageName+": ")
+	pkgImportPath := Registry.AddPackageConfig(config)
+	logger := golog.NewLoggerWithPrefix(config, pkgName+": ")
 	if AddImportPathToPackageLogger {
-		logger = logger.With().Str("pkg", pkg).NewLogger()
+		logger = logger.With().Str("pkg", pkgImportPath).NewLogger()
 	}
 	return logger
 }
