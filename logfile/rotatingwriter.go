@@ -2,9 +2,12 @@ package logfile
 
 import (
 	"os"
+	"strconv"
 	"sync"
 	"time"
 )
+
+var RotatingWriterTimeFormat = "2006-01-02_15:04:05"
 
 // RotatingWriter implements io.WriteCloser
 type RotatingWriter struct {
@@ -29,13 +32,6 @@ func NewRotatingWriter(filePath string, filePerm os.FileMode, rotateSize int64) 
 		size:       size,
 		rotateSize: rotateSize,
 	}
-	if rotateSize > 0 && size >= rotateSize {
-		err = rw.rotate()
-		if err != nil {
-			file.Close()
-			return nil, err
-		}
-	}
 	return rw, nil
 }
 
@@ -59,24 +55,20 @@ func (rw *RotatingWriter) RotateSize() int64 {
 	return rw.rotateSize
 }
 
-func (rw *RotatingWriter) Write(logLine []byte) (n int, err error) {
+func (rw *RotatingWriter) Write(msg []byte) (n int, err error) {
 	rw.mtx.Lock()
 	defer rw.mtx.Unlock()
 
-	n, err = rw.file.Write(logLine)
-	if err != nil {
-		return n, err
-	}
-
-	rw.size += int64(len(logLine))
+	rw.size += int64(len(msg))
 	if rw.rotateSize > 0 && rw.size >= rw.rotateSize {
 		err := rw.rotate()
 		if err != nil {
-			return n, err
+			return 0, err
 		}
+		rw.size += int64(len(msg))
 	}
 
-	return n, nil
+	return rw.file.Write(msg)
 }
 
 func (rw *RotatingWriter) rotate() error {
@@ -100,7 +92,14 @@ func (rw *RotatingWriter) rotate() error {
 }
 
 func (rw *RotatingWriter) rotatedFilePath() string {
-	return rw.filePath + "." + time.Now().Format("2006-01-02T15:04:05.99")
+	rotatedBase := rw.filePath + "." + time.Now().Format(RotatingWriterTimeFormat)
+
+	rotated := rotatedBase
+	for i := 1; fileExists(rotated); i++ {
+		rotated = rotatedBase + "." + strconv.Itoa(i)
+	}
+
+	return rotated
 }
 
 func (rw *RotatingWriter) Close() error {
@@ -108,4 +107,9 @@ func (rw *RotatingWriter) Close() error {
 	defer rw.mtx.Unlock()
 
 	return rw.file.Close()
+}
+
+func fileExists(filePath string) bool {
+	_, err := os.Stat(filePath)
+	return err == nil
 }
