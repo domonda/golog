@@ -2,34 +2,78 @@ package golog
 
 import (
 	"runtime"
+	"sort"
 	"strings"
 	"sync"
 )
 
 type Registry struct {
-	configs map[string]*DerivedConfig
-	mutex   sync.Mutex
+	mutex          sync.RWMutex
+	pkgPathNames   map[string]string
+	pkgNameConfigs map[string]*DerivedConfig
+	pkgPathConfigs map[string]*DerivedConfig
 }
 
-func (r *Registry) AddPackageConfig(config *DerivedConfig) (pkgImportPath string) {
+func (r *Registry) AddPackageConfig(pkgName string, config *DerivedConfig) (pkgPath string) {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 
-	if r.configs == nil {
-		r.configs = make(map[string]*DerivedConfig)
+	if r.pkgPathNames == nil {
+		r.pkgPathNames = make(map[string]string)
+		r.pkgNameConfigs = make(map[string]*DerivedConfig)
+		r.pkgPathConfigs = make(map[string]*DerivedConfig)
 	}
 
-	pkgImportPath = getCallingPackageImportPath(2)
+	pkgPath = getCallingPackageImportPath(2)
 
-	if _, exists := r.configs[pkgImportPath]; exists {
+	if _, exists := r.pkgNameConfigs[pkgName]; exists {
 		// Panicing because AddPackageConfig is one time global
 		// setup before any other error handlers
-		panic("package config already added: " + pkgImportPath)
+		panic("package name config already added: " + pkgName)
+	}
+	if _, exists := r.pkgPathConfigs[pkgPath]; exists {
+		// Panicing because AddPackageConfig is one time global
+		// setup before any other error handlers
+		panic("package path config already added: " + pkgPath)
 	}
 
-	r.configs[pkgImportPath] = config
+	r.pkgPathNames[pkgPath] = pkgName
+	r.pkgNameConfigs[pkgName] = config
+	r.pkgPathConfigs[pkgPath] = config
 
-	return pkgImportPath
+	return pkgPath
+}
+
+func (r *Registry) ConfigOrNilByPackageName(pkgName string) *DerivedConfig {
+	r.mutex.RLock()
+	defer r.mutex.RUnlock()
+
+	return r.pkgNameConfigs[pkgName]
+}
+
+func (r *Registry) ConfigOrNilByPackagePath(pkgPath string) *DerivedConfig {
+	r.mutex.RLock()
+	defer r.mutex.RUnlock()
+
+	return r.pkgPathConfigs[pkgPath]
+}
+
+func (r *Registry) PackagesSortedByName() (paths, names []string) {
+	r.mutex.RLock()
+	defer r.mutex.RUnlock()
+
+	names = make([]string, 0, len(r.pkgPathNames))
+	for _, name := range r.pkgPathNames {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	paths = make([]string, len(r.pkgPathNames))
+	for i, name := range names {
+		paths[i] = r.pkgPathNames[name]
+	}
+
+	return paths, names
 }
 
 func getCallingPackageImportPath(skip int) string {
