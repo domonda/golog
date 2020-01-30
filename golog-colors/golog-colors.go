@@ -52,7 +52,7 @@ func printMessages(colorizer golog.Colorizer) {
 		golog.NewTextFormatter(os.Stdout, &log.Format, colorizer),
 	)
 
-	log.Fatal("Message").Int("int", 123456).Float("float", 1233456789.99).Bool("t", true).Bool("f", false).UUID("UUID", uu.IDv4()).Err(errors.New("an error")).Log()
+	log.Fatal("Message").Int("int", 123456).Float("float", 1233456789.99).Bool("t", true).Bool("f", false).UUID("UUID", uu.IDv4()).Err(errors.New("an error")).Str("afterError", "blah").Log()
 	log.Error("Message").Str("String", "Hello World!").Nil("SomethingNil").Log()
 	log.Warn("Message").Log()
 	log.Info("Message").Log()

@@ -36,6 +36,6 @@ func NewStyledColorizer() *golog.StyledColorizer {
 		FloatStyle:  termenv.String().Foreground(profile.Color("#F0F0F0")),
 		UUIDStyle:   termenv.String().Foreground(profile.Color("#F0F0F0")),
 		StringStyle: termenv.String().Foreground(profile.Color("#F0F0F0")),
-		ErrorStyle:  termenv.String().Foreground(profile.Color("#F00000")),
+		ErrorStyle:  termenv.String().Foreground(profile.Color("#FFFFFF")).Background(profile.Color("#B00000")),
 	}
 }
