@@ -3,8 +3,6 @@ package log
 import (
 	"os"
 
-	"github.com/fatih/color"
-
 	"github.com/domonda/golog"
 )
 
@@ -18,29 +16,7 @@ var (
 		MessageKey:      "message",
 	}
 
-	Colorizer = golog.ConsoleColorizer{
-		TimespampColor: color.New(color.FgHiBlack),
-
-		OtherLevelColor: color.New(color.FgWhite),
-		FatalLevelColor: color.New(color.FgHiRed),
-		ErrorLevelColor: color.New(color.FgRed),
-		WarnLevelColor:  color.New(color.FgYellow),
-		InfoLevelColor:  color.New(color.FgCyan),
-		DebugLevelColor: color.New(color.FgMagenta),
-		TraceLevelColor: color.New(color.FgHiBlack),
-
-		MsgColor:    color.New(color.FgHiWhite),
-		KeyColor:    color.New(color.FgCyan),
-		NilColor:    color.New(color.FgWhite),
-		TrueColor:   color.New(color.FgGreen),
-		FalseColor:  color.New(color.FgYellow),
-		IntColor:    color.New(color.FgWhite),
-		UintColor:   color.New(color.FgWhite),
-		FloatColor:  color.New(color.FgWhite),
-		UUIDColor:   color.New(color.FgWhite),
-		StringColor: color.New(color.FgWhite),
-		ErrorColor:  color.New(color.FgRed),
-	}
+	Colorizer = *NewStyledColorizer()
 
 	Config = golog.NewConfig(
 		Levels,

@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"os"
 
 	color "github.com/fatih/color"
@@ -12,7 +13,7 @@ import (
 )
 
 func main() {
-	colorizer := &golog.ConsoleColorizer{
+	consoleColorizer := &golog.ConsoleColorizer{
 		TimespampColor: color.New(color.FgHiBlack),
 
 		OtherLevelColor: color.New(color.FgWhite),
@@ -36,6 +37,15 @@ func main() {
 		ErrorColor:  color.New(color.FgRed),
 	}
 
+	printMessages(consoleColorizer)
+
+	fmt.Println()
+	fmt.Println()
+
+	printMessages(log.NewStyledColorizer())
+}
+
+func printMessages(colorizer golog.Colorizer) {
 	log.Config = golog.NewConfig(
 		log.Levels,
 		golog.NoFilter,
@@ -49,5 +59,4 @@ func main() {
 	log.Debug("Message").Log()
 	log.Trace("Message").Log()
 	// log.Logger.NewMessage(-25, "Message").Log()
-
 }

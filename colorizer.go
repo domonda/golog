@@ -36,6 +36,11 @@ func (noColorizer) ColorizeString(str string) string                 { return st
 func (noColorizer) ColorizeError(str string) string                  { return str }
 func (noColorizer) ColorizeUUID(str string) string                   { return str }
 
+var (
+	_ Colorizer = noColorizer(0)        // make sure noColorizer implements Colorizer
+	_ Colorizer = new(ConsoleColorizer) // make sure ConsoleColorizer implements Colorizer
+)
+
 type ConsoleColorizer struct {
 	MsgColor        *color.Color
 	OtherLevelColor *color.Color
