@@ -1,8 +1,6 @@
 package log
 
 import (
-	"os"
-
 	"github.com/muesli/termenv"
 
 	"github.com/domonda/golog"
@@ -10,10 +8,6 @@ import (
 
 func NewStyledColorizer() *golog.StyledColorizer {
 	profile := termenv.ColorProfile()
-	if profile == termenv.Monochrome && os.Getenv("COLORTERM") == "" {
-		// $COLORTERM was not set, we assume TrueColor works anyways
-		profile = termenv.TrueColor
-	}
 
 	return &golog.StyledColorizer{
 		TimespampStyle: termenv.String().Foreground(profile.Color("#A0A0A0")),
