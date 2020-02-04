@@ -36,7 +36,7 @@ func NewRotatingWriter(filePath string, filePerm os.FileMode, rotateSize int64) 
 }
 
 func openFile(filePath string, filePerm os.FileMode) (file *os.File, size int64, err error) {
-	file, err = os.OpenFile(filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, filePerm|os.ModeExclusive)
+	file, err = os.OpenFile(filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, filePerm)
 	if err != nil {
 		return nil, 0, err
 	}
