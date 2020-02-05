@@ -81,6 +81,8 @@ func (l *Logger) RequestWithContext(request *http.Request) *http.Request {
 // logs the passed request's metdata with a golog.HTTPRequestMessage (default "HTTP request")
 // using golog.HTTPRequestLevel (default golog.DefaultLevels.Info)
 // and returns the requestLogger.
+// If restrictHeaders are passed, then only those headers are logged if available.
+// To disable header logging, pass an impossible header name.
 //
 // Example:
 //   func ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -88,9 +90,9 @@ func (l *Logger) RequestWithContext(request *http.Request) *http.Request {
 //       log.Debug("Using request sub-logger").Log()
 //       ...
 //   }
-func (l *Logger) LogRequestWithID(requestID interface{}, requestToLog *http.Request) (requestLogger *Logger) {
+func (l *Logger) LogRequestWithID(requestID interface{}, requestToLog *http.Request, restrictHeaders ...string) (requestLogger *Logger) {
 	requestLogger = l.With().Val("requestID", requestID).NewLogger()
-	requestLogger.NewMessage(*HTTPRequestLevel, HTTPRequestMessage).Request(requestToLog).Log()
+	requestLogger.NewMessage(*HTTPRequestLevel, HTTPRequestMessage).Request(requestToLog, restrictHeaders...).Log()
 	return requestLogger
 }
 
@@ -101,6 +103,8 @@ func (l *Logger) LogRequestWithID(requestID interface{}, requestToLog *http.Requ
 // derived from the request.Context() that has requestLogger added as value,
 // so functions receiving this ctx can get the requestLogger
 // by calling FromContext(ctx).
+// If restrictHeaders are passed, then only those headers are logged if available.
+// To disable header logging, pass an impossible header name.
 //
 // Example:
 //   func ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -109,8 +113,8 @@ func (l *Logger) LogRequestWithID(requestID interface{}, requestToLog *http.Requ
 //       doSomething(ctx)
 //       ...
 //   }
-func (l *Logger) LogRequestWithIDContext(requestID interface{}, requestToLog *http.Request) (requestLogger *Logger, ctx context.Context) {
-	requestLogger = l.LogRequestWithID(requestID, requestToLog)
+func (l *Logger) LogRequestWithIDContext(requestID interface{}, requestToLog *http.Request, restrictHeaders ...string) (requestLogger *Logger, ctx context.Context) {
+	requestLogger = l.LogRequestWithID(requestID, requestToLog, restrictHeaders...)
 	ctx = requestLogger.Context(requestToLog.Context())
 	return requestLogger, ctx
 }
@@ -121,12 +125,14 @@ func (l *Logger) LogRequestWithIDContext(requestID interface{}, requestToLog *ht
 // and adds it as value to the context of the request
 // so it can be retrieved with FromContext(request.Context())
 // in further handlers after this middleware handler.
+// If restrictHeaders are passed, then only those headers are logged if available.
+// To disable header logging, pass an impossible header name.
 // Compatible with github.com/gorilla/mux.MiddlewareFunc
-func (l *Logger) HTTPMiddlewareFunc() func(next http.Handler) http.Handler {
+func (l *Logger) HTTPMiddlewareFunc(restrictHeaders ...string) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(
 			func(w http.ResponseWriter, r *http.Request) {
-				requestLogger := l.LogRequestWithID(NewUUID(), r)
+				requestLogger := l.LogRequestWithID(NewUUID(), r, restrictHeaders...)
 				next.ServeHTTP(w, requestLogger.RequestWithContext(r))
 			},
 		)

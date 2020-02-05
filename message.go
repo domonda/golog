@@ -786,23 +786,37 @@ func (m *Message) AsJSON(key string, val interface{}) *Message {
 // Request logs an http.Request.
 // The following keys are logged:
 // remote, method, uri,
-// and if available: headers, contentLength
-func (m *Message) Request(request *http.Request) *Message {
+// and if available: contentLength and headers.
+// If restrictHeaders are passed, then only those headers are logged if available.
+// To disable header logging, pass an impossible header name.
+func (m *Message) Request(request *http.Request, restrictHeaders ...string) *Message {
 	if m == nil {
 		return nil
 	}
 	m.Str("remote", request.RemoteAddr)
 	m.Str("method", request.Method)
 	m.Str("uri", request.RequestURI)
-	for header, values := range request.Header {
-		if len(values) == 1 {
-			m.Str(header, values[0])
-		} else {
-			m.Strs(header, values)
-		}
-	}
 	if request.ContentLength != -1 {
 		m.Int64("contentLength", request.ContentLength)
+	}
+	if len(restrictHeaders) > 0 {
+		for _, header := range restrictHeaders {
+			if values, ok := request.Header[header]; ok {
+				if len(values) == 1 {
+					m.Str(header, values[0])
+				} else {
+					m.Strs(header, values)
+				}
+			}
+		}
+	} else {
+		for header, values := range request.Header {
+			if len(values) == 1 {
+				m.Str(header, values[0])
+			} else {
+				m.Strs(header, values)
+			}
+		}
 	}
 	return m
 }
