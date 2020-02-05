@@ -1,6 +1,9 @@
 package logsentry
 
 import (
+	"encoding/json"
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/getsentry/sentry-go"
@@ -16,20 +19,22 @@ var UnknownLevel = sentry.LevelError
 var _ golog.Formatter = new(Formatter)
 
 type Formatter struct {
-	filter  golog.LevelFilter
-	hub     *sentry.Hub
-	level   sentry.Level
-	message string
-	extra   map[string]interface{}
-	key     string
-	slice   []interface{}
+	filter    golog.LevelFilter
+	hub       *sentry.Hub
+	level     sentry.Level
+	message   strings.Builder
+	valsAsMsg bool
+	extra     map[string]interface{}
+	key       string
+	slice     []interface{}
 }
 
-func NewFormatter(filter golog.LevelFilter, hub *sentry.Hub) *Formatter {
+func NewFormatter(filter golog.LevelFilter, hub *sentry.Hub, valsAsMsg bool) *Formatter {
 	return &Formatter{
-		filter: filter,
-		hub:    hub,
-		extra:  make(map[string]interface{}),
+		filter:    filter,
+		hub:       hub,
+		extra:     make(map[string]interface{}),
+		valsAsMsg: valsAsMsg,
 	}
 }
 
@@ -37,7 +42,7 @@ func (f *Formatter) Clone(level golog.Level) golog.Formatter {
 	if !f.filter.IsActive(level) {
 		return golog.NopFormatter
 	}
-	return NewFormatter(f.filter, f.hub) // Clone hub too?
+	return NewFormatter(f.filter, f.hub, f.valsAsMsg) // Clone hub too?
 }
 
 func (f *Formatter) WriteText(t time.Time, levels *golog.Levels, level golog.Level, prefix, text string) {
@@ -58,16 +63,24 @@ func (f *Formatter) WriteText(t time.Time, levels *golog.Levels, level golog.Lev
 		f.level = UnknownLevel
 	}
 
-	f.message = prefix + text
+	f.message.WriteString(prefix)
+	f.message.WriteString(text)
 }
 
 func (f *Formatter) FlushAndFree() {
 	// Flush
 	event := sentry.NewEvent()
 	event.Level = f.level
-	event.Message = f.message
+	event.Message = f.message.String()
 	event.Extra = f.extra
-
+	if f.hub.Client().Options().AttachStacktrace {
+		stackTrace := sentry.NewStacktrace()
+		stackTrace.Frames = filterFrames(stackTrace.Frames)
+		event.Threads = []sentry.Thread{{
+			Stacktrace: stackTrace,
+			Current:    true,
+		}}
+	}
 	f.hub.CaptureEvent(event)
 
 	// Free
@@ -76,23 +89,45 @@ func (f *Formatter) FlushAndFree() {
 	f.hub = nil
 }
 
+func filterFrames(frames []sentry.Frame) []sentry.Frame {
+	filtered := make([]sentry.Frame, 0, len(frames))
+	for _, frame := range frames {
+		if !strings.HasPrefix(frame.Module, "github.com/domonda/golog") {
+			filtered = append(filtered, frame)
+		}
+	}
+	return filtered
+}
+
 // String is here only for debugging
 func (f *Formatter) String() string {
-	return f.message
+	return f.message.String()
 }
 
 func (f *Formatter) WriteKey(key string) {
 	f.key = key
+
+	if f.valsAsMsg {
+		fmt.Fprintf(&f.message, " %s=", key)
+	}
 }
 
 func (f *Formatter) WriteSliceKey(key string) {
 	f.key = key
 	f.slice = make([]interface{}, 0)
+
+	if f.valsAsMsg {
+		fmt.Fprintf(&f.message, " %s=[", key)
+	}
 }
 
 func (f *Formatter) WriteSliceEnd() {
 	f.extra[f.key] = f.slice
 	f.slice = nil
+
+	if f.valsAsMsg {
+		f.message.WriteByte(']')
+	}
 }
 
 func (f *Formatter) writeVal(val interface{}) {
@@ -100,6 +135,20 @@ func (f *Formatter) writeVal(val interface{}) {
 		f.slice = append(f.slice, val)
 	} else {
 		f.extra[f.key] = val
+	}
+
+	if f.valsAsMsg {
+		if len(f.slice) > 1 {
+			f.message.WriteByte(',')
+		}
+		switch x := val.(type) {
+		case json.RawMessage:
+			f.message.Write(x)
+		case string:
+			fmt.Fprintf(&f.message, "%q", val)
+		default:
+			fmt.Fprintf(&f.message, "%v", val)
+		}
 	}
 }
 
@@ -128,13 +177,13 @@ func (f *Formatter) WriteString(val string) {
 }
 
 func (f *Formatter) WriteError(val error) {
-	f.writeVal(val)
+	f.writeVal(val.Error())
 }
 
 func (f *Formatter) WriteUUID(val [16]byte) {
-	f.writeVal(val)
+	f.writeVal(golog.FormatUUID(val))
 }
 
 func (f *Formatter) WriteJSON(val []byte) {
-	f.writeVal(val)
+	f.writeVal(json.RawMessage(val))
 }

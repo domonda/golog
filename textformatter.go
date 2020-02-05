@@ -1,10 +1,10 @@
 package golog
 
 import (
-	"encoding/hex"
 	"fmt"
 	"io"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -163,8 +163,13 @@ func (f *TextFormatter) WriteString(val string) {
 
 func (f *TextFormatter) WriteError(val error) {
 	f.writeSliceSep()
-	str := "`\n" + f.colorizer.ColorizeError(val.Error()) + "\n`"
-	f.buf = append(f.buf, str...)
+
+	f.buf = append(f.buf, '`', '\n')
+	for _, line := range strings.Split(val.Error(), "\n") {
+		f.buf = append(f.buf, f.colorizer.ColorizeError(line)...)
+		f.buf = append(f.buf, '\n')
+	}
+	f.buf = append(f.buf, '`')
 }
 
 // func (f *TextFormatter) WriteBytes(val []byte) {
@@ -179,18 +184,7 @@ func (f *TextFormatter) WriteError(val error) {
 func (f *TextFormatter) WriteUUID(val [16]byte) {
 	f.writeSliceSep()
 
-	var b [36]byte
-	hex.Encode(b[0:8], val[0:4])
-	b[8] = '-'
-	hex.Encode(b[9:13], val[4:6])
-	b[13] = '-'
-	hex.Encode(b[14:18], val[6:8])
-	b[18] = '-'
-	hex.Encode(b[19:23], val[8:10])
-	b[23] = '-'
-	hex.Encode(b[24:36], val[10:16])
-
-	str := f.colorizer.ColorizeUUID(string(b[:]))
+	str := f.colorizer.ColorizeUUID(FormatUUID(val))
 	f.buf = append(f.buf, str...)
 }
 

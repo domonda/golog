@@ -755,6 +755,7 @@ func (m *Message) UUIDs(key string, vals [][16]byte) *Message {
 	return m
 }
 
+// JSON logs JSON encoded bytes
 func (m *Message) JSON(key string, val []byte) *Message {
 	if m == nil {
 		return nil
@@ -765,9 +766,21 @@ func (m *Message) JSON(key string, val []byte) *Message {
 	if err == nil {
 		m.formatter.WriteJSON(buf.Bytes())
 	} else {
-		m.formatter.WriteJSON(nil)
+		m.formatter.WriteError(fmt.Errorf("can't log JSON because of: %w", err))
 	}
 	return m
+}
+
+// AsJSON logs the JSON marshaled val.
+func (m *Message) AsJSON(key string, val interface{}) *Message {
+	if m == nil {
+		return nil
+	}
+	jsonVal, err := json.Marshal(val)
+	if err != nil {
+		return m.Error(key, fmt.Errorf("can't log AsJSON because of: %w", err))
+	}
+	return m.JSON(key, jsonVal)
 }
 
 // Request logs an http.Request.
