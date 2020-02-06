@@ -6,7 +6,7 @@ require (
 	github.com/domonda/go-encjson v0.0.0-20191010155843-e640fafc0a29
 	github.com/domonda/go-types v0.0.0-20200121135135-b31dd52062e3
 	github.com/fatih/color v1.9.0
-	github.com/getsentry/sentry-go v0.5.0
+	github.com/getsentry/sentry-go v0.5.1
 	github.com/kr/pretty v0.2.0 // indirect
 	github.com/muesli/termenv v0.4.0
 	github.com/pkg/errors v0.9.1 // indirect
