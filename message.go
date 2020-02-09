@@ -787,7 +787,7 @@ func (m *Message) AsJSON(key string, val interface{}) *Message {
 // The following keys are logged: [remote, method, uri],
 // and contentLength only if available and greater zero.
 // If restrictHeaders are passed, then only those headers are logged if available,
-// else all headers will be logged.
+// else all headers not in the package level FilterHTTPHeaders map will be logged.
 // To disable header logging, pass an impossible header name.
 func (m *Message) Request(request *http.Request, restrictHeaders ...string) *Message {
 	if m == nil {
@@ -797,7 +797,7 @@ func (m *Message) Request(request *http.Request, restrictHeaders ...string) *Mes
 	m.Str("method", request.Method)
 	m.Str("uri", request.RequestURI)
 	if request.ContentLength > 0 {
-		m.Int64("contentLength", request.ContentLength)
+		m.Int64("Content-Length", request.ContentLength)
 	}
 	if len(restrictHeaders) > 0 {
 		for _, header := range restrictHeaders {
@@ -811,10 +811,12 @@ func (m *Message) Request(request *http.Request, restrictHeaders ...string) *Mes
 		}
 	} else {
 		for header, values := range request.Header {
-			if len(values) == 1 {
-				m.Str(header, values[0])
-			} else {
-				m.Strs(header, values)
+			if _, filter := FilterHTTPHeaders[header]; !filter {
+				if len(values) == 1 {
+					m.Str(header, values[0])
+				} else {
+					m.Strs(header, values)
+				}
 			}
 		}
 	}
