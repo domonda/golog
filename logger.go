@@ -75,8 +75,16 @@ func (l *Logger) Context(parent context.Context) context.Context {
 }
 
 // RequestWithLogger returs a shallow copy of the passed request
-// with the logger added as value to its context,
-// so ContextLogger(request.Context()) will return it.
+// with the logger added as value to its context
+// so RequestLogger(request) will return it.
+//
+// Example:
+//   // Add userID to request logger
+//   request = golog.RequestLogger(request).
+//       With().
+//       UUID("userID", userID).
+//       NewLogger().
+//       RequestWithLogger(request)
 func (l *Logger) RequestWithLogger(request *http.Request) *http.Request {
 	if l == nil {
 		return request
