@@ -133,7 +133,7 @@ func writeMessage(message *Message) {
 		Strs("Strs", []string{"A", "B", "C"}).
 		Err(errors.New("this is an error!")).
 		Error("Error", errors.New("this is an error!")).
-		Errors("Errors", []error{errors.New("error \"A\""), errors.New("error \"B\"")}).
+		Errors("Errors", []error{errors.New(`error "A"`), errors.New(`error "B"`)}).
 		Print("PrintSingle", "one arg").
 		Print("PrintMulti", false, 123, 0.5, "string", errors.New("error")).
 		UUID("UUID", uuid).
@@ -183,15 +183,15 @@ const (
 		`Floats=[-1.9999,0,NaN,+Inf,-Inf] ` +
 		`Str="Hello\n\"World\"!" ` +
 		`Strs=["A","B","C"] ` +
-		`error="this is an error!" ` +
-		`Error="this is an error!" ` +
-		`Errors=["error \"A\"","error \"B\""] ` +
+		`error=` + "`" + `this is an error!` + "`" + ` ` +
+		`Error=` + "`" + `this is an error!` + "`" + ` ` +
+		"Errors=[`error \"A\"`,`error \"B\"`] " +
 		`PrintSingle="one arg" ` +
 		`PrintMulti=["false","123","0.5","string","error"] ` +
 		`UUID=b14882b9-bfdd-45a4-9c84-1d717211c050 ` +
 		`UUIDs=[fab60526-bf52-4ec2-9db3-f5860250de5c,78adb219-460c-41e9-ac39-12d4d0420aa0] ` +
 		`JSON=[{"a":1,"b":[2,3],"c":null,"d":{"x":1.5}},null] ` +
-		`InvalidJSON=`
+		"InvalidJSON=`can't log JSON because of: invalid character ':' after top-level value`"
 )
 
 const (
@@ -243,6 +243,6 @@ const (
 		`"UUID":"b14882b9-bfdd-45a4-9c84-1d717211c050",` +
 		`"UUIDs":["fab60526-bf52-4ec2-9db3-f5860250de5c","78adb219-460c-41e9-ac39-12d4d0420aa0"],` +
 		`"JSON":[{"a":1,"b":[2,3],"c":null,"d":{"x":1.5}},null],` +
-		`"InvalidJSON":null` +
+		`"InvalidJSON":"can't log JSON because of: invalid character ':' after top-level value"` +
 		"},"
 )

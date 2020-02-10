@@ -164,12 +164,19 @@ func (f *TextFormatter) WriteString(val string) {
 func (f *TextFormatter) WriteError(val error) {
 	f.writeSliceSep()
 
-	f.buf = append(f.buf, '`', '\n')
-	for _, line := range strings.Split(val.Error(), "\n") {
-		f.buf = append(f.buf, f.colorizer.ColorizeError(line)...)
-		f.buf = append(f.buf, '\n')
+	lines := strings.Split(val.Error(), "\n")
+	if len(lines) == 1 {
+		f.buf = append(f.buf, '`')
+		f.buf = append(f.buf, f.colorizer.ColorizeError(lines[0])...)
+		f.buf = append(f.buf, '`')
+	} else {
+		f.buf = append(f.buf, '`', '\n')
+		for _, line := range lines {
+			f.buf = append(f.buf, f.colorizer.ColorizeError(line)...)
+			f.buf = append(f.buf, '\n')
+		}
+		f.buf = append(f.buf, '`')
 	}
-	f.buf = append(f.buf, '`')
 }
 
 // func (f *TextFormatter) WriteBytes(val []byte) {
