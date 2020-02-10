@@ -1,5 +1,13 @@
 package golog
 
+// FilterHTTPHeaders holds names of HTTP headers
+// that should not be logged for requests.
+// Defaults are "Authorization" and "Cookie".
+var FilterHTTPHeaders = map[string]struct{}{
+	"Authorization": {},
+	"Cookie":        {},
+}
+
 type Config interface {
 	Formatter() Formatter
 	Levels() *Levels
