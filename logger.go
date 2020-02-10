@@ -47,19 +47,26 @@ func NewLoggerWithPrefix(config Config, prefix string, perMessageValues ...Named
 
 type ctxKey struct{}
 
-// FromContext returns a Logger if ctx has one
-// or a nil Logger wich is still valid to use
+// ContextLogger returns a Logger if ctx has one
+// or else a nil Logger wich is still valid to use
 // but does not produce any log output.
 // See Logger.Context
-func FromContext(ctx context.Context) *Logger {
+func ContextLogger(ctx context.Context) *Logger {
 	l, _ := ctx.Value(ctxKey{}).(*Logger)
 	return l
+}
+
+// RequestLogger returns a Logger if the request context has one
+// or else a nil Logger wich is still valid to use
+// but does not produce any log output.
+func RequestLogger(request *http.Request) *Logger {
+	return ContextLogger(request.Context())
 }
 
 // Context returns a new context.Context with this Logger.
 // If this Logger is a nil Logger, then the passed in
 // parent context is returned.
-// See FromContext
+// See ContextLogger
 func (l *Logger) Context(parent context.Context) context.Context {
 	if l == nil {
 		return parent
@@ -67,10 +74,10 @@ func (l *Logger) Context(parent context.Context) context.Context {
 	return context.WithValue(parent, ctxKey{}, l)
 }
 
-// RequestWithContext returs a shallow copy of the passed request
+// RequestWithLogger returs a shallow copy of the passed request
 // with the logger added as value to its context,
-// so FromContext(request.Context()) will return it.
-func (l *Logger) RequestWithContext(request *http.Request) *http.Request {
+// so ContextLogger(request.Context()) will return it.
+func (l *Logger) RequestWithLogger(request *http.Request) *http.Request {
 	if l == nil {
 		return request
 	}
@@ -102,7 +109,7 @@ func (l *Logger) LogRequestWithID(requestID interface{}, requestToLog *http.Requ
 // and returns the requestLogger together with a new context.Context
 // derived from the request.Context() that has requestLogger added as value,
 // so functions receiving this ctx can get the requestLogger
-// by calling FromContext(ctx).
+// by calling ContextLogger(ctx).
 // If restrictHeaders are passed, then only those headers are logged if available.
 // To disable header logging, pass an impossible header name.
 //
@@ -123,7 +130,7 @@ func (l *Logger) LogRequestWithIDContext(requestID interface{}, requestToLog *ht
 // creates a new sub-logger with a requestID (UUID),
 // logs the request metadata using it,
 // and adds it as value to the context of the request
-// so it can be retrieved with FromContext(request.Context())
+// so it can be retrieved with ContextLogger(request.Context())
 // in further handlers after this middleware handler.
 // If restrictHeaders are passed, then only those headers are logged if available.
 // To disable header logging, pass an impossible header name.
@@ -133,7 +140,7 @@ func (l *Logger) HTTPMiddlewareFunc(restrictHeaders ...string) func(next http.Ha
 		return http.HandlerFunc(
 			func(w http.ResponseWriter, r *http.Request) {
 				requestLogger := l.LogRequestWithID(NewUUID(), r, restrictHeaders...)
-				next.ServeHTTP(w, requestLogger.RequestWithContext(r))
+				next.ServeHTTP(w, requestLogger.RequestWithLogger(r))
 			},
 		)
 	}
@@ -157,7 +164,7 @@ func (l *Logger) WithValues(perMessageValues ...NamedValue) *Logger {
 // if there was a Logger added as value to the context,
 // else l is returned unchanged.
 func (l *Logger) WithContextValues(ctx context.Context) *Logger {
-	return l.WithValues(FromContext(ctx).PerMessageValues()...)
+	return l.WithValues(ContextLogger(ctx).PerMessageValues()...)
 }
 
 func (l *Logger) WithPrefix(prefix string) *Logger {

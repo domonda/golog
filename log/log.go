@@ -20,10 +20,16 @@ func Context(parent context.Context) context.Context {
 // that returns a nil Logger if ctx has none.
 // See Context
 func WithContext(ctx context.Context) *golog.Logger {
-	if l := golog.FromContext(ctx); l != nil {
+	if l := golog.ContextLogger(ctx); l != nil {
 		return l
 	}
 	return Logger
+}
+
+// WithContextValues returns a new golog.Logger with the
+// PerMessageValues from a context logger appended to this package's Logger.
+func WithContextValues(ctx context.Context) *golog.Logger {
+	return Logger.WithContextValues(ctx)
 }
 
 // Request creates a new requestLogger with a new requestID (UUID),

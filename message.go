@@ -826,8 +826,8 @@ func (m *Message) ContextValues(ctx context.Context) *Message {
 	if m == nil {
 		return nil
 	}
-	for _, val := range FromContext(ctx).PerMessageValues() {
-		val.Log(m)
+	for _, namedValue := range ContextLogger(ctx).PerMessageValues() {
+		namedValue.Log(m)
 	}
 	return m
 }
