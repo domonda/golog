@@ -770,12 +770,11 @@ func (m *Message) JSON(key string, val []byte) *Message {
 	}
 	buf := bytes.NewBuffer(make([]byte, 0, len(val)))
 	err := json.Compact(buf, val)
-	m.formatter.WriteKey(key)
-	if err == nil {
-		m.formatter.WriteJSON(buf.Bytes())
-	} else {
-		m.formatter.WriteError(fmt.Errorf("can't log JSON because of: %w", err))
+	if err != nil {
+		return m.Error(key, fmt.Errorf("can't log JSON because of: %w", err))
 	}
+	m.formatter.WriteKey(key)
+	m.formatter.WriteJSON(buf.Bytes())
 	return m
 }
 
@@ -784,11 +783,13 @@ func (m *Message) AsJSON(key string, val interface{}) *Message {
 	if m == nil {
 		return nil
 	}
-	jsonVal, err := json.Marshal(val)
+	j, err := json.Marshal(val)
 	if err != nil {
-		return m.Error(key, fmt.Errorf("can't log AsJSON because of: %w", err))
+		return m.Error(key, fmt.Errorf("can't log %T AsJSON because of: %w", val, err))
 	}
-	return m.JSON(key, jsonVal)
+	m.formatter.WriteKey(key)
+	m.formatter.WriteJSON(j)
+	return m
 }
 
 // Request logs an http.Request.
