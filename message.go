@@ -95,77 +95,85 @@ func (m *Message) Errors(key string, vals []error) *Message {
 }
 
 func (m *Message) writeVal(val reflect.Value, noSlice bool) {
-	switch x := val.Interface().(type) {
-	case nil:
-		m.formatter.WriteNil()
-		return
-	case NamedValue:
-		x.Log(m)
-		return
-	case error:
-		m.formatter.WriteError(x)
-		return
-	case [16]byte:
-		m.formatter.WriteUUID(x)
+	// Try if val implements a loggable interface or is nil
+	written := m.tryWriteValInterface(val)
+	if written {
 		return
 	}
 
 	// Deref pointers
+	valChanged := false
 	for val.Kind() == reflect.Ptr && !val.IsNil() {
 		val = val.Elem()
+		valChanged = true
 	}
-
-	switch x := val.Interface().(type) {
-	case nil:
-		m.formatter.WriteNil()
-		return
-	case NamedValue:
-		x.Log(m)
-		return
-	case error:
-		m.formatter.WriteError(x)
-		return
-	case [16]byte:
-		m.formatter.WriteUUID(x)
-		return
+	if valChanged {
+		// Try if dereferenced val implements a loggable interface or is nil
+		written := m.tryWriteValInterface(val)
+		if written {
+			return
+		}
 	}
 
 	switch val.Kind() {
 	case reflect.Bool:
 		m.formatter.WriteBool(val.Bool())
-	case reflect.Int:
+
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		m.formatter.WriteInt(val.Int())
-	case reflect.Int8:
-		m.formatter.WriteInt(val.Int())
-	case reflect.Int16:
-		m.formatter.WriteInt(val.Int())
-	case reflect.Int32:
-		m.formatter.WriteInt(val.Int())
-	case reflect.Int64:
-		m.formatter.WriteInt(val.Int())
-	case reflect.Uint:
+
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 		m.formatter.WriteUint(val.Uint())
-	case reflect.Uint8:
-		m.formatter.WriteUint(val.Uint())
-	case reflect.Uint16:
-		m.formatter.WriteUint(val.Uint())
-	case reflect.Uint32:
-		m.formatter.WriteUint(val.Uint())
-	case reflect.Uint64:
-		m.formatter.WriteUint(val.Uint())
+
+	case reflect.Float32, reflect.Float64:
+		m.formatter.WriteFloat(val.Float())
+
 	case reflect.String:
 		m.formatter.WriteString(val.String())
+
+	case reflect.Struct, reflect.Map:
+		j, err := json.Marshal(val.Interface())
+		if err != nil {
+			m.formatter.WriteError(fmt.Errorf("error while marshalling %s as JSON for logging: %w", val.Type(), err))
+			return
+		}
+		m.formatter.WriteJSON(j)
+
 	case reflect.Array, reflect.Slice:
 		if noSlice {
+			// TODO: why is noSlice always true?
 			m.formatter.WriteString(fmt.Sprint(val))
 		} else {
 			for i := 0; i < val.Len(); i++ {
 				m.writeVal(val.Index(i), true)
 			}
 		}
+
 	default:
 		m.formatter.WriteString(fmt.Sprint(val))
 	}
+}
+
+func (m *Message) tryWriteValInterface(val reflect.Value) (written bool) {
+	switch x := val.Interface().(type) {
+	case nil:
+		m.formatter.WriteNil()
+		return true
+
+	case NamedValue:
+		x.Log(m)
+		return true
+
+	case error:
+		m.formatter.WriteError(x)
+		return true
+
+	case [16]byte:
+		m.formatter.WriteUUID(x)
+		return true
+	}
+
+	return false
 }
 
 // Val logs val with the best matching typed log method
