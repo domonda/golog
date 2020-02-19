@@ -52,17 +52,17 @@ func (m *Message) NewLogger() *Logger {
 }
 
 // NamedValue lets a value that implements the NamedValue log itself
-func (m *Message) NamedValue(val NamedValue) *Message {
-	if m == nil {
-		return nil
+func (m *Message) NamedValue(namedVal NamedValue) *Message {
+	if m == nil || namedVal == nil {
+		return m
 	}
-	val.Log(m)
+	namedVal.Log(m)
 	return m
 }
 
 func (m *Message) Exec(writeFunc func(*Message)) *Message {
-	if m == nil {
-		return nil
+	if m == nil || writeFunc == nil {
+		return m
 	}
 	writeFunc(m)
 	return m
@@ -201,8 +201,8 @@ func (m *Message) Vals(key string, vals ...interface{}) *Message {
 
 // StructFields calls Val(fieldName, fieldValue) for every exported struct field
 func (m *Message) StructFields(strct interface{}) *Message {
-	if m == nil {
-		return nil
+	if m == nil || strct == nil {
+		return m
 	}
 	reflection.EnumFlatExportedStructFields(strct, func(field reflect.StructField, value reflect.Value) {
 		m.formatter.WriteKey(field.Name)
@@ -718,6 +718,9 @@ func (m *Message) Strs(key string, vals []string) *Message {
 }
 
 func (m *Message) Stringer(key string, val fmt.Stringer) *Message {
+	if val == nil {
+		return m.Nil(key)
+	}
 	return m.Str(key, val.String())
 }
 
@@ -725,7 +728,21 @@ func (m *Message) Time(key string, val time.Time) *Message {
 	return m.Str(key, val.String())
 }
 
+func (m *Message) TimePtr(key string, val *time.Time) *Message {
+	if val == nil {
+		return m.Nil(key)
+	}
+	return m.Str(key, val.String())
+}
+
 func (m *Message) Duration(key string, val time.Duration) *Message {
+	return m.Str(key, val.String())
+}
+
+func (m *Message) DurationPtr(key string, val *time.Duration) *Message {
+	if val == nil {
+		return m.Nil(key)
+	}
 	return m.Str(key, val.String())
 }
 
