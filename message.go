@@ -187,7 +187,7 @@ func (m *Message) Val(key string, val interface{}) *Message {
 	return m
 }
 
-func (m *Message) Vals(key string, vals []interface{}) *Message {
+func (m *Message) Vals(key string, vals ...interface{}) *Message {
 	if m == nil {
 		return nil
 	}
