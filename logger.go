@@ -240,6 +240,14 @@ func (l *Logger) IsActive(level Level) bool {
 	return active
 }
 
+// Flush unwritten logs
+func (l *Logger) Flush() {
+	if l == nil {
+		return
+	}
+	l.config.Formatter().FlushUnderlying()
+}
+
 func (l *Logger) NewMessageAt(t time.Time, level Level, text string) *Message {
 	if !l.IsActive(level) {
 		return nil

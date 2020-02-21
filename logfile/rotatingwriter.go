@@ -102,6 +102,14 @@ func (rw *RotatingWriter) rotatedFilePath() string {
 	return rotated
 }
 
+// Sync flushed the file by calling os.File.Sync.
+func (rw *RotatingWriter) Sync() error {
+	rw.mtx.Lock()
+	defer rw.mtx.Unlock()
+
+	return rw.file.Sync()
+}
+
 func (rw *RotatingWriter) Close() error {
 	rw.mtx.Lock()
 	defer rw.mtx.Unlock()

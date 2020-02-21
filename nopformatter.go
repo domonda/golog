@@ -15,6 +15,8 @@ func (nopFormatter) WriteText(t time.Time, levels *Levels, level Level, prefix, 
 
 func (nopFormatter) FlushAndFree() {}
 
+func (nopFormatter) FlushUnderlying() {}
+
 // String is here only for debugging
 func (nopFormatter) String() string {
 	return "nopFormatter"

@@ -40,6 +40,12 @@ func (mf MultiFormatter) FlushAndFree() {
 	multiFormatterPool.Put(mf)
 }
 
+func (mf MultiFormatter) FlushUnderlying() {
+	for _, f := range mf {
+		f.FlushAndFree()
+	}
+}
+
 // String is here only for debugging
 func (mf MultiFormatter) String() string {
 	var b strings.Builder

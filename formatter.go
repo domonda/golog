@@ -8,6 +8,7 @@ type Formatter interface {
 	Clone(level Level) Formatter
 	WriteText(t time.Time, levels *Levels, level Level, prefix, text string)
 	FlushAndFree()
+	FlushUnderlying()
 
 	// String is here only for debugging
 	String() string
@@ -26,4 +27,11 @@ type Formatter interface {
 	WriteUUID(val [16]byte)
 	WriteJSON(val []byte)
 	// WritePtr(val uintptr)
+}
+
+func flushUnderlying(writer interface{}) {
+	switch x := writer.(type) {
+	case interface{ Sync() error }:
+		x.Sync()
+	}
 }

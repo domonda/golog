@@ -86,6 +86,10 @@ func (f *TextFormatter) FlushAndFree() {
 	textFormatterPool.Put(f)
 }
 
+func (f *TextFormatter) FlushUnderlying() {
+	flushUnderlying(f.writer)
+}
+
 // String is here only for debugging
 func (f *TextFormatter) String() string {
 	return string(f.buf)

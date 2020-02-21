@@ -24,6 +24,8 @@ func (r *recordingFormatter) FlushAndFree() {
 	panic("calling golog.Message.Log() after Logger.Record() is invalid, call Message.NewLogger() instead")
 }
 
+func (r *recordingFormatter) FlushUnderlying() {}
+
 // String is here only for debugging
 func (r *recordingFormatter) String() string {
 	return fmt.Sprintf("recordingFormatter with %d recored values", r.values)

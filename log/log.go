@@ -91,6 +91,11 @@ func With() *golog.Message {
 	return Logger.With()
 }
 
+// Flush unwritten logs
+func Flush() {
+	Logger.Flush()
+}
+
 // FatalAndPanic is a shortcut for Fatal(fmt.Sprint(p)).LogAndPanic()
 func FatalAndPanic(p interface{}) {
 	Logger.Fatal(fmt.Sprint(p)).Log()

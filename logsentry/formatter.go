@@ -11,9 +11,13 @@ import (
 	"github.com/domonda/golog"
 )
 
-// UnknownLevel will be used if a golog.Level
-// can't be mapped to a sentry.LevelError.
-var UnknownLevel = sentry.LevelError
+var (
+	// UnknownLevel will be used if a golog.Level
+	// can't be mapped to a sentry.LevelError.
+	UnknownLevel = sentry.LevelError
+
+	FlushTimeout time.Duration = 3 * time.Second
+)
 
 // Compile time check Formatter implements interface golog.Formatter
 var _ golog.Formatter = new(Formatter)
@@ -87,6 +91,10 @@ func (f *Formatter) FlushAndFree() {
 	f.extra = nil
 	f.slice = nil
 	f.hub = nil
+}
+
+func (f *Formatter) FlushUnderlying() {
+	f.hub.Flush(FlushTimeout)
 }
 
 func filterFrames(frames []sentry.Frame) []sentry.Frame {
