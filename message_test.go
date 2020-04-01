@@ -191,7 +191,7 @@ const (
 		`UUID=b14882b9-bfdd-45a4-9c84-1d717211c050 ` +
 		`UUIDs=[fab60526-bf52-4ec2-9db3-f5860250de5c,78adb219-460c-41e9-ac39-12d4d0420aa0] ` +
 		`JSON=[{"a":1,"b":[2,3],"c":null,"d":{"x":1.5}},null] ` +
-		"InvalidJSON=`can't log JSON because of: invalid character ':' after top-level value`"
+		"InvalidJSON=`" + `"a":1` + "`"
 )
 
 const (
@@ -243,6 +243,6 @@ const (
 		`"UUID":"b14882b9-bfdd-45a4-9c84-1d717211c050",` +
 		`"UUIDs":["fab60526-bf52-4ec2-9db3-f5860250de5c","78adb219-460c-41e9-ac39-12d4d0420aa0"],` +
 		`"JSON":[{"a":1,"b":[2,3],"c":null,"d":{"x":1.5}},null],` +
-		`"InvalidJSON":"can't log JSON because of: invalid character ':' after top-level value"` +
+		`"InvalidJSON":"\"a\":1"` +
 		"},"
 )

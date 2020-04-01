@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"reflect"
@@ -785,13 +786,14 @@ func (m *Message) JSON(key string, val []byte) *Message {
 	if m == nil {
 		return nil
 	}
+	m.formatter.WriteKey(key)
 	buf := bytes.NewBuffer(make([]byte, 0, len(val)))
 	err := json.Compact(buf, val)
-	if err != nil {
-		return m.Error(key, fmt.Errorf("can't log JSON because of: %w", err))
+	if err == nil {
+		m.formatter.WriteJSON(buf.Bytes())
+	} else {
+		m.formatter.WriteError(errors.New(string(val)))
 	}
-	m.formatter.WriteKey(key)
-	m.formatter.WriteJSON(buf.Bytes())
 	return m
 }
 
