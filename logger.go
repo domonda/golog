@@ -135,19 +135,30 @@ func (l *Logger) LogRequestWithIDContext(requestID interface{}, requestToLog *ht
 }
 
 // HTTPMiddlewareFunc returns a HTTP handler middleware function that
-// creates a new sub-logger with a requestID (UUID),
+// creates a new sub-logger with a UUID requestID,
 // logs the request metadata using it,
 // and adds it as value to the context of the request
 // so it can be retrieved with ContextLogger(request.Context())
 // in further handlers after this middleware handler.
 // If restrictHeaders are passed, then only those headers are logged if available.
 // To disable header logging, pass an impossible header name.
+// If available the X-Request-ID or X-Correlation-ID HTTP request header will be used as requestID.
+// It has to be a valid UUID in the format "994d5800-afca-401f-9c2f-d9e3e106e9ef".
+// Else a random v4 UUID will be generated as requestID.
 // Compatible with github.com/gorilla/mux.MiddlewareFunc
 func (l *Logger) HTTPMiddlewareFunc(restrictHeaders ...string) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(
 			func(w http.ResponseWriter, r *http.Request) {
-				requestLogger := l.LogRequestWithID(NewUUID(), r, restrictHeaders...)
+				xRequestID := r.Header.Get("X-Request-ID")
+				if xRequestID == "" {
+					xRequestID = r.Header.Get("X-Correlation-ID")
+				}
+				requestID, err := ParseUUID(xRequestID)
+				if err != nil {
+					requestID = NewUUID()
+				}
+				requestLogger := l.LogRequestWithID(requestID, r, restrictHeaders...)
 				next.ServeHTTP(w, requestLogger.RequestWithLogger(r))
 			},
 		)

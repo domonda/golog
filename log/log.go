@@ -32,13 +32,16 @@ func WithContextValues(ctx context.Context) *golog.Logger {
 	return Logger.WithContextValues(ctx)
 }
 
-// Request creates a new requestLogger with a new requestID (UUID),
+// Request creates a new requestLogger with a UUID requestID,
 // logs the passed request's metdata with a golog.HTTPRequestMessage (default "HTTP request")
 // using golog.HTTPRequestLevel (default golog.DefaultLevels.Info)
 // and returns the requestLogger and requestID together with a new context.Context
 // derived from the request.Context() that has requestLogger added as value,
 // so functions receiving this ctx can get the requestLogger
 // by calling WithContext(ctx).
+// If available the X-Request-ID or X-Correlation-ID HTTP request header will be used as requestID.
+// It has to be a valid UUID in the format "994d5800-afca-401f-9c2f-d9e3e106e9ef".
+// Else a random v4 UUID will be generated as requestID.
 //
 // Example:
 //   func ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -54,7 +57,14 @@ func WithContextValues(ctx context.Context) *golog.Logger {
 //       ...
 //   }
 func Request(request *http.Request) (requestLogger *golog.Logger, requestID [16]byte, ctx context.Context) {
-	requestID = golog.NewUUID()
+	xRequestID := request.Header.Get("X-Request-ID")
+	if xRequestID == "" {
+		xRequestID = request.Header.Get("X-Correlation-ID")
+	}
+	requestID, err := golog.ParseUUID(xRequestID)
+	if err != nil {
+		requestID = golog.NewUUID()
+	}
 	requestLogger, ctx = Logger.LogRequestWithIDContext(requestID, request)
 	return requestLogger, requestID, ctx
 }
