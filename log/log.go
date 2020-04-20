@@ -75,6 +75,11 @@ func Request(request *http.Request) (requestLogger *golog.Logger, requestID [16]
 // and adds it as value to the context of the request
 // so it can be retrieved with WithContext(request.Context())
 // in further handlers after this middleware handler.
+// If available the X-Request-ID or X-Correlation-ID HTTP request header will be used as requestID.
+// It has to be a valid UUID in the format "994d5800-afca-401f-9c2f-d9e3e106e9ef".
+// Else a random v4 UUID will be generated as requestID.
+// The requestID will also be set at the http.ResponseWriter as X-Request-ID header
+// before calling the next handler, which has a chance to change it.
 // Compatible with github.com/gorilla/mux.MiddlewareFunc
 func HTTPMiddlewareFunc() func(next http.Handler) http.Handler {
 	return Logger.HTTPMiddlewareFunc()

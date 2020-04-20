@@ -145,6 +145,8 @@ func (l *Logger) LogRequestWithIDContext(requestID interface{}, requestToLog *ht
 // If available the X-Request-ID or X-Correlation-ID HTTP request header will be used as requestID.
 // It has to be a valid UUID in the format "994d5800-afca-401f-9c2f-d9e3e106e9ef".
 // Else a random v4 UUID will be generated as requestID.
+// The requestID will also be set at the http.ResponseWriter as X-Request-ID header
+// before calling the next handler, which has a chance to change it.
 // Compatible with github.com/gorilla/mux.MiddlewareFunc
 func (l *Logger) HTTPMiddlewareFunc(restrictHeaders ...string) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
@@ -158,6 +160,7 @@ func (l *Logger) HTTPMiddlewareFunc(restrictHeaders ...string) func(next http.Ha
 				if err != nil {
 					requestID = NewUUID()
 				}
+				w.Header().Set("X-Request-ID", FormatUUID(requestID))
 				requestLogger := l.LogRequestWithID(requestID, r, restrictHeaders...)
 				next.ServeHTTP(w, requestLogger.RequestWithLogger(r))
 			},
