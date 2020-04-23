@@ -725,12 +725,19 @@ func (m *Message) Stringer(key string, val fmt.Stringer) *Message {
 	return m.Str(key, val.String())
 }
 
+// Time logs a time.Time by calling its String method,
+// or logs nil if val.IsZero().
 func (m *Message) Time(key string, val time.Time) *Message {
+	if val.IsZero() {
+		return m.Nil(key)
+	}
 	return m.Str(key, val.String())
 }
 
+// TimePtr logs a time.Time by calling its String method,
+// or logs nil if val is nil or val.IsZero().
 func (m *Message) TimePtr(key string, val *time.Time) *Message {
-	if val == nil {
+	if val == nil || val.IsZero() {
 		return m.Nil(key)
 	}
 	return m.Str(key, val.String())
