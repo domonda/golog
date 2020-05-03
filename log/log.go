@@ -8,29 +8,23 @@ import (
 	"github.com/domonda/golog"
 )
 
-// Context returns a new context.Context with the default Logger.
+// AddLoggerToContext returns a new context.Context with the default Logger.
 // See WithContext
-func Context(parent context.Context) context.Context {
-	return Logger.Context(parent)
+func AddLoggerToContext(parent context.Context) context.Context {
+	return Logger.AddToContext(parent)
 }
 
-// WithContext returns a golog.Logger if ctx has one
-// or the default Logger variable.
-// This behaviour differs from golog.FromContext
-// that returns a nil Logger if ctx has none.
-// See Context
-func WithContext(ctx context.Context) *golog.Logger {
-	if l := golog.ContextLogger(ctx); l != nil {
-		return l
-	}
-	return Logger
-}
-
-// WithContextValues returns a new golog.Logger with the
-// PerMessageValues from a context logger appended to this package's Logger.
-func WithContextValues(ctx context.Context) *golog.Logger {
-	return Logger.WithContextValues(ctx)
-}
+// // WithContext returns a golog.Logger if ctx has one
+// // or the default Logger variable.
+// // This behaviour differs from golog.FromContext
+// // that returns a nil Logger if ctx has none.
+// // See Context
+// func WithContext(ctx context.Context) *golog.Logger {
+// 	if l := golog.LoggerFromContext(ctx); l != nil {
+// 		return l
+// 	}
+// 	return Logger
+// }
 
 // Request creates a new requestLogger with a UUID requestID,
 // logs the passed request's metdata with a golog.HTTPRequestMessage (default "HTTP request")
@@ -95,6 +89,12 @@ func WithLevelFilter(filter golog.LevelFilter) *golog.Logger {
 
 func WithPrefix(prefix string) *golog.Logger {
 	return Logger.WithPrefix(prefix)
+}
+
+// WithCtx returns a new golog.Logger with the
+// PerMessageValues from a context logger appended to this package's Logger.
+func WithCtx(ctx context.Context) *golog.Logger {
+	return Logger.WithCtx(ctx)
 }
 
 // With returns a new Message that can be used to record

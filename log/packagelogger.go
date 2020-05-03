@@ -45,7 +45,7 @@ func NewPackageLogger(pkgName string, filters ...golog.LevelFilter) *golog.Logge
 	logger := golog.NewLoggerWithPrefix(config, pkgName+": ")
 
 	if AddImportPathToPackageLogger {
-		logger = logger.With().Str("pkg", pkgPath).NewLogger()
+		logger = logger.With().Str("pkg", pkgPath).SubLogger()
 	}
 	return logger
 }

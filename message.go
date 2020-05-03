@@ -41,7 +41,9 @@ func (m *Message) IsActive() bool {
 	return m != nil
 }
 
-func (m *Message) NewLogger() *Logger {
+// SubLogger returns a new sub-logger with recorded
+// per message values.
+func (m *Message) SubLogger() *Logger {
 	if m == nil {
 		return nil
 	}
@@ -858,12 +860,12 @@ func (m *Message) Request(request *http.Request, restrictHeaders ...string) *Mes
 	return m
 }
 
-// ContextValues logs Logger.PerMessageValues from a context logger if available.
-func (m *Message) ContextValues(ctx context.Context) *Message {
+// Ctx logs Logger.PerMessageValues from a context logger if available.
+func (m *Message) Ctx(ctx context.Context) *Message {
 	if m == nil {
 		return nil
 	}
-	for _, namedValue := range ContextLogger(ctx).PerMessageValues() {
+	for _, namedValue := range LoggerFromContext(ctx).PerMessageValues() {
 		namedValue.Log(m)
 	}
 	return m
