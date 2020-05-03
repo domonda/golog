@@ -21,7 +21,7 @@ func (r *recordingFormatter) WriteText(t time.Time, levels *Levels, level Level,
 }
 
 func (r *recordingFormatter) FlushAndFree() {
-	panic("calling golog.Message.Log() after Logger.Record() is invalid, call Message.NewLogger() instead")
+	panic("calling golog.Message.Log() after Logger.Record() is invalid, call Message.SubLogger() instead")
 }
 
 func (r *recordingFormatter) FlushUnderlying() {}

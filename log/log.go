@@ -101,7 +101,7 @@ func WithCtx(ctx context.Context) *golog.Logger {
 // the prefix for a sub-logger.
 //
 // Example:
-//   log := log.With().UUID("requestID", requestID).NewLogger()
+//   log := log.With().UUID("requestID", requestID).SubLogger()
 func With() *golog.Message {
 	return Logger.With()
 }

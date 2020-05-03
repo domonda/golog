@@ -215,7 +215,7 @@ func (l *Logger) WithLevelFilter(filter LevelFilter) *Logger {
 // the prefix for a sub-logger.
 //
 // Example:
-//   log := log.With().UUID("requestID", requestID).NewLogger()
+//   log := log.With().UUID("requestID", requestID).SubLogger()
 func (l *Logger) With() *Message {
 	if l == nil {
 		return nil
