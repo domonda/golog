@@ -54,6 +54,25 @@ func (m *Message) SubLogger() *Logger {
 	return m.logger.WithValues(recorded.values...)
 }
 
+// SubLogger returns a new sub-logger with recorded per message values,
+// and a context with with sub-logger added to it.
+func (m *Message) SubLoggerContext(parentCtx context.Context) (*Logger, context.Context) {
+	log := m.SubLogger()
+	ctx := log.AddToContext(parentCtx)
+	return log, ctx
+}
+
+// Ctx logs Logger.PerMessageValues from a context logger if available.
+func (m *Message) Ctx(ctx context.Context) *Message {
+	if m == nil {
+		return nil
+	}
+	for _, namedValue := range LoggerFromContext(ctx).PerMessageValues() {
+		namedValue.Log(m)
+	}
+	return m
+}
+
 // NamedValue lets a value that implements the NamedValue log itself
 func (m *Message) NamedValue(namedVal NamedValue) *Message {
 	if m == nil || namedVal == nil {
@@ -856,17 +875,6 @@ func (m *Message) Request(request *http.Request, restrictHeaders ...string) *Mes
 				}
 			}
 		}
-	}
-	return m
-}
-
-// Ctx logs Logger.PerMessageValues from a context logger if available.
-func (m *Message) Ctx(ctx context.Context) *Message {
-	if m == nil {
-		return nil
-	}
-	for _, namedValue := range LoggerFromContext(ctx).PerMessageValues() {
-		namedValue.Log(m)
 	}
 	return m
 }
