@@ -18,19 +18,19 @@ type NamedValue interface {
 func MergeNamedValues(a, b []NamedValue) []NamedValue {
 	c := make([]NamedValue, len(a), len(a)+len(b))
 	// Only copy values from a to c that don't exist with that name in b
-	for i := 0; i < len(a); {
-		name := a[i].Name()
-		inB := false
+	i := 0
+	for _, aa := range a {
+		name := aa.Name()
+		nameInB := false
 		for _, bb := range b {
 			if name == bb.Name() {
-				inB = true
+				nameInB = true
+				c = c[:len(c)-1]
 				break
 			}
 		}
-		if inB {
-			c = c[:len(c)-1]
-		} else {
-			c[i] = a[i]
+		if !nameInB {
+			c[i] = aa
 			i++
 		}
 	}
