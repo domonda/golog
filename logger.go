@@ -168,6 +168,16 @@ func (l *Logger) HTTPMiddlewareFunc(restrictHeaders ...string) func(next http.Ha
 	}
 }
 
+// HasPerMessageValue returns any per message value with name exists
+func (l *Logger) HasPerMessageValue(name string) bool {
+	for _, namedValue := range l.perMessageValues {
+		if namedValue.Name() == name {
+			return true
+		}
+	}
+	return false
+}
+
 // WithValues returns a new Logger with the passed
 // perMessageValues appended to the existing perMessageValues.
 func (l *Logger) WithValues(perMessageValues ...NamedValue) *Logger {
@@ -177,7 +187,7 @@ func (l *Logger) WithValues(perMessageValues ...NamedValue) *Logger {
 	return &Logger{
 		config:           l.config,
 		prefix:           l.prefix,
-		perMessageValues: append(l.perMessageValues, perMessageValues...),
+		perMessageValues: MergeNamedValues(l.perMessageValues, perMessageValues),
 	}
 }
 
