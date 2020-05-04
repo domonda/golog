@@ -140,6 +140,8 @@ func (l *Logger) LogRequestWithIDContext(requestID interface{}, requestToLog *ht
 // and adds it as value to the context of the request
 // so it can be retrieved with LoggerFromContext(request.Context())
 // in further handlers after this middleware handler.
+// Alternatively only the recorded per log message values of the
+// logger in the context can be used by another logger with Logger.WithCtx or Message.Ctx.
 // If restrictHeaders are passed, then only those headers are logged if available.
 // To disable header logging, pass an impossible header name.
 // If available the X-Request-ID or X-Correlation-ID HTTP request header will be used as requestID.
@@ -148,24 +150,45 @@ func (l *Logger) LogRequestWithIDContext(requestID interface{}, requestToLog *ht
 // The requestID will also be set at the http.ResponseWriter as X-Request-ID header
 // before calling the next handler, which has a chance to change it.
 // Compatible with github.com/gorilla/mux.MiddlewareFunc
+// Also see Logger.HTTPMiddlewareHandler
 func (l *Logger) HTTPMiddlewareFunc(restrictHeaders ...string) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(
-			func(w http.ResponseWriter, r *http.Request) {
-				xRequestID := r.Header.Get("X-Request-ID")
-				if xRequestID == "" {
-					xRequestID = r.Header.Get("X-Correlation-ID")
-				}
-				requestID, err := ParseUUID(xRequestID)
-				if err != nil {
-					requestID = NewUUID()
-				}
-				w.Header().Set("X-Request-ID", FormatUUID(requestID))
-				requestLogger := l.LogRequestWithID(requestID, r, restrictHeaders...)
-				next.ServeHTTP(w, requestLogger.AddToRequest(r))
-			},
-		)
+		return l.HTTPMiddlewareHandler(next, restrictHeaders...)
 	}
+}
+
+// HTTPMiddlewareHandler returns a HTTP middleware handler that
+// creates a new sub-logger with a UUID requestID,
+// logs the request metadata using it,
+// and adds it as value to the context of the request
+// so it can be retrieved with LoggerFromContext(request.Context())
+// in the handler passed as next http.Handler.
+// Alternatively only the recorded per log message values of the
+// logger in the context can be used by another logger with Logger.WithCtx or Message.Ctx.
+// If restrictHeaders are passed, then only those headers are logged if available.
+// To disable header logging, pass an impossible header name.
+// If available the X-Request-ID or X-Correlation-ID HTTP request header will be used as requestID.
+// It has to be a valid UUID in the format "994d5800-afca-401f-9c2f-d9e3e106e9ef".
+// Else a random v4 UUID will be generated as requestID.
+// The requestID will also be set at the http.ResponseWriter as X-Request-ID header
+// before calling the next handler, which has a chance to change it.
+// See also Logger.HTTPMiddlewareFunc
+func (l *Logger) HTTPMiddlewareHandler(next http.Handler, restrictHeaders ...string) http.Handler {
+	return http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			xRequestID := r.Header.Get("X-Request-ID")
+			if xRequestID == "" {
+				xRequestID = r.Header.Get("X-Correlation-ID")
+			}
+			requestID, err := ParseUUID(xRequestID)
+			if err != nil {
+				requestID = NewUUID()
+			}
+			w.Header().Set("X-Request-ID", FormatUUID(requestID))
+			requestLogger := l.LogRequestWithID(requestID, r, restrictHeaders...)
+			next.ServeHTTP(w, requestLogger.AddToRequest(r))
+		},
+	)
 }
 
 // HasPerMessageValue returns any per message value with name exists
