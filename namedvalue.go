@@ -16,6 +16,10 @@ type NamedValue interface {
 // they are also present with the same name in b.
 // Wihtout name collisions, the result is identical to append(a, b).
 func MergeNamedValues(a, b []NamedValue) []NamedValue {
+	if len(a) == 0 && len(b) == 0 {
+		return nil
+	}
+
 	c := make([]NamedValue, len(a), len(a)+len(b))
 	// Only copy values from a to c that don't exist with that name in b
 	i := 0
@@ -37,11 +41,6 @@ func MergeNamedValues(a, b []NamedValue) []NamedValue {
 	// Then append uniquely name values from b
 	return append(c, b...)
 }
-
-// // NamedValueFunc implements NamedValue with a function
-// type NamedValueFunc func(*Message)
-
-// func (f NamedValueFunc) Log(message *Message) { f(message) }
 
 // Nil
 

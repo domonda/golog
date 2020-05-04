@@ -7,6 +7,7 @@ require (
 	github.com/domonda/go-types v0.0.0-20200423160157-72d095e75e11
 	github.com/fatih/color v1.9.0
 	github.com/getsentry/sentry-go v0.6.0
+	github.com/google/go-cmp v0.4.0
 	github.com/muesli/termenv v0.5.0
 	github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e // indirect
 	github.com/stretchr/testify v1.5.1
