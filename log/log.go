@@ -8,78 +8,40 @@ import (
 	"github.com/domonda/golog"
 )
 
-// AddLoggerToContext returns a new context.Context with the default Logger.
-// See WithContext
-func AddLoggerToContext(parent context.Context) context.Context {
-	return Logger.AddToContext(parent)
-}
-
-// // WithContext returns a golog.Logger if ctx has one
-// // or the default Logger variable.
-// // This behaviour differs from golog.FromContext
-// // that returns a nil Logger if ctx has none.
-// // See Context
-// func WithContext(ctx context.Context) *golog.Logger {
-// 	if l := golog.LoggerFromContext(ctx); l != nil {
-// 		return l
-// 	}
-// 	return Logger
-// }
-
-// Request creates a new requestLogger with a UUID requestID,
-// logs the passed request's metdata with a golog.HTTPRequestMessage (default "HTTP request")
-// using golog.HTTPRequestLevel (default golog.DefaultLevels.Info)
-// and returns the requestLogger and requestID together with a new context.Context
-// derived from the request.Context() that has requestLogger added as value,
-// so functions receiving this ctx can get the requestLogger
-// by calling WithContext(ctx).
+// HTTPMiddlewareHandler returns a HTTP middleware handler that passes through a UUID requestID value.
+// The requestID will be added as value to the http.Request before calling the next handler.
 // If available the X-Request-ID or X-Correlation-ID HTTP request header will be used as requestID.
 // It has to be a valid UUID in the format "994d5800-afca-401f-9c2f-d9e3e106e9ef".
-// Else a random v4 UUID will be generated as requestID.
-//
-// Example:
-//   func ServeHTTP(w http.ResponseWriter, r *http.Request) {
-//       log, requestID, ctx := log.Request(r)
-//       log.Debug("Using request sub-logger").Log()
-//       doSomething(ctx)
-//       ...
-//   }
-//   func doSomething(ctx context.Context) {
-//       // Logger from ctx will implicitely add the requestID
-//       // value to the folloing log message:
-//       log.WithContext(ctx).Info("doSomething").Log()
-//       ...
-//   }
-func Request(request *http.Request) (requestLogger *golog.Logger, requestID [16]byte, ctx context.Context) {
-	xRequestID := request.Header.Get("X-Request-ID")
-	if xRequestID == "" {
-		xRequestID = request.Header.Get("X-Correlation-ID")
-	}
-	requestID, err := golog.ParseUUID(xRequestID)
-	if err != nil {
-		requestID = golog.NewUUID()
-	}
-	requestLogger, ctx = Logger.LogRequestWithIDContext(requestID, request)
-	return requestLogger, requestID, ctx
-}
-
-// HTTPMiddlewareFunc returns a HTTP handler middleware function that
-// creates a new sub-logger with a requestID (UUID),
-// logs the request metadata using it,
-// and adds it as value to the context of the request
-// so it can be retrieved with WithContext(request.Context())
-// in further handlers after this middleware handler.
-// If available the X-Request-ID or X-Correlation-ID HTTP request header will be used as requestID.
-// It has to be a valid UUID in the format "994d5800-afca-401f-9c2f-d9e3e106e9ef".
-// Else a random v4 UUID will be generated as requestID.
+// If the request has no requestID, then a random v4 UUID will be used.
 // The requestID will also be set at the http.ResponseWriter as X-Request-ID header
 // before calling the next handler, which has a chance to change it.
-// Compatible with github.com/gorilla/mux.MiddlewareFunc
-func HTTPMiddlewareFunc() func(next http.Handler) http.Handler {
-	return Logger.HTTPMiddlewareFunc()
+// If restrictHeaders are passed, then only those headers are logged if available,
+// or pass golog.HTTPNoHeaders to disable header logging.
+// To disable logging of the request at all and just pass through
+// the requestID pass golog.LevelInvalid as log level.
+// See also HTTPMiddlewareFunc.
+func HTTPMiddlewareHandler(next http.Handler, level golog.Level, message string, restrictHeaders ...string) http.Handler {
+	return golog.HTTPMiddlewareHandler(next, Logger, level, message, restrictHeaders...)
 }
 
-func WithValues(values ...golog.NamedValue) *golog.Logger {
+// HTTPMiddlewareFunc returns a HTTP middleware function that passes through a UUID requestID value.
+// The requestID will be added as value to the http.Request before calling the next handler.
+// If available the X-Request-ID or X-Correlation-ID HTTP request header will be used as requestID.
+// It has to be a valid UUID in the format "994d5800-afca-401f-9c2f-d9e3e106e9ef".
+// If the request has no requestID, then a random v4 UUID will be used.
+// The requestID will also be set at the http.ResponseWriter as X-Request-ID header
+// before calling the next handler, which has a chance to change it.
+// If restrictHeaders are passed, then only those headers are logged if available,
+// or pass golog.HTTPNoHeaders to disable header logging.
+// To disable logging of the request at all and just pass through
+// the requestID pass golog.LevelInvalid as log level.
+// Compatible with github.com/gorilla/mux.MiddlewareFunc.
+// See also HTTPMiddlewareHandler.
+func HTTPMiddlewareFunc(level golog.Level, message string, restrictHeaders ...string) func(next http.Handler) http.Handler {
+	return golog.HTTPMiddlewareFunc(Logger, level, message, restrictHeaders...)
+}
+
+func WithValues(values ...golog.Value) *golog.Logger {
 	return Logger.WithValues(values...)
 }
 

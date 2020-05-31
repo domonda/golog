@@ -7,19 +7,19 @@ import (
 )
 
 func TestMergeNamedValues(t *testing.T) {
-	makeNamedValues := func(names ...string) (nv []NamedValue) {
+	makeNamedValues := func(names ...string) (nv Values) {
 		for _, name := range names {
-			nv = append(nv, &StringNamedValue{Key: name, Val: name})
+			nv = append(nv, &StringValue{Key: name, Val: name})
 		}
 		return nv
 	}
 
-	comparer := cmp.Comparer(func(a, b NamedValue) bool {
-		av, ok := a.(*StringNamedValue)
+	comparer := cmp.Comparer(func(a, b Value) bool {
+		av, ok := a.(*StringValue)
 		if !ok {
 			return false
 		}
-		bv, ok := a.(*StringNamedValue)
+		bv, ok := a.(*StringValue)
 		if !ok {
 			return false
 		}
@@ -27,16 +27,16 @@ func TestMergeNamedValues(t *testing.T) {
 	})
 
 	type args struct {
-		a []NamedValue
-		b []NamedValue
+		a Values
+		b Values
 	}
 	tests := []struct {
 		name string
 		args args
-		want []NamedValue
+		want Values
 	}{
 		{"nil / nil", args{a: nil, b: nil}, nil},
-		{"empty / empty", args{a: []NamedValue{}, b: []NamedValue{}}, nil},
+		{"empty / empty", args{a: Values{}, b: Values{}}, nil},
 		{"nil / 1", args{a: nil, b: makeNamedValues("1")}, makeNamedValues("1")},
 		{"1 / nil", args{a: makeNamedValues("1"), b: nil}, makeNamedValues("1")},
 		{"1 / 2", args{a: makeNamedValues("1"), b: makeNamedValues("2")}, makeNamedValues("1", "2")},
@@ -51,7 +51,7 @@ func TestMergeNamedValues(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := MergeNamedValues(tt.args.a, tt.args.b); !cmp.Equal(got, tt.want, comparer) {
+			if got := MergeValues(tt.args.a, tt.args.b); !cmp.Equal(got, tt.want, comparer) {
 				t.Errorf("MergeNamedValues() = %v, want %v", got, tt.want)
 			}
 		})

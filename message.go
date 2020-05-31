@@ -47,46 +47,44 @@ func (m *Message) SubLogger() *Logger {
 	if m == nil {
 		return nil
 	}
-	recorded, ok := m.formatter.(*recordingFormatter)
+	recorder, ok := m.formatter.(*valueRecorder)
 	if !ok {
-		panic("golog.Message was not created by Logger.Record()")
+		panic("golog.Message was not created by golog.Logger.With()")
 	}
-	return m.logger.WithValues(recorded.values...)
+	return m.logger.WithValues(recorder.Values()...)
 }
 
-// SubLogger returns a new sub-logger with recorded per message values,
+// SubLoggerContext returns a new sub-logger with recorded per message values,
 // and a context with with sub-logger added to it.
 func (m *Message) SubLoggerContext(parentCtx context.Context) (*Logger, context.Context) {
 	log := m.SubLogger()
-	ctx := log.AddToContext(parentCtx)
+	ctx := log.Values().AddToContext(parentCtx)
 	return log, ctx
 }
 
-// Ctx logs Logger.PerMessageValues from a context logger if available.
+// Ctx logs any values that were added to the context
 func (m *Message) Ctx(ctx context.Context) *Message {
 	if m == nil {
 		return nil
 	}
-	for _, namedValue := range LoggerFromContext(ctx).PerMessageValues() {
-		namedValue.Log(m)
-	}
+	ValuesFromContext(ctx).Log(m)
 	return m
 }
 
-// NamedValue lets a value that implements the NamedValue log itself
-func (m *Message) NamedValue(namedVal NamedValue) *Message {
-	if m == nil || namedVal == nil {
+// Loggable lets an implementation of the Loggable interface log itself
+func (m *Message) Loggable(loggable Loggable) *Message {
+	if m == nil || loggable == nil {
 		return m
 	}
-	namedVal.Log(m)
+	loggable.Log(m)
 	return m
 }
 
-func (m *Message) Exec(writeFunc func(*Message)) *Message {
-	if m == nil || writeFunc == nil {
+func (m *Message) Exec(logFunc func(*Message)) *Message {
+	if m == nil || logFunc == nil {
 		return m
 	}
-	writeFunc(m)
+	logFunc(m)
 	return m
 }
 
@@ -116,9 +114,20 @@ func (m *Message) Errors(key string, vals []error) *Message {
 	return m
 }
 
-func (m *Message) writeVal(val reflect.Value, noSlice bool) {
+// Any logs val with the best matching typed log method
+// or uses Print if none was found.
+func (m *Message) Any(key string, val interface{}) *Message {
+	if m == nil {
+		return nil
+	}
+	m.formatter.WriteKey(key)
+	m.writeAny(reflect.ValueOf(val), true)
+	return m
+}
+
+func (m *Message) writeAny(val reflect.Value, noSlice bool) {
 	// Try if val implements a loggable interface or is nil
-	written := m.tryWriteValInterface(val)
+	written := m.tryWriteInterface(val)
 	if written {
 		return
 	}
@@ -131,7 +140,7 @@ func (m *Message) writeVal(val reflect.Value, noSlice bool) {
 	}
 	if valChanged {
 		// Try if dereferenced val implements a loggable interface or is nil
-		written := m.tryWriteValInterface(val)
+		written := m.tryWriteInterface(val)
 		if written {
 			return
 		}
@@ -167,7 +176,7 @@ func (m *Message) writeVal(val reflect.Value, noSlice bool) {
 			m.formatter.WriteString(fmt.Sprint(val))
 		} else {
 			for i := 0; i < val.Len(); i++ {
-				m.writeVal(val.Index(i), true)
+				m.writeAny(val.Index(i), true)
 			}
 		}
 
@@ -176,13 +185,13 @@ func (m *Message) writeVal(val reflect.Value, noSlice bool) {
 	}
 }
 
-func (m *Message) tryWriteValInterface(val reflect.Value) (written bool) {
+func (m *Message) tryWriteInterface(val reflect.Value) (written bool) {
 	switch x := val.Interface().(type) {
 	case nil:
 		m.formatter.WriteNil()
 		return true
 
-	case NamedValue:
+	case Loggable:
 		x.Log(m)
 		return true
 
@@ -198,29 +207,6 @@ func (m *Message) tryWriteValInterface(val reflect.Value) (written bool) {
 	return false
 }
 
-// Val logs val with the best matching typed log method
-// or uses Print if none was found.
-func (m *Message) Val(key string, val interface{}) *Message {
-	if m == nil {
-		return nil
-	}
-	m.formatter.WriteKey(key)
-	m.writeVal(reflect.ValueOf(val), true)
-	return m
-}
-
-func (m *Message) Vals(key string, vals ...interface{}) *Message {
-	if m == nil {
-		return nil
-	}
-	m.formatter.WriteSliceKey(key)
-	for _, val := range vals {
-		m.writeVal(reflect.ValueOf(val), true)
-	}
-	m.formatter.WriteSliceEnd()
-	return m
-}
-
 // StructFields calls Val(fieldName, fieldValue) for every exported struct field
 func (m *Message) StructFields(strct interface{}) *Message {
 	if m == nil || strct == nil {
@@ -228,7 +214,7 @@ func (m *Message) StructFields(strct interface{}) *Message {
 	}
 	reflection.EnumFlatExportedStructFields(strct, func(field reflect.StructField, value reflect.Value) {
 		m.formatter.WriteKey(field.Name)
-		m.writeVal(value, true)
+		m.writeAny(value, true)
 	})
 	return m
 }
@@ -839,9 +825,9 @@ func (m *Message) AsJSON(key string, val interface{}) *Message {
 	return m
 }
 
-// Request logs an http.Request.
-// The following keys are logged: [remote, method, uri],
-// and contentLength only if available and greater zero.
+// Request logs a http.Request including values added to the request context.
+// The following request values are logged: remote, method, uri,
+// and contentLength only if available and greater than zero.
 // If restrictHeaders are passed, then only those headers are logged if available,
 // else all headers not in the package level FilterHTTPHeaders map will be logged.
 // To disable header logging, pass an impossible header name.
@@ -849,12 +835,16 @@ func (m *Message) Request(request *http.Request, restrictHeaders ...string) *Mes
 	if m == nil {
 		return nil
 	}
+
+	ValuesFromContext(request.Context()).Log(m)
+
 	m.Str("remote", request.RemoteAddr)
 	m.Str("method", request.Method)
 	m.Str("uri", request.RequestURI)
 	if request.ContentLength > 0 {
 		m.Int64("Content-Length", request.ContentLength)
 	}
+
 	if len(restrictHeaders) > 0 {
 		for _, header := range restrictHeaders {
 			if values, ok := request.Header[header]; ok {
@@ -876,6 +866,7 @@ func (m *Message) Request(request *http.Request, restrictHeaders ...string) *Mes
 			}
 		}
 	}
+
 	return m
 }
 
