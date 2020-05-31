@@ -216,10 +216,10 @@ func (m *Message) StructFields(strct interface{}) *Message {
 	return m
 }
 
-// TaggedStructFields calls Any(fieldTagValue, fieldValue) for every exported struct field
+// TaggedStructFields calls Any(fieldTag, fieldValue) for every exported struct field
 // that has the passed tag with the tag value not being empty or "-".
 // Tag values are only considered until the first comma character,
-// so `tag:"hello_world,omitempty"` will result in the fieldTagValue "hello_world".
+// so `tag:"hello_world,omitempty"` will result in the fieldTag "hello_world".
 // Fields with the following tags will be ignored: `tag:"-"`, `tag:""` `tag:",xxx"`.
 func (m *Message) TaggedStructFields(strct interface{}, tag string) *Message {
 	if m == nil || strct == nil {
