@@ -12,7 +12,6 @@ require (
 	github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e // indirect
 	github.com/stretchr/testify v1.6.0
 	github.com/ungerik/go-fs v0.0.0-20200513130540-971b82310582
-	github.com/ungerik/go-reflection v0.0.0-20191013094457-172d2e71715f
 	golang.org/x/sys v0.0.0-20200523222454-059865788121 // indirect
 	gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f // indirect
 )

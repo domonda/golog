@@ -6,12 +6,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"go/token"
 	"net/http"
 	"reflect"
+	"strings"
 	"sync"
 	"time"
-
-	"github.com/ungerik/go-reflection"
 )
 
 type Message struct {
@@ -207,16 +207,56 @@ func (m *Message) tryWriteInterface(val reflect.Value) (written bool) {
 	return false
 }
 
-// StructFields calls Val(fieldName, fieldValue) for every exported struct field
+// StructFields calls Any(fieldName, fieldValue) for every exported struct field
 func (m *Message) StructFields(strct interface{}) *Message {
 	if m == nil || strct == nil {
 		return m
 	}
-	reflection.EnumFlatExportedStructFields(strct, func(field reflect.StructField, value reflect.Value) {
-		m.formatter.WriteKey(field.Name)
-		m.writeAny(value, true)
-	})
+	m.structFields(reflect.ValueOf(strct), "")
 	return m
+}
+
+// TaggedStructFields calls Any(fieldTagValue, fieldValue) for every exported struct field
+// that has the passed tag with the tag value not being empty or "-".
+// Tag values are only considered until the first comma character,
+// so `tag:"hello_world,omitempty"` will result in the fieldTagValue "hello_world".
+// Fields with the following tags will be ignored: `tag:"-"`, `tag:""` `tag:",xxx"`.
+func (m *Message) TaggedStructFields(strct interface{}, tag string) *Message {
+	if m == nil || strct == nil {
+		return m
+	}
+	m.structFields(reflect.ValueOf(strct), tag)
+	return m
+}
+
+func (m *Message) structFields(v reflect.Value, tag string) {
+	for v.Kind() == reflect.Ptr {
+		if v.IsNil() {
+			return
+		}
+		v = v.Elem()
+	}
+	t := v.Type()
+	for i := 0; i < t.NumField(); i++ {
+		field := t.Field(i)
+		switch {
+		case field.Anonymous:
+			m.structFields(v.Field(i), tag)
+		case token.IsExported(field.Name):
+			name := field.Name
+			if tag != "" {
+				n := field.Tag.Get(tag)
+				if c := strings.IndexByte(n, ','); c >= 0 {
+					n = n[:c]
+				}
+				if n == "" || n == "-" {
+					continue
+				}
+				name = n
+			}
+			m.Any(name, v.Field(i).Interface())
+		}
+	}
 }
 
 // Print logs vals as string with the "%v" format of the fmt package.
