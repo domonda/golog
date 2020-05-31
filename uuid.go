@@ -93,3 +93,9 @@ func ValidateUUID(id [16]byte) error {
 	}
 	return nil
 }
+
+// IsNilUUID checks if the passed id is a Nil UUID
+func IsNilUUID(id [16]byte) bool {
+	var nilID [16]byte
+	return id == nilID
+}
