@@ -41,6 +41,7 @@ func (v Values) Get(name string) Value {
 	return nil
 }
 
+/*
 // ReplaceOrAppend replaces the first value in the slice with the same name
 // than the passed value, or else appends the passed value to the slice.
 func (v *Values) ReplaceOrAppend(value Value) {
@@ -53,14 +54,15 @@ func (v *Values) ReplaceOrAppend(value Value) {
 	}
 	*v = append(*v, value)
 }
+*/
 
 var valuesContextKey struct{} // unique type for this package
 
 // ValuesFromContext returns Values from the context
 // or nil if the context has none.
 func ValuesFromContext(ctx context.Context) Values {
-	l, _ := ctx.Value(valuesContextKey).(Values)
-	return l
+	values, _ := ctx.Value(valuesContextKey).(Values)
+	return values
 }
 
 // ValueFromContext returns a Value from the context
@@ -78,8 +80,8 @@ func (v Values) AddToContext(ctx context.Context) context.Context {
 		return ctx
 	}
 	ctxValues := ValuesFromContext(ctx)
-	merged := MergeValues(ctxValues, v)
-	return context.WithValue(ctx, valuesContextKey, merged)
+	mergedValues := MergeValues(ctxValues, v)
+	return context.WithValue(ctx, valuesContextKey, mergedValues)
 }
 
 // AddToRequest returns a http.Request with v added to its context
@@ -95,11 +97,13 @@ func (v Values) AddToRequest(request *http.Request) *http.Request {
 }
 
 // MergeValues merges a and b so that only one
-// value with a given name is in the result.
-// Order is preserved, values from a are removed if
-// they are also present with the same name in b.
+// value with a given name is in the resulting slice.
+// Order is preserved, except that values from a
+// that are also in b will be appended to the result
+// after the values of a in the order of b.
 // Without name collisions, the result is identical to append(a, b).
-// The result is a new slice, a and b are not changed.
+// The slices a and b will not be modified, the result is
+// always a new slice or nil if a and b are nil.
 func MergeValues(a, b Values) Values {
 	if len(a) == 0 && len(b) == 0 {
 		return nil
