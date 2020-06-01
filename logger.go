@@ -44,46 +44,11 @@ func NewLoggerWithPrefix(config Config, prefix string, perMessageValues ...Value
 	}
 }
 
-// WithValues returns a new Logger with the passed
-// perMessageValues appended to the existing perMessageValues.
-func (l *Logger) WithValues(perMessageValues ...Value) *Logger {
-	if l == nil || len(perMessageValues) == 0 {
-		return l
-	}
-	return &Logger{
-		config: l.config,
-		prefix: l.prefix,
-		values: MergeValues(l.values, perMessageValues),
-	}
-}
-
 // WithCtx returns a new sub Logger with the Values from
 // the context add to if as per message values.
 // Returns l unchanged, ther there were no Values added to the context.
 func (l *Logger) WithCtx(ctx context.Context) *Logger {
 	return l.WithValues(ValuesFromContext(ctx)...)
-}
-
-func (l *Logger) WithPrefix(prefix string) *Logger {
-	if l == nil {
-		return nil
-	}
-	return &Logger{
-		config: l.config,
-		values: l.values,
-		prefix: prefix,
-	}
-}
-
-func (l *Logger) WithLevelFilter(filter LevelFilter) *Logger {
-	if l == nil {
-		return nil
-	}
-	return &Logger{
-		config: NewDerivedConfig(&l.config, filter),
-		prefix: l.prefix,
-		values: l.values,
-	}
 }
 
 // With returns a new Message that can be used to record
@@ -98,13 +63,21 @@ func (l *Logger) With() *Message {
 	return newMessage(l, NewValueRecorder(), "")
 }
 
-func (l *Logger) Values() Values {
+// WithLevelFilter returns a clone of the logger using
+// the passed filter or returns nil if the logger was nil.
+func (l *Logger) WithLevelFilter(filter LevelFilter) *Logger {
 	if l == nil {
 		return nil
 	}
-	return l.values
+	return &Logger{
+		config: NewDerivedConfig(&l.config, filter),
+		prefix: l.prefix,
+		values: l.values,
+	}
 }
 
+// Config returns the configuration of the logger
+// or nil if the logger is nil.
 func (l *Logger) Config() Config {
 	if l == nil {
 		return nil
@@ -112,6 +85,33 @@ func (l *Logger) Config() Config {
 	return l.config
 }
 
+// Values returns the values that will be repeated
+// for every message of the logger.
+// See Logger.WithValues
+func (l *Logger) Values() Values {
+	if l == nil {
+		return nil
+	}
+	return l.values
+}
+
+// WithValues returns a new Logger with the passed
+// perMessageValues appended to the existing perMessageValues.
+// See Logger.Values
+func (l *Logger) WithValues(perMessageValues ...Value) *Logger {
+	if l == nil || len(perMessageValues) == 0 {
+		return l
+	}
+	return &Logger{
+		config: l.config,
+		prefix: l.prefix,
+		values: MergeValues(l.values, perMessageValues),
+	}
+}
+
+// Prefix returns the prefix string that will be
+// added in front over every log message of the logger.
+// See Logger.WithPrefix
 func (l *Logger) Prefix() string {
 	if l == nil {
 		return ""
@@ -119,13 +119,21 @@ func (l *Logger) Prefix() string {
 	return l.prefix
 }
 
-func (l *Logger) PerMessageValues() []Value {
+// WithPrefix returns a clone of the logger using
+// the passed prefix or returns nil if the logger was nil.
+// See Logger.Prefix
+func (l *Logger) WithPrefix(prefix string) *Logger {
 	if l == nil {
 		return nil
 	}
-	return l.values
+	return &Logger{
+		config: l.config,
+		values: l.values,
+		prefix: prefix,
+	}
 }
 
+// IsActive returns if the passed level is active at the logger
 func (l *Logger) IsActive(level Level) bool {
 	if l == nil {
 		return false
