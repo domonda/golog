@@ -14,6 +14,22 @@ type Value interface {
 	Name() string
 }
 
+// AddValueToContext returns a context with the passed value added to it
+// so it can be retrieved again with ValuesFromContext.
+// If the context already has Values, then the result of
+// MergeValues(ctxValues, Values{value}) will added to the context.
+func AddValueToContext(ctx context.Context, value Value) context.Context {
+	return Values{value}.AddToContext(ctx)
+}
+
+// AddValueToRequest returns a http.Request with the passed value added to its context
+// so it can be retrieved again with ValuesFromContext(request.Context()).
+// If the context already has Values, then the result of
+// MergeValues(ctxValues, Values{value}) will added to the context.
+func AddValueToRequest(request *http.Request, value Value) *http.Request {
+	return Values{value}.AddToRequest(request)
+}
+
 // Values is a Value slice with methods to manage and log them.
 // Usually only one value with a given name is present in the slice,
 // but this is not enforced.
@@ -71,8 +87,8 @@ func ValueFromContext(ctx context.Context, name string) Value {
 	return ValuesFromContext(ctx).Get(name)
 }
 
-// AddToContext returns a context with v added to it so it can
-// be retrieved again with ValuesFromContext.
+// AddToContext returns a context with v added to it
+// so it can be retrieved again with ValuesFromContext.
 // If the context already has Values, then the result of
 // MergeValues(ctxValues, v) will added to the context.
 func (v Values) AddToContext(ctx context.Context) context.Context {

@@ -18,24 +18,24 @@ const HTTPNoHeaders = "HTTPNoHeaders"
 // See also HTTPMiddlewareFunc.
 func HTTPMiddlewareHandler(next http.Handler, logger *Logger, level Level, message string, restrictHeaders ...string) http.Handler {
 	return http.HandlerFunc(
-		func(w http.ResponseWriter, r *http.Request) {
-			xRequestID := r.Header.Get("X-Request-ID")
+		func(response http.ResponseWriter, request *http.Request) {
+			xRequestID := request.Header.Get("X-Request-ID")
 			if xRequestID == "" {
-				xRequestID = r.Header.Get("X-Correlation-ID")
+				xRequestID = request.Header.Get("X-Correlation-ID")
 			}
 			requestID, err := ParseUUID(xRequestID)
 			if err != nil {
 				requestID = NewUUID()
 			}
-			w.Header().Set("X-Request-ID", FormatUUID(requestID))
+			response.Header().Set("X-Request-ID", FormatUUID(requestID))
 
-			requestWithID := Values{NewUUIDValue("requestID", requestID)}.AddToRequest(r)
+			requestWithID := AddValueToRequest(request, NewUUIDValue("requestID", requestID))
 
 			logger.NewMessage(level, message).
 				Request(requestWithID, restrictHeaders...).
 				Log()
 
-			next.ServeHTTP(w, requestWithID)
+			next.ServeHTTP(response, requestWithID)
 		},
 	)
 }
