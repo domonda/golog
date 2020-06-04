@@ -57,9 +57,8 @@ func (m *Message) SubLogger() *Logger {
 // SubLoggerContext returns a new sub-logger with recorded per message values,
 // and a context with with sub-logger added to it.
 func (m *Message) SubLoggerContext(parentCtx context.Context) (*Logger, context.Context) {
-	log := m.SubLogger()
-	ctx := log.Values().AddToContext(parentCtx)
-	return log, ctx
+	subLog := m.SubLogger()
+	return subLog, subLog.Values().AddToContext(parentCtx)
 }
 
 // Ctx logs any values that were added to the context
