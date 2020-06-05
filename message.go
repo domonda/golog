@@ -41,8 +41,7 @@ func (m *Message) IsActive() bool {
 	return m != nil
 }
 
-// SubLogger returns a new sub-logger with recorded
-// per message values.
+// SubLogger returns a new sub-logger with recorded per message values.
 func (m *Message) SubLogger() *Logger {
 	if m == nil {
 		return nil
@@ -54,11 +53,21 @@ func (m *Message) SubLogger() *Logger {
 	return m.logger.WithValues(recorder.Values()...)
 }
 
-// SubLoggerContext returns a new sub-logger with recorded per message values,
-// and a context with with sub-logger added to it.
-func (m *Message) SubLoggerContext(parentCtx context.Context) (*Logger, context.Context) {
-	subLog := m.SubLogger()
-	return subLog, subLog.Values().AddToContext(parentCtx)
+// SubLoggerContext returns a new sub-logger with recorded per message values
+// in addition to any values from ctx,
+// and a context with those values added to it.
+func (m *Message) SubLoggerContext(ctx context.Context) (subLogger *Logger, subContext context.Context) {
+	if m == nil {
+		return nil, ctx
+	}
+	recorder, ok := m.formatter.(*valueRecorder)
+	if !ok {
+		panic("golog.Message was not created by golog.Logger.With()")
+	}
+	values := MergeValues(ValuesFromContext(ctx), recorder.Values())
+	subLogger = m.logger.WithValues(values...)
+	subContext = values.AddToContext(ctx)
+	return subLogger, subContext
 }
 
 // Ctx logs any values that were added to the context
