@@ -41,16 +41,29 @@ func (m *Message) IsActive() bool {
 	return m != nil
 }
 
+// RecordedValues returns the recorded message values and true
+// if the message was created by Logger.With() for value recording.
+func (m *Message) RecordedValues() (values Values, ok bool) {
+	if m == nil {
+		return nil, false
+	}
+	recorder, ok := m.formatter.(*valueRecorder)
+	if !ok {
+		return nil, false
+	}
+	return recorder.Values(), true
+}
+
 // SubLogger returns a new sub-logger with recorded per message values.
 func (m *Message) SubLogger() *Logger {
 	if m == nil {
 		return nil
 	}
-	recorder, ok := m.formatter.(*valueRecorder)
+	values, ok := m.RecordedValues()
 	if !ok {
 		panic("golog.Message was not created by golog.Logger.With()")
 	}
-	return m.logger.WithValues(recorder.Values()...)
+	return m.logger.WithValues(values...)
 }
 
 // SubLoggerContext returns a new sub-logger with recorded per message values
