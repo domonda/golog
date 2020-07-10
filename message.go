@@ -17,12 +17,12 @@ import (
 type Message struct {
 	logger    *Logger
 	formatter Formatter
-	text      string
+	text      string // Used for LogAndPanic
 }
 
 var messagePool sync.Pool
 
-func newMessage(logger *Logger, formatter Formatter, text string) *Message {
+func newMessageFromPool(logger *Logger, formatter Formatter, text string) *Message {
 	if m, ok := messagePool.Get().(*Message); ok {
 		m.logger = logger
 		m.formatter = formatter
@@ -947,6 +947,10 @@ func (m *Message) Log() {
 // LogAndPanic writes the complete log message
 // and panics with the message text.
 func (m *Message) LogAndPanic() {
-	m.Log()
-	panic(m.text)
+	if m == nil {
+		panic("nil golog.Message.LogAndPanic")
+	}
+	text := m.text
+	m.Log() // sets m.text = ""
+	panic(text)
 }
