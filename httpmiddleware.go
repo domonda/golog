@@ -4,6 +4,23 @@ import "net/http"
 
 const HTTPNoHeaders = "HTTPNoHeaders"
 
+// GetOrCreateRequestID gets a UUID from a http.Request or creates one.
+// The X-Request-ID or X-Correlation-ID HTTP request headers will be
+// parsed as UUID in the format "994d5800-afca-401f-9c2f-d9e3e106e9ef".
+// If the request has no properly formatted ID,
+// then a random v4 UUID will be returned.
+func GetOrCreateRequestID(request *http.Request) [16]byte {
+	xRequestID := request.Header.Get("X-Request-ID")
+	if xRequestID == "" {
+		xRequestID = request.Header.Get("X-Correlation-ID")
+	}
+	requestID, err := ParseUUID(xRequestID)
+	if err != nil {
+		return NewUUID()
+	}
+	return requestID
+}
+
 // HTTPMiddlewareHandler returns a HTTP middleware handler that passes through a UUID requestID value.
 // The requestID will be added as value to the http.Request before calling the next handler.
 // If available the X-Request-ID or X-Correlation-ID HTTP request header will be used as requestID.
@@ -19,14 +36,7 @@ const HTTPNoHeaders = "HTTPNoHeaders"
 func HTTPMiddlewareHandler(next http.Handler, logger *Logger, level Level, message string, restrictHeaders ...string) http.Handler {
 	return http.HandlerFunc(
 		func(response http.ResponseWriter, request *http.Request) {
-			xRequestID := request.Header.Get("X-Request-ID")
-			if xRequestID == "" {
-				xRequestID = request.Header.Get("X-Correlation-ID")
-			}
-			requestID, err := ParseUUID(xRequestID)
-			if err != nil {
-				requestID = NewUUID()
-			}
+			requestID := GetOrCreateRequestID(request)
 			response.Header().Set("X-Request-ID", FormatUUID(requestID))
 
 			requestWithID := AddValueToRequest(request, NewUUIDValue("requestID", requestID))
