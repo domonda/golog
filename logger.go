@@ -3,7 +3,6 @@ package golog
 import (
 	"context"
 	"fmt"
-	"sync"
 	"time"
 )
 
@@ -11,7 +10,6 @@ type Logger struct {
 	config Config
 	prefix string
 	values Values
-	mtx    sync.Mutex
 }
 
 // NewLogger returns a Logger with the given config and per message values.
@@ -138,10 +136,7 @@ func (l *Logger) IsActive(level Level) bool {
 	if l == nil {
 		return false
 	}
-	l.mtx.Lock()
-	active := l.config.IsActive(level)
-	l.mtx.Unlock()
-	return active
+	return l.config.IsActive(level)
 }
 
 // Flush unwritten logs
