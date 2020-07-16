@@ -84,11 +84,23 @@ func (m *Message) SubLoggerContext(ctx context.Context) (subLogger *Logger, subC
 }
 
 // Ctx logs any values that were added to the context
+// and that are not already in the logger's values.
 func (m *Message) Ctx(ctx context.Context) *Message {
 	if m == nil {
 		return nil
 	}
-	ValuesFromContext(ctx).Log(m)
+	values := ValuesFromContext(ctx)
+	if len(m.logger.values) == 0 {
+		values.Log(m)
+		return m
+	}
+	// Only log values with names that have not
+	// already been logged via m.logger.values
+	for _, value := range values {
+		if m.logger.values.Get(value.Name()) == nil {
+			value.Log(m)
+		}
+	}
 	return m
 }
 
