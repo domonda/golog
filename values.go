@@ -117,12 +117,14 @@ func (v Values) AddToRequest(request *http.Request) *http.Request {
 // Order is preserved, except that values from a
 // that are also in b will be appended to the result
 // after the values of a in the order of b.
-// Without name collisions, the result is identical to append(a, b).
-// The slices a and b will not be modified, the result is
-// always a new slice or nil if a and b are nil.
+// The slices a and b will never be modified,
+// in case of a merge the result is always a new slice.
 func MergeValues(a, b Values) Values {
-	if len(a) == 0 && len(b) == 0 {
-		return nil
+	if len(a) == 0 {
+		return b
+	}
+	if len(b) == 0 {
+		return a
 	}
 
 	c := make(Values, len(a), len(a)+len(b))

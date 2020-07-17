@@ -36,7 +36,7 @@ func TestMergeNamedValues(t *testing.T) {
 		want Values
 	}{
 		{"nil / nil", args{a: nil, b: nil}, nil},
-		{"empty / empty", args{a: Values{}, b: Values{}}, nil},
+		{"empty / empty", args{a: Values{}, b: Values{}}, Values{}},
 		{"nil / 1", args{a: nil, b: makeNamedValues("1")}, makeNamedValues("1")},
 		{"1 / nil", args{a: makeNamedValues("1"), b: nil}, makeNamedValues("1")},
 		{"1 / 2", args{a: makeNamedValues("1"), b: makeNamedValues("2")}, makeNamedValues("1", "2")},
