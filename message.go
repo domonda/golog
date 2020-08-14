@@ -154,11 +154,11 @@ func (m *Message) Any(key string, val interface{}) *Message {
 		return nil
 	}
 	m.formatter.WriteKey(key)
-	m.writeAny(reflect.ValueOf(val), true)
+	m.writeAny(reflect.ValueOf(val), false)
 	return m
 }
 
-func (m *Message) writeAny(val reflect.Value, noSlice bool) {
+func (m *Message) writeAny(val reflect.Value, nestedSlice bool) {
 	// Try if val implements a loggable interface or is nil
 	written := m.tryWriteInterface(val)
 	if written {
@@ -204,12 +204,15 @@ func (m *Message) writeAny(val reflect.Value, noSlice bool) {
 		m.formatter.WriteJSON(j)
 
 	case reflect.Array, reflect.Slice:
-		if noSlice {
-			// TODO: why is noSlice always true?
+		if nestedSlice {
+			// Don't go further into a slice of slices
 			m.formatter.WriteString(fmt.Sprint(val))
 		} else {
 			for i := 0; i < val.Len(); i++ {
-				m.writeAny(val.Index(i), true)
+				m.writeAny(
+					val.Index(i),
+					true, // nestedSlice
+				)
 			}
 		}
 
