@@ -1,22 +1,16 @@
 package log
 
 import (
-	"os"
-
 	"github.com/muesli/termenv"
 
 	"github.com/domonda/golog"
 )
 
 // NewStyledColorizer creates a new golog.StyledColorizer.
-// If the environment variable NO_COLOR is set to any value,
-// then the colorizer will do nothing.
+// Supports NO_COLOR (https://no-color.org/)
+// and CLICOLOR/CLICOLOR_FORCE (https://bixense.com/clicolors/)
 func NewStyledColorizer() *golog.StyledColorizer {
-	if os.Getenv("NO_COLOR") != "" {
-		return &golog.StyledColorizer{}
-	}
-
-	profile := termenv.ColorProfile()
+	profile := termenv.EnvColorProfile()
 	return &golog.StyledColorizer{
 		TimespampStyle: termenv.Style{}.Foreground(profile.Color("#A0A0A0")),
 
