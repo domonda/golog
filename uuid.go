@@ -22,8 +22,8 @@ func NewUUID() [16]byte {
 	return id
 }
 
-// FormatUUID formats a UUID as string like
-// "85692e8d-49bf-4150-a169-6c2adb93463c"
+// FormatUUID formats a UUID as 36 character standard string
+// looking like "85692e8d-49bf-4150-a169-6c2adb93463c".
 func FormatUUID(id [16]byte) string {
 	var b [36]byte
 	hex.Encode(b[0:8], id[0:4])
@@ -38,6 +38,19 @@ func FormatUUID(id [16]byte) string {
 	return string(b[:])
 }
 
+// MustParseUUID parses a UUID string in the standard
+// 36 character format like "85692e8d-49bf-4150-a169-6c2adb93463c"
+// and panics on any error.
+func MustParseUUID(str string) [16]byte {
+	id, err := ParseUUID(str)
+	if err != nil {
+		panic(err)
+	}
+	return id
+}
+
+// ParseUUID parses a UUID string in the standard
+// 36 character format like "85692e8d-49bf-4150-a169-6c2adb93463c".
 func ParseUUID(str string) (id [16]byte, err error) {
 	if len(str) != 36 {
 		return [16]byte{}, fmt.Errorf("invalid UUID string length: %q", str)
@@ -77,6 +90,8 @@ func ParseUUID(str string) (id [16]byte, err error) {
 	return id, nil
 }
 
+// ValidateUUID checks for valid version and variant
+// of a binary UUID value.
 func ValidateUUID(id [16]byte) error {
 	if version := id[6] >> 4; version < 1 || version > 5 {
 		return fmt.Errorf("invalid UUID version: %d", version)
