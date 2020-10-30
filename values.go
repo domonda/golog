@@ -72,7 +72,8 @@ func (v *Values) ReplaceOrAppend(value Value) {
 }
 */
 
-var valuesContextKey struct{} // unique type for this package
+type valuesContextKeyType struct{} // unique type for this package
+var valuesContextKey valuesContextKeyType
 
 // ValuesFromContext returns Values from the context
 // or nil if the context has none.
