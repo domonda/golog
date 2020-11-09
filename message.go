@@ -159,9 +159,29 @@ func (m *Message) Any(key string, val interface{}) *Message {
 	if val == nil {
 		return m.Nil(key)
 	}
+
+	v := reflect.ValueOf(val)
+
+	if isSlice(v) {
+		m.formatter.WriteSliceKey(key)
+		m.writeAny(v, false)
+		m.formatter.WriteSliceEnd()
+		return m
+	}
+
 	m.formatter.WriteKey(key)
-	m.writeAny(reflect.ValueOf(val), false)
+	m.writeAny(v, false)
 	return m
+}
+
+func isSlice(v reflect.Value) bool {
+	if !v.IsValid() {
+		return false
+	}
+	for v.Kind() == reflect.Ptr && !v.IsNil() {
+		v = v.Elem()
+	}
+	return v.Kind() == reflect.Slice || v.Kind() == reflect.Array
 }
 
 func (m *Message) writeAny(val reflect.Value, nestedSlice bool) {
