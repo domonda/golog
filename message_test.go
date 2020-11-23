@@ -4,15 +4,15 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"math"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
-
 	"github.com/domonda/go-types/uu"
+	"github.com/stretchr/testify/assert"
 )
 
 func newTestConfig(textWriter, jsonWriter io.Writer) Config {
@@ -246,3 +246,28 @@ const (
 		`"InvalidJSON":"\"a\":1"` +
 		"},"
 )
+
+func TestMessage_Any(t *testing.T) {
+	at, _ := time.Parse("2006-01-02 15:04:05", "2006-01-02 15:04:05")
+
+	textOutput := bytes.NewBuffer(nil)
+	jsonOutput := bytes.NewBuffer(nil)
+
+	config := newTestConfig(textOutput, jsonOutput)
+	log := NewLogger(config)
+
+	textMsg := `2006-01-02 15:04:05 |INFO | Msg`
+
+	log.NewMessageAt(at, config.Info(), "Msg").Any("int", -100).Log()
+	assert.Equal(t, fmt.Sprintf("%s %s\n", textMsg, `int=-100`), textOutput.String())
+	textOutput.Reset()
+	jsonOutput.Reset()
+
+	uuid := uu.IDMustFromString("b14882b9-bfdd-45a4-9c84-1d717211c050")
+	var uuidNil [16]byte
+
+	log.NewMessageAt(at, config.Info(), "Msg").Any("uuid", uuid).Any("uuidNil", uuidNil).Log()
+	assert.Equal(t, fmt.Sprintf("%s %s\n", textMsg, `uuid=b14882b9-bfdd-45a4-9c84-1d717211c050 uuidNil=00000000-0000-0000-0000-000000000000`), textOutput.String())
+	textOutput.Reset()
+	jsonOutput.Reset()
+}

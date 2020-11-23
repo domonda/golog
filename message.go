@@ -181,7 +181,7 @@ func isSlice(v reflect.Value) bool {
 	for v.Kind() == reflect.Ptr && !v.IsNil() {
 		v = v.Elem()
 	}
-	return v.Kind() == reflect.Slice || v.Kind() == reflect.Array
+	return v.Kind() == reflect.Slice || (v.Kind() == reflect.Array && !isUUID(v))
 }
 
 func (m *Message) writeAny(val reflect.Value, nestedSlice bool) {
@@ -229,7 +229,23 @@ func (m *Message) writeAny(val reflect.Value, nestedSlice bool) {
 		}
 		m.formatter.WriteJSON(j)
 
-	case reflect.Array, reflect.Slice:
+	case reflect.Array:
+		if uuid, ok := asUUID(val); ok {
+			m.formatter.WriteUUID(uuid)
+			return
+		}
+		if nestedSlice {
+			// Don't go further into a slice of slices
+			m.formatter.WriteString(fmt.Sprint(val))
+		} else {
+			for i := 0; i < val.Len(); i++ {
+				m.writeAny(
+					val.Index(i),
+					true, // nestedSlice
+				)
+			}
+		}
+	case reflect.Slice:
 		if nestedSlice {
 			// Don't go further into a slice of slices
 			m.formatter.WriteString(fmt.Sprint(val))

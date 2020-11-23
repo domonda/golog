@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"reflect"
 )
 
 // NewUUID returns a new version 4 UUID
@@ -113,4 +114,26 @@ func ValidateUUID(id [16]byte) error {
 func IsNilUUID(id [16]byte) bool {
 	var nilID [16]byte
 	return id == nilID
+}
+
+var assignAsUUID = reflect.ValueOf(func(uuid [16]byte) [16]byte { return uuid })
+
+func isUUID(v reflect.Value) bool {
+	if !v.Type().AssignableTo(reflect.TypeOf([16]byte{})) {
+		return false
+	}
+	uuid := assignAsUUID.Call([]reflect.Value{v})[0].Interface().([16]byte)
+	return ValidateUUID(uuid) == nil || IsNilUUID(uuid)
+}
+
+func asUUID(v reflect.Value) (uuid [16]byte, ok bool) {
+	if !v.Type().AssignableTo(reflect.TypeOf([16]byte{})) {
+		return [16]byte{}, false
+	}
+
+	uuid = assignAsUUID.Call([]reflect.Value{v})[0].Interface().([16]byte)
+	if ValidateUUID(uuid) != nil && !IsNilUUID(uuid) {
+		return [16]byte{}, false
+	}
+	return uuid, true
 }
