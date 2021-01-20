@@ -276,7 +276,7 @@ func TestMessage_Any(t *testing.T) {
 		Any("uuidNil", uuidNil).
 		Any("uuidNull", uuidNull).
 		Log()
-	assert.Equal(t, fmt.Sprintf("%s %s\n", textMsg, `uuid=b14882b9-bfdd-45a4-9c84-1d717211c050 uuidNil=00000000-0000-0000-0000-000000000000 uuidNull=nil`), textOutput.String())
+	assert.Equal(t, fmt.Sprintf("%s %s\n", textMsg, `uuid=b14882b9-bfdd-45a4-9c84-1d717211c050 uuidNil=nil uuidNull=nil`), textOutput.String())
 	textOutput.Reset()
 	jsonOutput.Reset()
 }

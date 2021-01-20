@@ -231,7 +231,11 @@ func (m *Message) writeAny(val reflect.Value, nestedSlice bool) {
 
 	case reflect.Array:
 		if uuid, ok := asUUID(val); ok {
-			m.formatter.WriteUUID(uuid)
+			if IsNilUUID(uuid) {
+				m.formatter.WriteNil()
+			} else {
+				m.formatter.WriteUUID(uuid)
+			}
 			return
 		}
 		if nestedSlice {
@@ -283,7 +287,11 @@ func (m *Message) tryWriteInterface(val reflect.Value) (written bool) {
 		return true
 
 	case [16]byte:
-		m.formatter.WriteUUID(x)
+		if IsNilUUID(x) {
+			m.formatter.WriteNil()
+		} else {
+			m.formatter.WriteUUID(x)
+		}
 		return true
 	}
 
@@ -800,15 +808,23 @@ func (m *Message) DurationPtr(key string, val *time.Duration) *Message {
 	return m.Duration(key, *val)
 }
 
+// UUID logs a UUID or nil in case of a "Nil UUID" containing only zero bytes.
+// See IsNilUUID.
 func (m *Message) UUID(key string, val [16]byte) *Message {
 	if m == nil {
 		return nil
 	}
 	m.formatter.WriteKey(key)
-	m.formatter.WriteUUID(val)
+	if IsNilUUID(val) {
+		m.formatter.WriteNil()
+	} else {
+		m.formatter.WriteUUID(val)
+	}
 	return m
 }
 
+// UUIDPtr logs a UUID or nil in case of a nil pointer or a "Nil UUID" containing only zero bytes.
+// See IsNilUUID.
 func (m *Message) UUIDPtr(key string, val *[16]byte) *Message {
 	if val == nil {
 		return m.Nil(key)
@@ -816,13 +832,19 @@ func (m *Message) UUIDPtr(key string, val *[16]byte) *Message {
 	return m.UUID(key, *val)
 }
 
+// UUID logs a slice of UUIDs using nil in case of a "Nil UUID" containing only zero bytes.
+// See IsNilUUID.
 func (m *Message) UUIDs(key string, vals [][16]byte) *Message {
 	if m == nil {
 		return nil
 	}
 	m.formatter.WriteSliceKey(key)
 	for _, val := range vals {
-		m.formatter.WriteUUID(val)
+		if IsNilUUID(val) {
+			m.formatter.WriteNil()
+		} else {
+			m.formatter.WriteUUID(val)
+		}
 	}
 	m.formatter.WriteSliceEnd()
 	return m

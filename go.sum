@@ -41,8 +41,6 @@ github.com/domonda/go-types v0.0.0-20200708151211-d76e5982c26f h1:3pKs7uZzHqzLUn
 github.com/domonda/go-types v0.0.0-20200708151211-d76e5982c26f/go.mod h1:cVAD1OcEuytU4/mE9gA+SbOQWLoSGLbAf/fdOgNBCeo=
 github.com/domonda/go-types v0.0.0-20200812124141-0d4514dc5982/go.mod h1:cVAD1OcEuytU4/mE9gA+SbOQWLoSGLbAf/fdOgNBCeo=
 github.com/domonda/go-types v0.0.0-20200924083638-39ebc21394cd/go.mod h1:wz+6FtLIKMJf6AmWPqEvrts+/6Orehd2Q2PGSCgIhGA=
-github.com/domonda/go-types v0.0.0-20201130115444-7f6758aa8ef8 h1:uw1FALUKPHjhCRKo/FogdJWoXv3QK17Mafzt5r2EBOg=
-github.com/domonda/go-types v0.0.0-20201130115444-7f6758aa8ef8/go.mod h1:wz+6FtLIKMJf6AmWPqEvrts+/6Orehd2Q2PGSCgIhGA=
 github.com/domonda/go-types v0.0.0-20210119130540-9f0f87819784 h1:FZXBFTige5YO/fEAKMOLpig2KkSKUoN2lTnJzOiioRI=
 github.com/domonda/go-types v0.0.0-20210119130540-9f0f87819784/go.mod h1:BcTPa54oLk5j6KQGRWU0wZ6et3yX+a+zdUfGSSQ77vc=
 github.com/domonda/go-wraperr v0.0.0-20191218095026-c132bf32bd96 h1:qEeg5dpOQ+A+Rn1iocEjqDSTwVXmy0AuoyGSOG1vMcU=
@@ -333,6 +331,7 @@ golang.org/x/sys v0.0.0-20200817085935-3ff754bf58a9/go.mod h1:h1NjWce9XRLGQEsW7w
 golang.org/x/sys v0.0.0-20200923182605-d9f96fdee20d h1:L/IKR6COd7ubZrs2oTnTi73IhgqJ71c9s80WsQnh0Es=
 golang.org/x/sys v0.0.0-20200923182605-d9f96fdee20d/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
 golang.org/x/sys v0.0.0-20200928205150-006507a75852/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
+golang.org/x/sys v0.0.0-20200930185726-fdedc70b468f h1:+Nyd8tzPX9R7BWHguqsrbFdRx3WQ/1ib8I44HXV5yTA=
 golang.org/x/sys v0.0.0-20200930185726-fdedc70b468f/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
 golang.org/x/text v0.3.0/go.mod h1:NqM8EUOU14njkJ3fqMW+pc6Ldnwhi/IjpwHt7yyuwOQ=
 golang.org/x/text v0.3.2/go.mod h1:bEr9sfX3Q8Zfm5fL9x+3itogRgK3+ptLWKqgva+5dAk=
