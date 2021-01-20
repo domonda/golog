@@ -264,6 +264,11 @@ func (m *Message) writeAny(val reflect.Value, nestedSlice bool) {
 }
 
 func (m *Message) tryWriteInterface(val reflect.Value) (written bool) {
+	if nullable, ok := val.Interface().(interface{ IsNull() bool }); ok && nullable.IsNull() {
+		m.formatter.WriteNil()
+		return true
+	}
+
 	switch x := val.Interface().(type) {
 	case nil:
 		m.formatter.WriteNil()

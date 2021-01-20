@@ -258,16 +258,25 @@ func TestMessage_Any(t *testing.T) {
 
 	textMsg := `2006-01-02 15:04:05 |INFO | Msg`
 
-	log.NewMessageAt(at, config.Info(), "Msg").Any("int", -100).Log()
+	log.NewMessageAt(at, config.Info(), "Msg").
+		Any("int", -100).
+		Log()
 	assert.Equal(t, fmt.Sprintf("%s %s\n", textMsg, `int=-100`), textOutput.String())
 	textOutput.Reset()
 	jsonOutput.Reset()
 
-	uuid := uu.IDMustFromString("b14882b9-bfdd-45a4-9c84-1d717211c050")
-	var uuidNil [16]byte
+	var (
+		uuid     uu.ID = uu.IDMustFromString("b14882b9-bfdd-45a4-9c84-1d717211c050")
+		uuidNil  [16]byte
+		uuidNull uu.NullableID
+	)
 
-	log.NewMessageAt(at, config.Info(), "Msg").Any("uuid", uuid).Any("uuidNil", uuidNil).Log()
-	assert.Equal(t, fmt.Sprintf("%s %s\n", textMsg, `uuid=b14882b9-bfdd-45a4-9c84-1d717211c050 uuidNil=00000000-0000-0000-0000-000000000000`), textOutput.String())
+	log.NewMessageAt(at, config.Info(), "Msg").
+		Any("uuid", uuid).
+		Any("uuidNil", uuidNil).
+		Any("uuidNull", uuidNull).
+		Log()
+	assert.Equal(t, fmt.Sprintf("%s %s\n", textMsg, `uuid=b14882b9-bfdd-45a4-9c84-1d717211c050 uuidNil=00000000-0000-0000-0000-000000000000 uuidNull=nil`), textOutput.String())
 	textOutput.Reset()
 	jsonOutput.Reset()
 }
