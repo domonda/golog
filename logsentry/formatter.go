@@ -76,6 +76,7 @@ func (f *Formatter) FlushAndFree() {
 	event := sentry.NewEvent()
 	event.Level = f.level
 	event.Message = f.message.String()
+	event.Fingerprint = []string{event.Message}
 	event.Extra = f.extra
 	if f.hub.Client().Options().AttachStacktrace {
 		stackTrace := sentry.NewStacktrace()

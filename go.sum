@@ -30,6 +30,7 @@ github.com/dgryski/go-farm v0.0.0-20190423205320-6a90982ecee2/go.mod h1:SqUrOPUn
 github.com/domonda/errors v0.8.0/go.mod h1:fzj8nYh5fr9KCiiiZQWuF90YuV4mXcjccsEO4GpquMs=
 github.com/domonda/go-encjson v0.0.0-20191010155843-e640fafc0a29 h1:WwZUucTOv1ILFGs/QfiCuK1PR9glcZIvJog70NT38Xk=
 github.com/domonda/go-encjson v0.0.0-20191010155843-e640fafc0a29/go.mod h1:g/WyWOAr19VHGKVi9f5rjzxTGH9R4GOwFQJ6L72N6oo=
+github.com/domonda/go-pretty v0.0.0-20210202131827-b4ff5dbd12fd/go.mod h1:zUVOQL+81aMK+Ye3kS7eDsk/aWnteWRSJ5fZWHdBWjc=
 github.com/domonda/go-types v0.0.0-20191220165331-6cfe69a96928/go.mod h1:Sd82hEgVDyzW9qrgW7YsBe9Oj1jsQrt8bFUMTQh5YY4=
 github.com/domonda/go-types v0.0.0-20200104165438-8a9c3902aa39/go.mod h1:Sd82hEgVDyzW9qrgW7YsBe9Oj1jsQrt8bFUMTQh5YY4=
 github.com/domonda/go-types v0.0.0-20200214130229-040f2d9236a1/go.mod h1:xjqwCTIQgc1aV6LAz3tNtMtB7CA8+6Z41eLUE6w+E0I=
@@ -43,6 +44,8 @@ github.com/domonda/go-types v0.0.0-20200812124141-0d4514dc5982/go.mod h1:cVAD1Oc
 github.com/domonda/go-types v0.0.0-20200924083638-39ebc21394cd/go.mod h1:wz+6FtLIKMJf6AmWPqEvrts+/6Orehd2Q2PGSCgIhGA=
 github.com/domonda/go-types v0.0.0-20210119130540-9f0f87819784 h1:FZXBFTige5YO/fEAKMOLpig2KkSKUoN2lTnJzOiioRI=
 github.com/domonda/go-types v0.0.0-20210119130540-9f0f87819784/go.mod h1:BcTPa54oLk5j6KQGRWU0wZ6et3yX+a+zdUfGSSQ77vc=
+github.com/domonda/go-types v0.0.0-20210205100405-94aad03cfa0e h1:MWL+EJVhTE+dAuEBBh4mH4aDXDomEaVGnQyJciExX7o=
+github.com/domonda/go-types v0.0.0-20210205100405-94aad03cfa0e/go.mod h1:Gu8lMkGPGIrHeu4hhi8mDlmFecmtCgM+Dk1kuIuv6JI=
 github.com/domonda/go-wraperr v0.0.0-20191218095026-c132bf32bd96 h1:qEeg5dpOQ+A+Rn1iocEjqDSTwVXmy0AuoyGSOG1vMcU=
 github.com/domonda/go-wraperr v0.0.0-20191218095026-c132bf32bd96/go.mod h1:+StTOV14t8kZSKmDG8CfcXEBKTocUqZ9x8zuJHnXgII=
 github.com/domonda/go-wraperr v0.0.0-20200414143540-485fd6d06d5d/go.mod h1:+StTOV14t8kZSKmDG8CfcXEBKTocUqZ9x8zuJHnXgII=
@@ -248,6 +251,8 @@ github.com/stretchr/testify v1.4.0/go.mod h1:j7eGeouHqKxXV5pUuKE4zz7dFj8WfuZ+81P
 github.com/stretchr/testify v1.5.1/go.mod h1:5W2xD1RspED5o8YsWQXVCued0rvSQ+mT+I5cxcmMvtA=
 github.com/stretchr/testify v1.6.1 h1:hDPOHmpOpP40lSULcqw7IrRb/u7w6RpDC9399XyoNd0=
 github.com/stretchr/testify v1.6.1/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/h/Wwjteg=
+github.com/stretchr/testify v1.7.0 h1:nwc3DEeHmmLAfoZucVR881uASk0Mfjw8xYJ99tb5CcY=
+github.com/stretchr/testify v1.7.0/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/h/Wwjteg=
 github.com/tj/go-dropbox v0.0.0-20171107035848-42dd2be3662d/go.mod h1:+zP9ykDCb5wHDCWHCuLZ2YhDAiy42yV+HAmI2BIocBI=
 github.com/ugorji/go v1.1.4/go.mod h1:uQMGLiO92mf5W77hV/PUCpI3pbzQx3CRekS0kk+RGrc=
 github.com/ugorji/go v1.1.7/go.mod h1:kZn38zHttfInRq0xu/PH0az30d+z6vm202qpg1oXVMw=
@@ -337,6 +342,7 @@ golang.org/x/text v0.3.0/go.mod h1:NqM8EUOU14njkJ3fqMW+pc6Ldnwhi/IjpwHt7yyuwOQ=
 golang.org/x/text v0.3.2/go.mod h1:bEr9sfX3Q8Zfm5fL9x+3itogRgK3+ptLWKqgva+5dAk=
 golang.org/x/text v0.3.3/go.mod h1:5Zoc/QRtKVWzQhOtBMvqHzDpF6irO9z98xDceosuGiQ=
 golang.org/x/text v0.3.4/go.mod h1:5Zoc/QRtKVWzQhOtBMvqHzDpF6irO9z98xDceosuGiQ=
+golang.org/x/text v0.3.5/go.mod h1:5Zoc/QRtKVWzQhOtBMvqHzDpF6irO9z98xDceosuGiQ=
 golang.org/x/tools v0.0.0-20180917221912-90fa682c2a6e/go.mod h1:n7NCudcB/nEzxVGmLbDWY5pfWTLqBcC2KZ6jyYvM4mQ=
 golang.org/x/tools v0.0.0-20181221001348-537d06c36207/go.mod h1:n7NCudcB/nEzxVGmLbDWY5pfWTLqBcC2KZ6jyYvM4mQ=
 golang.org/x/tools v0.0.0-20190327201419-c70d86f8b7cf/go.mod h1:LCzVGOaR6xXOjkQ3onu1FJEFr0SW1gC7cKk1uF8kGRs=
