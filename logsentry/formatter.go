@@ -25,6 +25,7 @@ var _ golog.Formatter = new(Formatter)
 type Formatter struct {
 	filter    golog.LevelFilter
 	hub       *sentry.Hub
+	timestamp time.Time
 	level     sentry.Level
 	message   strings.Builder
 	valsAsMsg bool
@@ -50,6 +51,8 @@ func (f *Formatter) Clone(level golog.Level) golog.Formatter {
 }
 
 func (f *Formatter) WriteText(t time.Time, levels *golog.Levels, level golog.Level, prefix, text string) {
+	f.timestamp = t
+
 	switch level {
 	case levels.Fatal:
 		f.level = sentry.LevelFatal
@@ -74,6 +77,7 @@ func (f *Formatter) WriteText(t time.Time, levels *golog.Levels, level golog.Lev
 func (f *Formatter) FlushAndFree() {
 	// Flush
 	event := sentry.NewEvent()
+	event.Timestamp = f.timestamp
 	event.Level = f.level
 	event.Message = f.message.String()
 	event.Fingerprint = []string{event.Message}
@@ -88,7 +92,7 @@ func (f *Formatter) FlushAndFree() {
 	}
 	f.hub.CaptureEvent(event)
 
-	// Free
+	// Free pointers
 	f.extra = nil
 	f.slice = nil
 	f.hub = nil
