@@ -80,7 +80,7 @@ func TestMessage(t *testing.T) {
 	textOutput.Reset()
 	jsonOutput.Reset()
 
-	subLog = log.With().UUID("RequestID", uu.IDMustFromString("62d38a15-8fc2-4520-b768-9d5d08d2c498")).SubLogger()
+	subLog = log.With().UUID("RequestID", uu.IDFrom("62d38a15-8fc2-4520-b768-9d5d08d2c498")).SubLogger()
 	subSubLog := subLog.With().Str("SuperStr", "SuperStr").Strs("SuperStrs", []string{"A", "B", "C"}).IntPtr("SuperNilInt", nil).SubLogger()
 	for i := 0; i < numLines; i++ {
 		subSubLog.NewMessageAt(at, config.Info(), "My log message").Exec(writeMessage).Log()
@@ -94,10 +94,10 @@ func TestMessage(t *testing.T) {
 }
 
 func writeMessage(message *Message) {
-	uuid := uu.IDMustFromString("b14882b9-bfdd-45a4-9c84-1d717211c050")
+	uuid := uu.IDFrom("b14882b9-bfdd-45a4-9c84-1d717211c050")
 	uuids := [][16]byte{
-		uu.IDMustFromString("fab60526-bf52-4ec2-9db3-f5860250de5c"),
-		uu.IDMustFromString("78adb219-460c-41e9-ac39-12d4d0420aa0"),
+		uu.IDFrom("fab60526-bf52-4ec2-9db3-f5860250de5c"),
+		uu.IDFrom("78adb219-460c-41e9-ac39-12d4d0420aa0"),
 	}
 
 	message.
@@ -266,7 +266,7 @@ func TestMessage_Any(t *testing.T) {
 	jsonOutput.Reset()
 
 	var (
-		uuid     uu.ID = uu.IDMustFromString("b14882b9-bfdd-45a4-9c84-1d717211c050")
+		uuid     uu.ID = uu.IDFrom("b14882b9-bfdd-45a4-9c84-1d717211c050")
 		uuidNil  [16]byte
 		uuidNull uu.NullableID
 	)
