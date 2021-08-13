@@ -57,6 +57,16 @@ func (v Values) Get(name string) Value {
 	return nil
 }
 
+// Contain returns if the Values contain a Value with the passed name
+func (v Values) Contain(name string) bool {
+	for _, value := range v {
+		if value.Name() == name {
+			return true
+		}
+	}
+	return false
+}
+
 /*
 // ReplaceOrAppend replaces the first value in the slice with the same name
 // than the passed value, or else appends the passed value to the slice.
