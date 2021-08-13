@@ -152,9 +152,16 @@ func (l *Logger) NewMessageAt(t time.Time, level Level, text string) *Message {
 		return nil
 	}
 	m := newMessageFromPool(l, l.config.Formatter().Clone(level), text)
+	// First write message text
 	m.formatter.WriteText(t, l.config.Levels(), level, l.prefix, text)
-	for _, namedValue := range l.values {
-		namedValue.Log(m)
+	// Then write values from the logger
+	if values := m.logger.values; len(values) > 0 {
+		// Temporarely set logger values to nil
+		// because logging the values will be prevented
+		// if the logger already has values with the same names
+		m.logger.values = nil
+		values.Log(m)
+		m.logger.values = values // Restore logger values
 	}
 	return m
 }

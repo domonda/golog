@@ -43,27 +43,32 @@ func (m *Message) IsActive() bool {
 
 // RecordedValues returns the recorded message values and true
 // if the message was created by Logger.With() for value recording.
-func (m *Message) RecordedValues() (values Values, ok bool) {
-	if m == nil {
-		return nil, false
-	}
-	recorder, ok := m.formatter.(*valueRecorder)
-	if !ok {
-		return nil, false
-	}
-	return recorder.Values(), true
-}
+// func (m *Message) RecordedValues() (values Values, ok bool) {
+// 	if m == nil {
+// 		return nil, false
+// 	}
+// 	recorder, ok := m.formatter.(*valueRecorder)
+// 	if !ok {
+// 		return nil, false
+// 	}
+// 	return recorder.Values(), true
+// }
 
 // SubLogger returns a new sub-logger with recorded per message values.
 func (m *Message) SubLogger() *Logger {
 	if m == nil {
 		return nil
 	}
-	values, ok := m.RecordedValues()
+	// values, ok := m.RecordedValues()
+	// if !ok {
+	// 	panic("golog.Message was not created by golog.Logger.With()")
+	// }
+	// return m.logger.WithValues(values...)
+	recorder, ok := m.formatter.(*valueRecorder)
 	if !ok {
 		panic("golog.Message was not created by golog.Logger.With()")
 	}
-	return m.logger.WithValues(values...)
+	return m.logger.WithValues(recorder.Values()...)
 }
 
 // SubLoggerContext returns a new sub-logger with recorded per message values
@@ -89,18 +94,7 @@ func (m *Message) Ctx(ctx context.Context) *Message {
 	if m == nil {
 		return nil
 	}
-	values := ValuesFromContext(ctx)
-	if len(m.logger.values) == 0 {
-		values.Log(m)
-		return m
-	}
-	// Only log values with names that have not
-	// already been logged via m.logger.values
-	for _, value := range values {
-		if m.logger.values.Get(value.Name()) == nil {
-			value.Log(m)
-		}
-	}
+	ValuesFromContext(ctx).Log(m)
 	return m
 }
 
@@ -127,8 +121,8 @@ func (m *Message) Err(val error) *Message {
 }
 
 func (m *Message) Error(key string, val error) *Message {
-	if m == nil {
-		return nil
+	if m == nil || m.logger.values.Contain(key) {
+		return m
 	}
 	if val == nil {
 		return m.Nil(key)
@@ -139,8 +133,8 @@ func (m *Message) Error(key string, val error) *Message {
 }
 
 func (m *Message) Errors(key string, vals []error) *Message {
-	if m == nil {
-		return nil
+	if m == nil || m.logger.values.Contain(key) {
+		return m
 	}
 	m.formatter.WriteSliceKey(key)
 	for _, val := range vals {
@@ -153,8 +147,8 @@ func (m *Message) Errors(key string, vals []error) *Message {
 // Any logs val with the best matching typed log method
 // or uses Print if none was found.
 func (m *Message) Any(key string, val interface{}) *Message {
-	if m == nil {
-		return nil
+	if m == nil || m.logger.values.Contain(key) {
+		return m
 	}
 	if val == nil {
 		return m.Nil(key)
@@ -354,8 +348,8 @@ func (m *Message) structFields(v reflect.Value, tag string) {
 // If only one value is passed for vals, then it will be logged as single string,
 // else a slice of strings will be logged for vals.
 func (m *Message) Print(key string, vals ...interface{}) *Message {
-	if m == nil {
-		return nil
+	if m == nil || m.logger.values.Contain(key) {
+		return m
 	}
 	if len(vals) == 1 {
 		m.formatter.WriteKey(key)
@@ -371,8 +365,8 @@ func (m *Message) Print(key string, vals ...interface{}) *Message {
 }
 
 func (m *Message) Nil(key string) *Message {
-	if m == nil {
-		return nil
+	if m == nil || m.logger.values.Contain(key) {
+		return m
 	}
 	m.formatter.WriteKey(key)
 	m.formatter.WriteNil()
@@ -380,8 +374,8 @@ func (m *Message) Nil(key string) *Message {
 }
 
 func (m *Message) Bool(key string, val bool) *Message {
-	if m == nil {
-		return nil
+	if m == nil || m.logger.values.Contain(key) {
+		return m
 	}
 	m.formatter.WriteKey(key)
 	m.formatter.WriteBool(val)
@@ -396,8 +390,8 @@ func (m *Message) BoolPtr(key string, val *bool) *Message {
 }
 
 func (m *Message) Bools(key string, vals []bool) *Message {
-	if m == nil {
-		return nil
+	if m == nil || m.logger.values.Contain(key) {
+		return m
 	}
 	m.formatter.WriteSliceKey(key)
 	for _, val := range vals {
@@ -408,8 +402,8 @@ func (m *Message) Bools(key string, vals []bool) *Message {
 }
 
 func (m *Message) Int(key string, val int) *Message {
-	if m == nil {
-		return nil
+	if m == nil || m.logger.values.Contain(key) {
+		return m
 	}
 	m.formatter.WriteKey(key)
 	m.formatter.WriteInt(int64(val))
@@ -424,8 +418,8 @@ func (m *Message) IntPtr(key string, val *int) *Message {
 }
 
 func (m *Message) Ints(key string, vals []int) *Message {
-	if m == nil {
-		return nil
+	if m == nil || m.logger.values.Contain(key) {
+		return m
 	}
 	m.formatter.WriteSliceKey(key)
 	for _, val := range vals {
@@ -436,8 +430,8 @@ func (m *Message) Ints(key string, vals []int) *Message {
 }
 
 func (m *Message) Int8(key string, val int8) *Message {
-	if m == nil {
-		return nil
+	if m == nil || m.logger.values.Contain(key) {
+		return m
 	}
 	m.formatter.WriteKey(key)
 	m.formatter.WriteInt(int64(val))
@@ -452,8 +446,8 @@ func (m *Message) Int8Ptr(key string, val *int8) *Message {
 }
 
 func (m *Message) Int8s(key string, vals []int8) *Message {
-	if m == nil {
-		return nil
+	if m == nil || m.logger.values.Contain(key) {
+		return m
 	}
 	m.formatter.WriteSliceKey(key)
 	for _, val := range vals {
@@ -464,8 +458,8 @@ func (m *Message) Int8s(key string, vals []int8) *Message {
 }
 
 func (m *Message) Int16(key string, val int16) *Message {
-	if m == nil {
-		return nil
+	if m == nil || m.logger.values.Contain(key) {
+		return m
 	}
 	m.formatter.WriteKey(key)
 	m.formatter.WriteInt(int64(val))
@@ -480,8 +474,8 @@ func (m *Message) Int16Ptr(key string, val *int16) *Message {
 }
 
 func (m *Message) Int16s(key string, vals []int16) *Message {
-	if m == nil {
-		return nil
+	if m == nil || m.logger.values.Contain(key) {
+		return m
 	}
 	m.formatter.WriteSliceKey(key)
 	for _, val := range vals {
@@ -492,8 +486,8 @@ func (m *Message) Int16s(key string, vals []int16) *Message {
 }
 
 func (m *Message) Int32(key string, val int32) *Message {
-	if m == nil {
-		return nil
+	if m == nil || m.logger.values.Contain(key) {
+		return m
 	}
 	m.formatter.WriteKey(key)
 	m.formatter.WriteInt(int64(val))
@@ -508,8 +502,8 @@ func (m *Message) Int32Ptr(key string, val *int32) *Message {
 }
 
 func (m *Message) Int32s(key string, vals []int32) *Message {
-	if m == nil {
-		return nil
+	if m == nil || m.logger.values.Contain(key) {
+		return m
 	}
 	m.formatter.WriteSliceKey(key)
 	for _, val := range vals {
@@ -520,8 +514,8 @@ func (m *Message) Int32s(key string, vals []int32) *Message {
 }
 
 func (m *Message) Int64(key string, val int64) *Message {
-	if m == nil {
-		return nil
+	if m == nil || m.logger.values.Contain(key) {
+		return m
 	}
 	m.formatter.WriteKey(key)
 	m.formatter.WriteInt(val)
@@ -536,8 +530,8 @@ func (m *Message) Int64Ptr(key string, val *int64) *Message {
 }
 
 func (m *Message) Int64s(key string, vals []int64) *Message {
-	if m == nil {
-		return nil
+	if m == nil || m.logger.values.Contain(key) {
+		return m
 	}
 	m.formatter.WriteSliceKey(key)
 	for _, val := range vals {
@@ -548,8 +542,8 @@ func (m *Message) Int64s(key string, vals []int64) *Message {
 }
 
 func (m *Message) Uint(key string, val uint) *Message {
-	if m == nil {
-		return nil
+	if m == nil || m.logger.values.Contain(key) {
+		return m
 	}
 	m.formatter.WriteKey(key)
 	m.formatter.WriteUint(uint64(val))
@@ -564,8 +558,8 @@ func (m *Message) UintPtr(key string, val *uint) *Message {
 }
 
 func (m *Message) Uints(key string, vals []uint) *Message {
-	if m == nil {
-		return nil
+	if m == nil || m.logger.values.Contain(key) {
+		return m
 	}
 	m.formatter.WriteSliceKey(key)
 	for _, val := range vals {
@@ -576,8 +570,8 @@ func (m *Message) Uints(key string, vals []uint) *Message {
 }
 
 func (m *Message) Uint8(key string, val uint8) *Message {
-	if m == nil {
-		return nil
+	if m == nil || m.logger.values.Contain(key) {
+		return m
 	}
 	m.formatter.WriteKey(key)
 	m.formatter.WriteUint(uint64(val))
@@ -592,8 +586,8 @@ func (m *Message) Uint8Ptr(key string, val *uint8) *Message {
 }
 
 func (m *Message) Uint8s(key string, vals []uint8) *Message {
-	if m == nil {
-		return nil
+	if m == nil || m.logger.values.Contain(key) {
+		return m
 	}
 	m.formatter.WriteSliceKey(key)
 	for _, val := range vals {
@@ -604,8 +598,8 @@ func (m *Message) Uint8s(key string, vals []uint8) *Message {
 }
 
 func (m *Message) Uint16(key string, val uint16) *Message {
-	if m == nil {
-		return nil
+	if m == nil || m.logger.values.Contain(key) {
+		return m
 	}
 	m.formatter.WriteKey(key)
 	m.formatter.WriteUint(uint64(val))
@@ -620,8 +614,8 @@ func (m *Message) Uint16Ptr(key string, val *uint16) *Message {
 }
 
 func (m *Message) Uint16s(key string, vals []uint16) *Message {
-	if m == nil {
-		return nil
+	if m == nil || m.logger.values.Contain(key) {
+		return m
 	}
 	m.formatter.WriteSliceKey(key)
 	for _, val := range vals {
@@ -632,8 +626,8 @@ func (m *Message) Uint16s(key string, vals []uint16) *Message {
 }
 
 func (m *Message) Uint32(key string, val uint32) *Message {
-	if m == nil {
-		return nil
+	if m == nil || m.logger.values.Contain(key) {
+		return m
 	}
 	m.formatter.WriteKey(key)
 	m.formatter.WriteUint(uint64(val))
@@ -648,8 +642,8 @@ func (m *Message) Uint32Ptr(key string, val *uint32) *Message {
 }
 
 func (m *Message) Uint32s(key string, vals []uint32) *Message {
-	if m == nil {
-		return nil
+	if m == nil || m.logger.values.Contain(key) {
+		return m
 	}
 	m.formatter.WriteSliceKey(key)
 	for _, val := range vals {
@@ -660,8 +654,8 @@ func (m *Message) Uint32s(key string, vals []uint32) *Message {
 }
 
 func (m *Message) Uint64(key string, val uint64) *Message {
-	if m == nil {
-		return nil
+	if m == nil || m.logger.values.Contain(key) {
+		return m
 	}
 	m.formatter.WriteKey(key)
 	m.formatter.WriteUint(val)
@@ -676,8 +670,8 @@ func (m *Message) Uint64Ptr(key string, val *uint64) *Message {
 }
 
 func (m *Message) Uint64s(key string, vals []uint64) *Message {
-	if m == nil {
-		return nil
+	if m == nil || m.logger.values.Contain(key) {
+		return m
 	}
 	m.formatter.WriteSliceKey(key)
 	for _, val := range vals {
@@ -688,8 +682,8 @@ func (m *Message) Uint64s(key string, vals []uint64) *Message {
 }
 
 func (m *Message) Float32(key string, val float32) *Message {
-	if m == nil {
-		return nil
+	if m == nil || m.logger.values.Contain(key) {
+		return m
 	}
 	m.formatter.WriteKey(key)
 	m.formatter.WriteFloat(float64(val))
@@ -704,8 +698,8 @@ func (m *Message) Float32Ptr(key string, val *float32) *Message {
 }
 
 func (m *Message) Float32s(key string, vals []float32) *Message {
-	if m == nil {
-		return nil
+	if m == nil || m.logger.values.Contain(key) {
+		return m
 	}
 	m.formatter.WriteSliceKey(key)
 	for _, val := range vals {
@@ -717,8 +711,8 @@ func (m *Message) Float32s(key string, vals []float32) *Message {
 
 // Float is not called Float64 on purpose
 func (m *Message) Float(key string, val float64) *Message {
-	if m == nil {
-		return nil
+	if m == nil || m.logger.values.Contain(key) {
+		return m
 	}
 	m.formatter.WriteKey(key)
 	m.formatter.WriteFloat(val)
@@ -733,8 +727,8 @@ func (m *Message) FloatPtr(key string, val *float64) *Message {
 }
 
 func (m *Message) Floats(key string, vals []float64) *Message {
-	if m == nil {
-		return nil
+	if m == nil || m.logger.values.Contain(key) {
+		return m
 	}
 	m.formatter.WriteSliceKey(key)
 	for _, val := range vals {
@@ -745,8 +739,8 @@ func (m *Message) Floats(key string, vals []float64) *Message {
 }
 
 func (m *Message) Str(key, val string) *Message {
-	if m == nil {
-		return nil
+	if m == nil || m.logger.values.Contain(key) {
+		return m
 	}
 	m.formatter.WriteKey(key)
 	m.formatter.WriteString(val)
@@ -761,8 +755,8 @@ func (m *Message) StrPtr(key string, val *string) *Message {
 }
 
 func (m *Message) Strs(key string, vals []string) *Message {
-	if m == nil {
-		return nil
+	if m == nil || m.logger.values.Contain(key) {
+		return m
 	}
 	m.formatter.WriteSliceKey(key)
 	for _, val := range vals {
@@ -811,8 +805,8 @@ func (m *Message) DurationPtr(key string, val *time.Duration) *Message {
 // UUID logs a UUID or nil in case of a "Nil UUID" containing only zero bytes.
 // See IsNilUUID.
 func (m *Message) UUID(key string, val [16]byte) *Message {
-	if m == nil {
-		return nil
+	if m == nil || m.logger.values.Contain(key) {
+		return m
 	}
 	m.formatter.WriteKey(key)
 	if IsNilUUID(val) {
@@ -835,8 +829,8 @@ func (m *Message) UUIDPtr(key string, val *[16]byte) *Message {
 // UUID logs a slice of UUIDs using nil in case of a "Nil UUID" containing only zero bytes.
 // See IsNilUUID.
 func (m *Message) UUIDs(key string, vals [][16]byte) *Message {
-	if m == nil {
-		return nil
+	if m == nil || m.logger.values.Contain(key) {
+		return m
 	}
 	m.formatter.WriteSliceKey(key)
 	for _, val := range vals {
@@ -852,8 +846,8 @@ func (m *Message) UUIDs(key string, vals [][16]byte) *Message {
 
 // JSON logs JSON encoded bytes
 func (m *Message) JSON(key string, val []byte) *Message {
-	if m == nil {
-		return nil
+	if m == nil || m.logger.values.Contain(key) {
+		return m
 	}
 	if val == nil {
 		return m.Nil(key)
@@ -871,8 +865,8 @@ func (m *Message) JSON(key string, val []byte) *Message {
 
 // AsJSON logs the JSON marshaled val.
 func (m *Message) AsJSON(key string, val interface{}) *Message {
-	if m == nil {
-		return nil
+	if m == nil || m.logger.values.Contain(key) {
+		return m
 	}
 	j, err := json.Marshal(val)
 	if err != nil {

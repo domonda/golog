@@ -300,19 +300,21 @@ func TestMessage_SubLoggerContext(t *testing.T) {
 	at, _ := time.Parse("2006-01-02 15:04:05", "2006-01-02 15:04:05")
 
 	uuid := MustParseUUID("a547276f-b02b-4e7d-b67e-c6deb07567da")
+	uuid2 := MustParseUUID("064c6bc6-3ec1-4cda-83e7-67815af25a7f")
 
 	log, textOut, jsonOut := newTestLoggerWithPrefix("pkg: ")
+	infoLevel := log.Config().Info()
 
 	log, ctx := log.With().
 		UUID("uuid", uuid).
 		SubLoggerContext(context.Background())
-	log.NewMessageAt(at, log.Config().Info(), "Msg").
+	log.NewMessageAt(at, infoLevel, "Msg").
 		Ctx(ctx).
-		UUID("uuid", uuid). // TODO do we want to write a second uuid key because NewMessageAt already wrote the key recorded in the sub logger?
+		UUID("uuid", uuid2). // Will be ignored because a "uuid" value is already in the sub-logger
 		Log()
 
-	textMsg := `2006-01-02 15:04:05 |INFO | pkg: Msg uuid=a547276f-b02b-4e7d-b67e-c6deb07567da uuid=a547276f-b02b-4e7d-b67e-c6deb07567da` + "\n"
-	jsonMsg := `{"time":"2006-01-02 15:04:05","level":"INFO","message":"pkg: Msg","uuid":"a547276f-b02b-4e7d-b67e-c6deb07567da","uuid":"a547276f-b02b-4e7d-b67e-c6deb07567da"},` + "\n"
+	textMsg := `2006-01-02 15:04:05 |INFO | pkg: Msg uuid=a547276f-b02b-4e7d-b67e-c6deb07567da` + "\n"
+	jsonMsg := `{"time":"2006-01-02 15:04:05","level":"INFO","message":"pkg: Msg","uuid":"a547276f-b02b-4e7d-b67e-c6deb07567da"},` + "\n"
 
 	assert.Equal(t, textMsg, textOut.String())
 	assert.Equal(t, jsonMsg, jsonOut.String())
