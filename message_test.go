@@ -2,6 +2,7 @@ package golog
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -29,29 +30,37 @@ func newTestConfig(textWriter, jsonWriter io.Writer) Config {
 	return NewConfig(&DefaultLevels, NoFilter, textFormatter, jsonFormatter)
 }
 
+func newTestLogger() (log *Logger, textOut, jsonOut *bytes.Buffer) {
+	textOut = bytes.NewBuffer(nil)
+	jsonOut = bytes.NewBuffer(nil)
+	return NewLogger(newTestConfig(textOut, jsonOut)), textOut, jsonOut
+}
+
+func newTestLoggerWithPrefix(prefix string) (log *Logger, textOut, jsonOut *bytes.Buffer) {
+	textOut = bytes.NewBuffer(nil)
+	jsonOut = bytes.NewBuffer(nil)
+	return NewLoggerWithPrefix(newTestConfig(textOut, jsonOut), prefix), textOut, jsonOut
+}
+
 func TestMessage(t *testing.T) {
 	at, _ := time.Parse("2006-01-02 15:04:05", "2006-01-02 15:04:05")
 
-	textOutput := bytes.NewBuffer(nil)
-	jsonOutput := bytes.NewBuffer(nil)
-
-	config := newTestConfig(textOutput, jsonOutput)
-	log := NewLogger(config)
+	log, textOut, jsonOut := newTestLogger()
 
 	numLines := 10
 	for i := 0; i < numLines; i++ {
-		log.NewMessageAt(at, config.Info(), "My log message").Exec(writeMessage).Log()
+		log.NewMessageAt(at, log.Config().Info(), "My log message").Exec(writeMessage).Log()
 	}
 
 	checkOutput := func(exptectedTextLine, exptectedJSONLine string) {
-		textLines := strings.Split(textOutput.String(), "\n")
+		textLines := strings.Split(textOut.String(), "\n")
 		assert.Len(t, textLines, numLines+1, "strings.Split created empty last line")
 		assert.Equal(t, "", textLines[len(textLines)-1], "strings.Split created empty last line")
 		for _, line := range textLines[:numLines] {
 			assert.Equal(t, exptectedTextLine, line)
 		}
 
-		jsonLines := strings.Split(jsonOutput.String(), "\n")
+		jsonLines := strings.Split(jsonOut.String(), "\n")
 		assert.Len(t, jsonLines, numLines+1, "strings.Split created empty last line")
 		assert.Equal(t, "", jsonLines[len(jsonLines)-1], "strings.Split created empty last line")
 		for _, line := range jsonLines[:numLines] {
@@ -65,31 +74,41 @@ func TestMessage(t *testing.T) {
 
 	// Test sub-logger
 
-	textOutput.Reset()
-	jsonOutput.Reset()
+	textOut.Reset()
+	jsonOut.Reset()
 
-	subLog := log.With().Str("SuperStr", "SuperStr").Strs("SuperStrs", []string{"A", "B", "C"}).IntPtr("SuperNilInt", nil).SubLogger()
+	subLog := log.With().
+		Str("SuperStr", "SuperStr").
+		Strs("SuperStrs", []string{"A", "B", "C"}).
+		IntPtr("SuperNilInt", nil).
+		SubLogger()
 	for i := 0; i < numLines; i++ {
-		subLog.NewMessageAt(at, config.Info(), "My log message").Exec(writeMessage).Log()
+		subLog.NewMessageAt(at, log.Config().Info(), "My log message").Exec(writeMessage).Log()
 	}
 
 	checkOutput(exptectedTextMessageSub, exptectedJSONMessageSub)
 
 	// Test sub-sub-logger
 
-	textOutput.Reset()
-	jsonOutput.Reset()
+	textOut.Reset()
+	jsonOut.Reset()
 
-	subLog = log.With().UUID("RequestID", uu.IDFrom("62d38a15-8fc2-4520-b768-9d5d08d2c498")).SubLogger()
-	subSubLog := subLog.With().Str("SuperStr", "SuperStr").Strs("SuperStrs", []string{"A", "B", "C"}).IntPtr("SuperNilInt", nil).SubLogger()
+	subLog = log.With().
+		UUID("RequestID", uu.IDFrom("62d38a15-8fc2-4520-b768-9d5d08d2c498")).
+		SubLogger()
+	subSubLog := subLog.With().
+		Str("SuperStr", "SuperStr").
+		Strs("SuperStrs", []string{"A", "B", "C"}).
+		IntPtr("SuperNilInt", nil).
+		SubLogger()
 	for i := 0; i < numLines; i++ {
-		subSubLog.NewMessageAt(at, config.Info(), "My log message").Exec(writeMessage).Log()
+		subSubLog.NewMessageAt(at, log.Config().Info(), "My log message").Exec(writeMessage).Log()
 	}
 
 	checkOutput(exptectedTextMessageSubSub, exptectedJSONMessageSubSub)
 
-	// fmt.Println(textOutput.String())
-	// fmt.Println(jsonOutput.String())
+	// fmt.Println(textOut.String())
+	// fmt.Println(jsonOut.String())
 	// t.FailNow()
 }
 
@@ -250,20 +269,16 @@ const (
 func TestMessage_Any(t *testing.T) {
 	at, _ := time.Parse("2006-01-02 15:04:05", "2006-01-02 15:04:05")
 
-	textOutput := bytes.NewBuffer(nil)
-	jsonOutput := bytes.NewBuffer(nil)
-
-	config := newTestConfig(textOutput, jsonOutput)
-	log := NewLogger(config)
+	log, textOut, jsonOut := newTestLogger()
 
 	textMsg := `2006-01-02 15:04:05 |INFO | Msg`
 
-	log.NewMessageAt(at, config.Info(), "Msg").
+	log.NewMessageAt(at, log.Config().Info(), "Msg").
 		Any("int", -100).
 		Log()
-	assert.Equal(t, fmt.Sprintf("%s %s\n", textMsg, `int=-100`), textOutput.String())
-	textOutput.Reset()
-	jsonOutput.Reset()
+	assert.Equal(t, fmt.Sprintf("%s %s\n", textMsg, `int=-100`), textOut.String())
+	textOut.Reset()
+	jsonOut.Reset()
 
 	var (
 		uuid     uu.ID = uu.IDFrom("b14882b9-bfdd-45a4-9c84-1d717211c050")
@@ -271,12 +286,36 @@ func TestMessage_Any(t *testing.T) {
 		uuidNull uu.NullableID
 	)
 
-	log.NewMessageAt(at, config.Info(), "Msg").
+	log.NewMessageAt(at, log.Config().Info(), "Msg").
 		Any("uuid", uuid).
 		Any("uuidNil", uuidNil).
 		Any("uuidNull", uuidNull).
 		Log()
-	assert.Equal(t, fmt.Sprintf("%s %s\n", textMsg, `uuid=b14882b9-bfdd-45a4-9c84-1d717211c050 uuidNil=nil uuidNull=nil`), textOutput.String())
-	textOutput.Reset()
-	jsonOutput.Reset()
+	assert.Equal(t, fmt.Sprintf("%s %s\n", textMsg, `uuid=b14882b9-bfdd-45a4-9c84-1d717211c050 uuidNil=nil uuidNull=nil`), textOut.String())
+	textOut.Reset()
+	jsonOut.Reset()
+}
+
+func TestMessage_SubLoggerContext(t *testing.T) {
+	at, _ := time.Parse("2006-01-02 15:04:05", "2006-01-02 15:04:05")
+
+	uuid := MustParseUUID("a547276f-b02b-4e7d-b67e-c6deb07567da")
+
+	log, textOut, jsonOut := newTestLoggerWithPrefix("pkg: ")
+
+	log, ctx := log.With().
+		UUID("uuid", uuid).
+		SubLoggerContext(context.Background())
+	log.NewMessageAt(at, log.Config().Info(), "Msg").
+		Ctx(ctx).
+		UUID("uuid", uuid). // TODO do we want to write a second uuid key because NewMessageAt already wrote the key recorded in the sub logger?
+		Log()
+
+	textMsg := `2006-01-02 15:04:05 |INFO | pkg: Msg uuid=a547276f-b02b-4e7d-b67e-c6deb07567da uuid=a547276f-b02b-4e7d-b67e-c6deb07567da` + "\n"
+	jsonMsg := `{"time":"2006-01-02 15:04:05","level":"INFO","message":"pkg: Msg","uuid":"a547276f-b02b-4e7d-b67e-c6deb07567da","uuid":"a547276f-b02b-4e7d-b67e-c6deb07567da"},` + "\n"
+
+	assert.Equal(t, textMsg, textOut.String())
+	assert.Equal(t, jsonMsg, jsonOut.String())
+	textOut.Reset()
+	jsonOut.Reset()
 }
