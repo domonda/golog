@@ -3,6 +3,7 @@ package golog
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,6 +13,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 )
 
 type Message struct {
@@ -874,6 +876,37 @@ func (m *Message) AsJSON(key string, val interface{}) *Message {
 	}
 	m.formatter.WriteKey(key)
 	m.formatter.WriteJSON(j)
+	return m
+}
+
+// Binary logs binary data as string encoded using base64.RawURLEncoding
+func (m *Message) Binary(key string, val []byte) *Message {
+	if m == nil || m.logger.values.Contain(key) {
+		return m
+	}
+	if val == nil {
+		return m.Nil(key)
+	}
+	m.formatter.WriteKey(key)
+	m.formatter.WriteString(base64.RawURLEncoding.EncodeToString(val))
+	return m
+}
+
+// StrBytes logs the passed bytes as string if they are valid UTF-8,
+// else the bytes are encoded using base64.RawURLEncoding.
+func (m *Message) StrBytes(key string, val []byte) *Message {
+	if m == nil || m.logger.values.Contain(key) {
+		return m
+	}
+	if val == nil {
+		return m.Nil(key)
+	}
+	m.formatter.WriteKey(key)
+	if utf8.Valid(val) {
+		m.formatter.WriteString(string(val))
+	} else {
+		m.formatter.WriteString(base64.RawURLEncoding.EncodeToString(val))
+	}
 	return m
 }
 
