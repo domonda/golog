@@ -22,12 +22,28 @@ func AddValueToContext(ctx context.Context, value Value) context.Context {
 	return Values{value}.AddToContext(ctx)
 }
 
+// AddValuesToContext returns a context with the passed values added to it
+// so they can be retrieved again with ValuesFromContext.
+// If the context already has Values, then the result of
+// MergeValues(ctxValues, values) will added to the context.
+func AddValuesToContext(ctx context.Context, values ...Value) context.Context {
+	return Values(values).AddToContext(ctx)
+}
+
 // AddValueToRequest returns a http.Request with the passed value added to its context
 // so it can be retrieved again with ValuesFromContext(request.Context()).
 // If the context already has Values, then the result of
 // MergeValues(ctxValues, Values{value}) will added to the context.
 func AddValueToRequest(request *http.Request, value Value) *http.Request {
 	return Values{value}.AddToRequest(request)
+}
+
+// AddValuesToRequest returns a http.Request with the passed values added to its context
+// so they can be retrieved again with ValuesFromContext(request.Context()).
+// If the context already has Values, then the result of
+// MergeValues(ctxValues, values) will added to the context.
+func AddValuesToRequest(request *http.Request, values ...Value) *http.Request {
+	return Values(values).AddToRequest(request)
 }
 
 // Values is a Value slice with methods to manage and log them.
