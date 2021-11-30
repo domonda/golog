@@ -70,11 +70,12 @@ func (f *TextFormatter) WriteText(t time.Time, levels *Levels, level Level, pref
 }
 
 func (f *TextFormatter) FlushAndFree() {
-	// Flush
-	f.buf = append(f.buf, '\n')
-	_, err := f.writer.Write(f.buf)
-	if err != nil && ErrorHandler != nil {
-		ErrorHandler(fmt.Errorf("golog.TextFormatter error: %w", err))
+	// Flush f.buf
+	if len(f.buf) > 0 {
+		_, err := f.writer.Write(append(f.buf, '\n'))
+		if err != nil && ErrorHandler != nil {
+			ErrorHandler(fmt.Errorf("golog.TextFormatter error: %w", err))
+		}
 	}
 
 	// Free

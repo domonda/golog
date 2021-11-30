@@ -75,24 +75,27 @@ func (f *Formatter) WriteText(t time.Time, levels *golog.Levels, level golog.Lev
 }
 
 func (f *Formatter) FlushAndFree() {
-	// Flush
-	event := sentry.NewEvent()
-	event.Timestamp = f.timestamp
-	event.Level = f.level
-	event.Message = f.message.String()
-	event.Fingerprint = []string{event.Message}
-	event.Extra = f.extra
-	if f.hub.Client().Options().AttachStacktrace {
-		stackTrace := sentry.NewStacktrace()
-		stackTrace.Frames = filterFrames(stackTrace.Frames)
-		event.Threads = []sentry.Thread{{
-			Stacktrace: stackTrace,
-			Current:    true,
-		}}
+	// Flush f.message
+	if f.message.Len() > 0 {
+		event := sentry.NewEvent()
+		event.Timestamp = f.timestamp
+		event.Level = f.level
+		event.Message = f.message.String()
+		event.Fingerprint = []string{event.Message}
+		event.Extra = f.extra
+		if f.hub.Client().Options().AttachStacktrace {
+			stackTrace := sentry.NewStacktrace()
+			stackTrace.Frames = filterFrames(stackTrace.Frames)
+			event.Threads = []sentry.Thread{{
+				Stacktrace: stackTrace,
+				Current:    true,
+			}}
+		}
+		f.hub.CaptureEvent(event)
 	}
-	f.hub.CaptureEvent(event)
 
 	// Free pointers
+	f.message.Reset()
 	f.extra = nil
 	f.slice = nil
 	f.hub = nil
