@@ -32,6 +32,6 @@ type Formatter interface {
 func flushUnderlying(writer interface{}) {
 	switch x := writer.(type) {
 	case interface{ Sync() error }:
-		x.Sync()
+		x.Sync() //#nosec G104
 	}
 }
