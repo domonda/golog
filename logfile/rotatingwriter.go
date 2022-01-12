@@ -2,6 +2,7 @@ package logfile
 
 import (
 	"os"
+	"path/filepath"
 	"strconv"
 	"sync"
 	"time"
@@ -21,6 +22,7 @@ type RotatingWriter struct {
 }
 
 func NewRotatingWriter(filePath string, filePerm os.FileMode, rotateSize int64) (*RotatingWriter, error) {
+	filePath = filepath.Clean(filePath)
 	file, size, err := openFile(filePath, filePerm)
 	if err != nil {
 		return nil, err
