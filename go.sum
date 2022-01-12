@@ -24,10 +24,14 @@ github.com/domonda/go-pretty v0.0.0-20210202131827-b4ff5dbd12fd h1:OGFdhMFO54ESh
 github.com/domonda/go-pretty v0.0.0-20210202131827-b4ff5dbd12fd/go.mod h1:zUVOQL+81aMK+Ye3kS7eDsk/aWnteWRSJ5fZWHdBWjc=
 github.com/domonda/go-pretty v0.0.0-20220111114354-b0f333b12874 h1:M7oe5FnZzBxC34dTRDLfLu72b88UWocuhhQ7DC/Rwo4=
 github.com/domonda/go-pretty v0.0.0-20220111114354-b0f333b12874/go.mod h1:zUVOQL+81aMK+Ye3kS7eDsk/aWnteWRSJ5fZWHdBWjc=
+github.com/domonda/go-pretty v0.0.0-20220112155939-e3708bbb291e h1:78yCSuJugiciDvOGjaY3IVa8zz7qVLTRvYLnafT1USA=
+github.com/domonda/go-pretty v0.0.0-20220112155939-e3708bbb291e/go.mod h1:zUVOQL+81aMK+Ye3kS7eDsk/aWnteWRSJ5fZWHdBWjc=
 github.com/domonda/go-types v0.0.0-20211223184502-053f8b872a10 h1:qjjHz8Oi3G5vbEuvCQXgmnqwDtUFm3RClZa2Gh7HzFA=
 github.com/domonda/go-types v0.0.0-20211223184502-053f8b872a10/go.mod h1:ejtDXRzhZKPmLN6FqDuq5Z5UC136quWpApdTm0TXcUU=
 github.com/domonda/go-types v0.0.0-20220111120335-a9d59ac581ca h1:1AW/61QA+1ZkR6Zbpp9l/eRM9Mr00jRez+a0PFg+NjQ=
 github.com/domonda/go-types v0.0.0-20220111120335-a9d59ac581ca/go.mod h1:70eCtYU+x7bzE9D/O9vK1ZK/YVLp3IPTAj9pt/+NcqQ=
+github.com/domonda/go-types v0.0.0-20220112160653-23e7b7e40bf7 h1:I3EUmkiKcQRUe3a0+Z/2BHkrGzVQKcVIJ/x606pE9VE=
+github.com/domonda/go-types v0.0.0-20220112160653-23e7b7e40bf7/go.mod h1:QMxAhQFLG1w2pEjIjvh8sBrAYJ+ykJYNZTmSZeZ2c4I=
 github.com/dustin/go-humanize v1.0.0/go.mod h1:HtrtbFcZ19U5GC7JDqmcUSB87Iq5E25KnS6fMYU6eOk=
 github.com/eknkc/amber v0.0.0-20171010120322-cdade1c07385/go.mod h1:0vRUJqYpeSZifjYj7uP3BG/gKcuzL9xWVV/Y+cK33KM=
 github.com/etcd-io/bbolt v1.3.3/go.mod h1:ZF2nL25h33cCyBtcyWeZ2/I3HQOfTP+0PIEvHjkjCrw=
@@ -169,6 +173,8 @@ github.com/ungerik/go-dry v0.0.0-20211126075843-f063768598f2/go.mod h1:g61b/Pvp6
 github.com/ungerik/go-fs v0.0.0-20211026033919-c01ec0166b2d/go.mod h1:HlNZ9M8KcqiejmwpZ+jEJP+oTGBcHo+Qr5HcZN40vGE=
 github.com/ungerik/go-fs v0.0.0-20211220110755-474b7460e511 h1:rP0uWRg9pZJg++CH8GmiXAJxg1dIYs0XAsBpdLXyzZM=
 github.com/ungerik/go-fs v0.0.0-20211220110755-474b7460e511/go.mod h1:k77Wp0DvHn0VGHsXhYzw5Gwn3xAyEPA2iz7hDUUsZjs=
+github.com/ungerik/go-fs v0.0.0-20220112143733-3b868e71a05a h1:FL7TVll9mGFBPKtaFxAXOAiyw8RM7sPj84By67NphSk=
+github.com/ungerik/go-fs v0.0.0-20220112143733-3b868e71a05a/go.mod h1:k77Wp0DvHn0VGHsXhYzw5Gwn3xAyEPA2iz7hDUUsZjs=
 github.com/ungerik/go-reflection v0.0.0-20210817083039-1053f336f275/go.mod h1:6Hnd2/4g3Tpt6TjvxHx8wXOZziwApVxRdIGkr7vNpXs=
 github.com/urfave/negroni v1.0.0/go.mod h1:Meg73S6kFm/4PpbYdq35yYWoCZ9mS/YSx+lKnmiohz4=
 github.com/valyala/bytebufferpool v1.0.0/go.mod h1:6bBcMArwyJ5K/AmCkWv1jt77kVWyCJ6HpOuEn7z0Csc=
