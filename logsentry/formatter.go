@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/getsentry/sentry-go"
@@ -23,23 +24,26 @@ var (
 var _ golog.Formatter = new(Formatter)
 
 type Formatter struct {
-	filter    golog.LevelFilter
 	hub       *sentry.Hub
+	filter    golog.LevelFilter
 	timestamp time.Time
 	level     sentry.Level
 	message   strings.Builder
 	valsAsMsg bool
 	extra     map[string]interface{}
+	values    map[string]interface{}
 	key       string
 	slice     []interface{}
 }
 
-func NewFormatter(filter golog.LevelFilter, hub *sentry.Hub, valsAsMsg bool) *Formatter {
+// NewFormatter returns a new Formatter for a sentry.Hub.
+// Any values passed as extra will be added to every log messsage.
+func NewFormatter(hub *sentry.Hub, filter golog.LevelFilter, valsAsMsg bool, extra map[string]interface{}) *Formatter {
 	return &Formatter{
 		filter:    filter,
 		hub:       hub,
-		extra:     make(map[string]interface{}),
 		valsAsMsg: valsAsMsg,
+		extra:     extra,
 	}
 }
 
@@ -47,7 +51,7 @@ func (f *Formatter) Clone(level golog.Level) golog.Formatter {
 	if !f.filter.IsActive(level) {
 		return golog.NopFormatter
 	}
-	return NewFormatter(f.filter, f.hub, f.valsAsMsg) // Clone hub too?
+	return NewFormatter(f.hub, f.filter, f.valsAsMsg, f.extra) // Clone hub too?
 }
 
 func (f *Formatter) WriteText(t time.Time, levels *golog.Levels, level golog.Level, prefix, text string) {
@@ -82,7 +86,12 @@ func (f *Formatter) FlushAndFree() {
 		event.Level = f.level
 		event.Message = f.message.String()
 		event.Fingerprint = []string{event.Message}
-		event.Extra = f.extra
+		for key, val := range f.extra {
+			event.Extra[key] = val
+		}
+		for key, val := range f.values {
+			event.Extra[key] = val
+		}
 		if f.hub.Client().Options().AttachStacktrace {
 			stackTrace := sentry.NewStacktrace()
 			stackTrace.Frames = filterFrames(stackTrace.Frames)
@@ -96,7 +105,10 @@ func (f *Formatter) FlushAndFree() {
 
 	// Free pointers
 	f.message.Reset()
-	f.extra = nil
+	if f.values != nil {
+		valueMapPool.Put(f.values)
+		f.values = nil
+	}
 	f.slice = nil
 	f.hub = nil
 }
@@ -138,33 +150,11 @@ func (f *Formatter) WriteSliceKey(key string) {
 }
 
 func (f *Formatter) WriteSliceEnd() {
-	f.extra[f.key] = f.slice
+	f.writeFinalVal(f.slice)
 	f.slice = nil
 
 	if f.valsAsMsg {
 		f.message.WriteByte(']')
-	}
-}
-
-func (f *Formatter) writeVal(val interface{}) {
-	if f.slice != nil {
-		f.slice = append(f.slice, val)
-	} else {
-		f.extra[f.key] = val
-	}
-
-	if f.valsAsMsg {
-		if len(f.slice) > 1 {
-			f.message.WriteByte(',')
-		}
-		switch x := val.(type) {
-		case json.RawMessage:
-			f.message.Write(x)
-		case string:
-			fmt.Fprintf(&f.message, "%q", val)
-		default:
-			fmt.Fprintf(&f.message, "%v", val)
-		}
 	}
 }
 
@@ -202,4 +192,44 @@ func (f *Formatter) WriteUUID(val [16]byte) {
 
 func (f *Formatter) WriteJSON(val []byte) {
 	f.writeVal(json.RawMessage(val))
+}
+
+func (f *Formatter) writeVal(val interface{}) {
+	if f.slice != nil {
+		f.slice = append(f.slice, val)
+	} else {
+		f.writeFinalVal(val)
+	}
+
+	if f.valsAsMsg {
+		if len(f.slice) > 1 {
+			f.message.WriteByte(',')
+		}
+		switch x := val.(type) {
+		case json.RawMessage:
+			f.message.Write(x)
+		case string:
+			fmt.Fprintf(&f.message, "%q", val)
+		default:
+			fmt.Fprintf(&f.message, "%v", val)
+		}
+	}
+}
+
+var valueMapPool sync.Pool
+
+func (f *Formatter) writeFinalVal(val interface{}) {
+	if f.values != nil {
+		f.values[f.key] = val
+		return
+	}
+	if m, _ := valueMapPool.Get().(map[string]interface{}); m != nil {
+		for k := range m {
+			delete(m, k)
+		}
+		m[f.key] = val
+		f.values = m
+	} else {
+		f.values = map[string]interface{}{f.key: val}
+	}
 }
