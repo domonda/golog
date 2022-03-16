@@ -148,7 +148,7 @@ func (m *Message) Errors(key string, vals []error) *Message {
 
 // Any logs val with the best matching typed log method
 // or uses Print if none was found.
-func (m *Message) Any(key string, val interface{}) *Message {
+func (m *Message) Any(key string, val any) *Message {
 	if m == nil || m.logger.values.Contain(key) {
 		return m
 	}
@@ -295,7 +295,7 @@ func (m *Message) tryWriteInterface(val reflect.Value) (written bool) {
 }
 
 // StructFields calls Any(fieldName, fieldValue) for every exported struct field
-func (m *Message) StructFields(strct interface{}) *Message {
+func (m *Message) StructFields(strct any) *Message {
 	if m == nil || strct == nil {
 		return m
 	}
@@ -308,7 +308,7 @@ func (m *Message) StructFields(strct interface{}) *Message {
 // Tag values are only considered until the first comma character,
 // so `tag:"hello_world,omitempty"` will result in the fieldTag "hello_world".
 // Fields with the following tags will be ignored: `tag:"-"`, `tag:""` `tag:",xxx"`.
-func (m *Message) TaggedStructFields(strct interface{}, tag string) *Message {
+func (m *Message) TaggedStructFields(strct any, tag string) *Message {
 	if m == nil || strct == nil {
 		return m
 	}
@@ -349,7 +349,7 @@ func (m *Message) structFields(v reflect.Value, tag string) {
 // Print logs vals as string with the "%v" format of the fmt package.
 // If only one value is passed for vals, then it will be logged as single string,
 // else a slice of strings will be logged for vals.
-func (m *Message) Print(key string, vals ...interface{}) *Message {
+func (m *Message) Print(key string, vals ...any) *Message {
 	if m == nil || m.logger.values.Contain(key) {
 		return m
 	}
@@ -866,7 +866,7 @@ func (m *Message) JSON(key string, val []byte) *Message {
 }
 
 // AsJSON logs the JSON marshaled val.
-func (m *Message) AsJSON(key string, val interface{}) *Message {
+func (m *Message) AsJSON(key string, val any) *Message {
 	if m == nil || m.logger.values.Contain(key) {
 		return m
 	}
