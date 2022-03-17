@@ -173,7 +173,7 @@ func (l *Logger) NewMessage(level Level, text string) *Message {
 	return l.NewMessageAt(time.Now(), level, text)
 }
 
-func (l *Logger) NewMessagef(level Level, format string, args ...interface{}) *Message {
+func (l *Logger) NewMessagef(level Level, format string, args ...any) *Message {
 	if !l.IsActive(level) {
 		return nil
 	}
@@ -181,7 +181,7 @@ func (l *Logger) NewMessagef(level Level, format string, args ...interface{}) *M
 }
 
 // FatalAndPanic is a shortcut for Fatal(fmt.Sprint(p)).LogAndPanic()
-func (l *Logger) FatalAndPanic(p interface{}) {
+func (l *Logger) FatalAndPanic(p any) {
 	l.Fatal(fmt.Sprint(p)).Log()
 	panic(p)
 }
@@ -190,7 +190,7 @@ func (l *Logger) Fatal(text string) *Message {
 	return l.NewMessage(l.config.Fatal(), text)
 }
 
-func (l *Logger) Fatalf(format string, args ...interface{}) *Message {
+func (l *Logger) Fatalf(format string, args ...any) *Message {
 	return l.NewMessagef(l.config.Fatal(), format, args...)
 }
 
@@ -199,7 +199,7 @@ func (l *Logger) Error(text string) *Message {
 }
 
 // Errorf uses fmt.Errorf underneath to support Go 1.13 wrapped error formatting with %w
-func (l *Logger) Errorf(format string, args ...interface{}) *Message {
+func (l *Logger) Errorf(format string, args ...any) *Message {
 	return l.NewMessage(l.config.Error(), fmt.Errorf(format, args...).Error())
 }
 
@@ -207,7 +207,7 @@ func (l *Logger) Warn(text string) *Message {
 	return l.NewMessage(l.config.Warn(), text)
 }
 
-func (l *Logger) Warnf(format string, args ...interface{}) *Message {
+func (l *Logger) Warnf(format string, args ...any) *Message {
 	return l.NewMessagef(l.config.Warn(), format, args...)
 }
 
@@ -215,7 +215,7 @@ func (l *Logger) Info(text string) *Message {
 	return l.NewMessage(l.config.Info(), text)
 }
 
-func (l *Logger) Infof(format string, args ...interface{}) *Message {
+func (l *Logger) Infof(format string, args ...any) *Message {
 	return l.NewMessagef(l.config.Info(), format, args...)
 }
 
@@ -223,7 +223,7 @@ func (l *Logger) Debug(text string) *Message {
 	return l.NewMessage(l.config.Debug(), text)
 }
 
-func (l *Logger) Debugf(format string, args ...interface{}) *Message {
+func (l *Logger) Debugf(format string, args ...any) *Message {
 	return l.NewMessagef(l.config.Debug(), format, args...)
 }
 
@@ -231,7 +231,7 @@ func (l *Logger) Trace(text string) *Message {
 	return l.NewMessage(l.config.Trace(), text)
 }
 
-func (l *Logger) Tracef(format string, args ...interface{}) *Message {
+func (l *Logger) Tracef(format string, args ...any) *Message {
 	return l.NewMessagef(l.config.Trace(), format, args...)
 }
 

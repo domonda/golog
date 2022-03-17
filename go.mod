@@ -4,7 +4,7 @@ go 1.18
 
 require (
 	github.com/domonda/go-encjson v0.0.0-20210830085227-1beee57a72d8
-	github.com/domonda/go-types v0.0.0-20220316075117-bf06cd8d2245
+	github.com/domonda/go-types v0.0.0-20220317131531-f5ff2bbddea5
 	github.com/fatih/color v1.13.0
 	github.com/getsentry/sentry-go v0.13.0
 	github.com/google/go-cmp v0.5.7

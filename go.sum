@@ -6,8 +6,8 @@ github.com/domonda/go-encjson v0.0.0-20210830085227-1beee57a72d8 h1:fKtb4cd3cTei
 github.com/domonda/go-encjson v0.0.0-20210830085227-1beee57a72d8/go.mod h1:i9MgoQ+iTNvBGS63YftEDoNsr6dW6lAefUibkoCdMS4=
 github.com/domonda/go-pretty v0.0.0-20220317123925-dd9e6bef129a h1:6/Is0KGl5Ot3E8ZLAgAFWYiSRdU+3t3jL38+5yIlCV4=
 github.com/domonda/go-pretty v0.0.0-20220317123925-dd9e6bef129a/go.mod h1:3QkM8UJdyJMeKZiIo7hYzSkQBpRS3k0gOHw4ysyEIB4=
-github.com/domonda/go-types v0.0.0-20220316075117-bf06cd8d2245 h1:3VSy//focTkWY1rX81md9HGDKiZXCnaE001UdklbaS4=
-github.com/domonda/go-types v0.0.0-20220316075117-bf06cd8d2245/go.mod h1:+BXyCg62AATxG6PUMZleqUvscGKbYBrktHsJ+k0Q9yI=
+github.com/domonda/go-types v0.0.0-20220317131531-f5ff2bbddea5 h1:53XT3/bCvfZVDX31LO7Q6KU5f0jRCRk8GnxUCB40f8Q=
+github.com/domonda/go-types v0.0.0-20220317131531-f5ff2bbddea5/go.mod h1:7cRhMGRbldYcRiVsBCQrWod44llcgU9S+rlsqudnz44=
 github.com/fatih/color v1.13.0 h1:8LOYc1KYPPmyKMuN8QV2DNRWNbLo6LZ0iLs8+mlH53w=
 github.com/fatih/color v1.13.0/go.mod h1:kLAiJbzzSOZDVNGyDpeOxJ47H46qBXwg5ILebYFFOfk=
 github.com/getsentry/sentry-go v0.13.0 h1:20dgTiUSfxRB/EhMPtxcL9ZEbM1ZdR+W/7f7NWD+xWo=

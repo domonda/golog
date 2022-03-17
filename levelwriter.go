@@ -29,16 +29,16 @@ func (w *LevelWriter) Msg(msg string) {
 	w.logger.NewMessage(w.level, msg).Log()
 }
 
-func (w *LevelWriter) Print(v ...interface{}) {
+func (w *LevelWriter) Print(v ...any) {
 	w.Msg(fmt.Sprint(v...))
 }
 
-func (w *LevelWriter) Println(v ...interface{}) {
+func (w *LevelWriter) Println(v ...any) {
 	msg := fmt.Sprintln(v...)
 	w.Msg(msg[:len(msg)-1])
 }
 
-func (w *LevelWriter) Printf(format string, v ...interface{}) {
+func (w *LevelWriter) Printf(format string, v ...any) {
 	if w.logger == nil {
 		return
 	}
@@ -46,8 +46,8 @@ func (w *LevelWriter) Printf(format string, v ...interface{}) {
 }
 
 // Func returns a function with the log.Printf call signature.
-func (w *LevelWriter) Func() func(format string, v ...interface{}) {
-	return func(format string, v ...interface{}) {
+func (w *LevelWriter) Func() func(format string, v ...any) {
+	return func(format string, v ...any) {
 		w.Printf(format, v...)
 	}
 }

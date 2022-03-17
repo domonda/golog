@@ -30,15 +30,15 @@ type Formatter struct {
 	level     sentry.Level
 	message   strings.Builder
 	valsAsMsg bool
-	extra     map[string]interface{}
-	values    map[string]interface{}
+	extra     map[string]any
+	values    map[string]any
 	key       string
-	slice     []interface{}
+	slice     []any
 }
 
 // NewFormatter returns a new Formatter for a sentry.Hub.
 // Any values passed as extra will be added to every log messsage.
-func NewFormatter(hub *sentry.Hub, filter golog.LevelFilter, valsAsMsg bool, extra map[string]interface{}) *Formatter {
+func NewFormatter(hub *sentry.Hub, filter golog.LevelFilter, valsAsMsg bool, extra map[string]any) *Formatter {
 	return &Formatter{
 		filter:    filter,
 		hub:       hub,
@@ -142,7 +142,7 @@ func (f *Formatter) WriteKey(key string) {
 
 func (f *Formatter) WriteSliceKey(key string) {
 	f.key = key
-	f.slice = make([]interface{}, 0)
+	f.slice = make([]any, 0)
 
 	if f.valsAsMsg {
 		fmt.Fprintf(&f.message, " %s=[", key)
@@ -194,7 +194,7 @@ func (f *Formatter) WriteJSON(val []byte) {
 	f.writeVal(json.RawMessage(val))
 }
 
-func (f *Formatter) writeVal(val interface{}) {
+func (f *Formatter) writeVal(val any) {
 	if f.slice != nil {
 		f.slice = append(f.slice, val)
 	} else {
@@ -218,18 +218,18 @@ func (f *Formatter) writeVal(val interface{}) {
 
 var valueMapPool sync.Pool
 
-func (f *Formatter) writeFinalVal(val interface{}) {
+func (f *Formatter) writeFinalVal(val any) {
 	if f.values != nil {
 		f.values[f.key] = val
 		return
 	}
-	if m, _ := valueMapPool.Get().(map[string]interface{}); m != nil {
+	if m, _ := valueMapPool.Get().(map[string]any); m != nil {
 		for k := range m {
 			delete(m, k)
 		}
 		m[f.key] = val
 		f.values = m
 	} else {
-		f.values = map[string]interface{}{f.key: val}
+		f.values = map[string]any{f.key: val}
 	}
 }

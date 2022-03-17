@@ -29,7 +29,7 @@ type Formatter interface {
 	// WritePtr(val uintptr)
 }
 
-func flushUnderlying(writer interface{}) {
+func flushUnderlying(writer any) {
 	switch x := writer.(type) {
 	case interface{ Sync() error }:
 		x.Sync() //#nosec G104

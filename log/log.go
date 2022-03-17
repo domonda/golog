@@ -74,7 +74,7 @@ func Flush() {
 }
 
 // FatalAndPanic is a shortcut for Fatal(fmt.Sprint(p)).LogAndPanic()
-func FatalAndPanic(p interface{}) {
+func FatalAndPanic(p any) {
 	Logger.Fatal(fmt.Sprint(p)).Log()
 	panic(p)
 }
@@ -83,7 +83,7 @@ func Fatal(text string) *golog.Message {
 	return Logger.Fatal(text)
 }
 
-func Fatalf(format string, args ...interface{}) *golog.Message {
+func Fatalf(format string, args ...any) *golog.Message {
 	return Logger.Fatalf(format, args...)
 }
 
@@ -91,7 +91,7 @@ func Error(text string) *golog.Message {
 	return Logger.Error(text)
 }
 
-func Errorf(format string, args ...interface{}) *golog.Message {
+func Errorf(format string, args ...any) *golog.Message {
 	return Logger.Errorf(format, args...)
 }
 
@@ -99,7 +99,7 @@ func Warn(text string) *golog.Message {
 	return Logger.Warn(text)
 }
 
-func Warnf(format string, args ...interface{}) *golog.Message {
+func Warnf(format string, args ...any) *golog.Message {
 	return Logger.Warnf(format, args...)
 }
 
@@ -107,7 +107,7 @@ func Info(text string) *golog.Message {
 	return Logger.Info(text)
 }
 
-func Infof(format string, args ...interface{}) *golog.Message {
+func Infof(format string, args ...any) *golog.Message {
 	return Logger.Infof(format, args...)
 }
 
@@ -115,7 +115,7 @@ func Debug(text string) *golog.Message {
 	return Logger.Debug(text)
 }
 
-func Debugf(format string, args ...interface{}) *golog.Message {
+func Debugf(format string, args ...any) *golog.Message {
 	return Logger.Debugf(format, args...)
 }
 
@@ -123,7 +123,7 @@ func Trace(text string) *golog.Message {
 	return Logger.Trace(text)
 }
 
-func Tracef(format string, args ...interface{}) *golog.Message {
+func Tracef(format string, args ...any) *golog.Message {
 	return Logger.Tracef(format, args...)
 }
 

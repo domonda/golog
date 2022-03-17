@@ -20,10 +20,10 @@ func (v *NilValue) Log(m *Message) {
 
 type AnyValue struct {
 	Key string
-	Val interface{}
+	Val any
 }
 
-func NewAnyValue(key string, val interface{}) *AnyValue {
+func NewAnyValue(key string, val any) *AnyValue {
 	return &AnyValue{Key: key, Val: val}
 }
 
