@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -320,4 +321,26 @@ func TestMessage_SubLoggerContext(t *testing.T) {
 	assert.Equal(t, jsonMsg, jsonOut.String())
 	textOut.Reset()
 	jsonOut.Reset()
+}
+
+func TestMessage_SubContext(t *testing.T) {
+	log, _, _ := newTestLogger()
+
+	ctx := log.With().
+		Str("str", "A").
+		SubContext(context.Background())
+
+	ctx = log.With().
+		Str("str", "B"). // B shadows A
+		SubContext(ctx)
+
+	values := ValuesFromContext(ctx)
+	if values.Len() != 1 {
+		t.Fatalf("expected 1 values, got %d", values.Len())
+	}
+	expected := &StringValue{Key: "str", Val: "B"}
+	got := values.Get("str")
+	if !reflect.DeepEqual(expected, got) {
+		t.Fatalf("expected %#v, got %#v", expected, got)
+	}
 }

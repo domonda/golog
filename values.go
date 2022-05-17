@@ -83,6 +83,11 @@ func (v Values) Contain(name string) bool {
 	return false
 }
 
+// Len returns the length of the Values slice
+func (v Values) Len() int {
+	return len(v)
+}
+
 /*
 // ReplaceOrAppend replaces the first value in the slice with the same name
 // than the passed value, or else appends the passed value to the slice.

@@ -74,7 +74,7 @@ func (m *Message) SubLogger() *Logger {
 }
 
 // SubLoggerContext returns a new sub-logger with recorded per message values
-// in addition to any values from ctx,
+// in addition to any values from the passed ctx,
 // and a context with those values added to it.
 func (m *Message) SubLoggerContext(ctx context.Context) (subLogger *Logger, subContext context.Context) {
 	if m == nil {
@@ -84,10 +84,22 @@ func (m *Message) SubLoggerContext(ctx context.Context) (subLogger *Logger, subC
 	if !ok {
 		panic("golog.Message was not created by golog.Logger.With()")
 	}
-	values := MergeValues(ValuesFromContext(ctx), recorder.Values())
-	subLogger = m.logger.WithValues(values...)
-	subContext = values.AddToContext(ctx)
+	subLogger = m.logger.WithValues(MergeValues(ValuesFromContext(ctx), recorder.Values())...)
+	subContext = recorder.Values().AddToContext(ctx)
 	return subLogger, subContext
+}
+
+// SubContext returns a new context with recorded per message values
+// added to the passed ctx argument.
+func (m *Message) SubContext(ctx context.Context) context.Context {
+	if m == nil {
+		return ctx
+	}
+	recorder, ok := m.formatter.(*valueRecorder)
+	if !ok {
+		panic("golog.Message was not created by golog.Logger.With()")
+	}
+	return recorder.Values().AddToContext(ctx)
 }
 
 // Ctx logs any values that were added to the context
