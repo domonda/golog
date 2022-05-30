@@ -103,13 +103,12 @@ func (v *Values) ReplaceOrAppend(value Value) {
 }
 */
 
-type valuesContextKeyType struct{} // unique type for this package
-var valuesContextKey valuesContextKeyType
+var valuesCtxKey struct{}
 
 // ValuesFromContext returns Values from the context
 // or nil if the context has none.
 func ValuesFromContext(ctx context.Context) Values {
-	values, _ := ctx.Value(valuesContextKey).(Values)
+	values, _ := ctx.Value(&valuesCtxKey).(Values)
 	return values
 }
 
@@ -129,7 +128,7 @@ func (v Values) AddToContext(ctx context.Context) context.Context {
 	}
 	ctxValues := ValuesFromContext(ctx)
 	mergedValues := MergeValues(ctxValues, v)
-	return context.WithValue(ctx, valuesContextKey, mergedValues)
+	return context.WithValue(ctx, &valuesCtxKey, mergedValues)
 }
 
 // AddToRequest returns a http.Request with v added to its context
