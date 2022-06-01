@@ -103,7 +103,7 @@ func (v *Values) ReplaceOrAppend(value Value) {
 }
 */
 
-var valuesCtxKey struct{}
+var valuesCtxKey int
 
 // ValuesFromContext returns Values from the context
 // or nil if the context has none.
