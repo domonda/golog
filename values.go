@@ -145,11 +145,8 @@ func (v Values) AddToRequest(request *http.Request) *http.Request {
 	return request.WithContext(ctx)
 }
 
-// MergeValues merges a and b so that only one
-// value with a given name is in the resulting slice.
-// Order is preserved, except that values from a
-// that are also in b will be appended to the result
-// after the values of a in the order of b.
+// MergeValues merges a and b so that value names are unique
+// using values from b in case of identical named values in a.
 // The slices a and b will never be modified,
 // in case of a merge the result is always a new slice.
 func MergeValues(a, b Values) Values {

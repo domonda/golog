@@ -310,7 +310,6 @@ func TestMessage_SubLoggerContext(t *testing.T) {
 		UUID("uuid", uuid).
 		SubLoggerContext(context.Background())
 	log.NewMessageAt(at, infoLevel, "Msg").
-		Ctx(ctx).
 		UUID("uuid", uuid2). // Will be ignored because a "uuid" value is already in the sub-logger
 		Log()
 
@@ -321,6 +320,55 @@ func TestMessage_SubLoggerContext(t *testing.T) {
 	assert.Equal(t, jsonMsg, jsonOut.String())
 	textOut.Reset()
 	jsonOut.Reset()
+
+	log.NewMessageAt(at, infoLevel, "Msg").
+		Ctx(ctx).            // Same as above but with ctx that also holds the values in addition to sub-logger
+		UUID("uuid", uuid2). // Will be ignored because a "uuid" value is already in the sub-logger
+		Log()
+
+	assert.Equal(t, textMsg, textOut.String())
+	assert.Equal(t, jsonMsg, jsonOut.String())
+	textOut.Reset()
+	jsonOut.Reset()
+
+	log.NewMessageAt(at, infoLevel, "Msg").
+		Ctx(context.Background()). // Same as above but with empty context
+		UUID("uuid", uuid2).       // Will be ignored because a "uuid" value is already in the sub-logger
+		Log()
+
+	assert.Equal(t, textMsg, textOut.String())
+	assert.Equal(t, jsonMsg, jsonOut.String())
+	textOut.Reset()
+	jsonOut.Reset()
+
+	{
+		uuid3 := MustParseUUID("0ecabfaf-132c-4552-a272-64b43e05dc28")
+
+		log, ctx := log.With().
+			UUID("uuid", uuid3). // Does still not overwrite with uuid3
+			SubLoggerContext(ctx)
+		log.NewMessageAt(at, infoLevel, "Msg").
+			UUID("uuid", uuid2). // Will be ignored because a "uuid" value is already in the sub-logger
+			Log()
+
+		textMsg := `2006-01-02 15:04:05 |INFO | pkg: Msg uuid=a547276f-b02b-4e7d-b67e-c6deb07567da` + "\n"
+		jsonMsg := `{"time":"2006-01-02 15:04:05","level":"INFO","message":"pkg: Msg","uuid":"a547276f-b02b-4e7d-b67e-c6deb07567da"},` + "\n"
+
+		assert.Equal(t, textMsg, textOut.String())
+		assert.Equal(t, jsonMsg, jsonOut.String())
+		textOut.Reset()
+		jsonOut.Reset()
+
+		log.NewMessageAt(at, infoLevel, "Msg").
+			Ctx(ctx).            // Same as above but with ctx that also holds the values in addition to sub-logger
+			UUID("uuid", uuid2). // Will be ignored because a "uuid" value is already in the sub-logger
+			Log()
+
+		assert.Equal(t, textMsg, textOut.String())
+		assert.Equal(t, jsonMsg, jsonOut.String())
+		textOut.Reset()
+		jsonOut.Reset()
+	}
 }
 
 func TestMessage_SubContext(t *testing.T) {
@@ -343,4 +391,45 @@ func TestMessage_SubContext(t *testing.T) {
 	if !reflect.DeepEqual(expected, got) {
 		t.Fatalf("expected %#v, got %#v", expected, got)
 	}
+}
+
+func TestMessage_Ctx(t *testing.T) {
+	at, _ := time.Parse("2006-01-02 15:04:05", "2006-01-02 15:04:05")
+
+	log, textOut, jsonOut := newTestLoggerWithPrefix("pkg: ")
+	infoLevel := log.Config().Info()
+
+	ctx := log.With().
+		Int("int", 1).
+		SubContext(context.Background())
+
+	log.NewMessageAt(at, infoLevel, "Msg").
+		Ctx(ctx).      // Logs int
+		Int("int", 2). // Log a second int
+		Log()
+
+	textMsg := `2006-01-02 15:04:05 |INFO | pkg: Msg int=1 int=2` + "\n"
+	jsonMsg := `{"time":"2006-01-02 15:04:05","level":"INFO","message":"pkg: Msg","int":1,"int":2},` + "\n"
+
+	assert.Equal(t, textMsg, textOut.String())
+	assert.Equal(t, jsonMsg, jsonOut.String())
+	textOut.Reset()
+	jsonOut.Reset()
+
+	ctx = log.With().
+		Int("int", 3). // Overwrites int value in ctx
+		SubContext(ctx)
+
+	log.NewMessageAt(at, infoLevel, "Msg").
+		Ctx(ctx).      // Logs int
+		Int("int", 4). // Log a second int
+		Log()
+
+	textMsg = `2006-01-02 15:04:05 |INFO | pkg: Msg int=3 int=4` + "\n"
+	jsonMsg = `{"time":"2006-01-02 15:04:05","level":"INFO","message":"pkg: Msg","int":3,"int":4},` + "\n"
+
+	assert.Equal(t, textMsg, textOut.String())
+	assert.Equal(t, jsonMsg, jsonOut.String())
+	textOut.Reset()
+	jsonOut.Reset()
 }
