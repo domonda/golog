@@ -2,29 +2,41 @@ package golog
 
 import (
 	"testing"
-
-	"github.com/google/go-cmp/cmp"
 )
 
 func TestMergeNamedValues(t *testing.T) {
-	makeNamedValues := func(names ...string) (nv Values) {
-		for _, name := range names {
-			nv = append(nv, &StringValue{Key: name, Val: name})
+	stringVals := func(valPrefix string, keys ...string) (nv Values) {
+		for _, key := range keys {
+			nv = append(nv, &StringValue{Key: key, Val: valPrefix + key})
+		}
+		return nv
+	}
+	mergedStringVals := func(keyVals ...string) (nv Values) {
+		for i := 0; i < len(keyVals); i += 2 {
+			nv = append(nv, &StringValue{Key: keyVals[i], Val: keyVals[i+1]})
 		}
 		return nv
 	}
 
-	comparer := cmp.Comparer(func(a, b Value) bool {
-		av, ok := a.(*StringValue)
-		if !ok {
+	stringValsEqual := func(a, b Values) bool {
+		if len(a) != len(b) {
 			return false
 		}
-		bv, ok := a.(*StringValue)
-		if !ok {
-			return false
+		for i := range a {
+			av, ok := a[i].(*StringValue)
+			if !ok {
+				return false
+			}
+			bv, ok := b[i].(*StringValue)
+			if !ok {
+				return false
+			}
+			if *av != *bv {
+				return false
+			}
 		}
-		return *av == *bv
-	})
+		return true
+	}
 
 	type args struct {
 		a Values
@@ -35,23 +47,24 @@ func TestMergeNamedValues(t *testing.T) {
 		args args
 		want Values
 	}{
-		{"nil / nil", args{a: nil, b: nil}, nil},
-		{"empty / empty", args{a: Values{}, b: Values{}}, Values{}},
-		{"nil / 1", args{a: nil, b: makeNamedValues("1")}, makeNamedValues("1")},
-		{"1 / nil", args{a: makeNamedValues("1"), b: nil}, makeNamedValues("1")},
-		{"1 / 2", args{a: makeNamedValues("1"), b: makeNamedValues("2")}, makeNamedValues("1", "2")},
-		{"1 2 / 1", args{a: makeNamedValues("1", "2"), b: makeNamedValues("2")}, makeNamedValues("1", "2")},
-		{"1 / 1 2", args{a: makeNamedValues("1"), b: makeNamedValues("1", "2")}, makeNamedValues("1", "2")},
-		{"1 2 3 / 1", args{a: makeNamedValues("1", "2", "3"), b: makeNamedValues("1")}, makeNamedValues("1", "2", "3")},
-		{"1 2 3 / 2", args{a: makeNamedValues("1", "2", "3"), b: makeNamedValues("2")}, makeNamedValues("1", "2", "3")},
-		{"1 2 3 / 3", args{a: makeNamedValues("1", "2", "3"), b: makeNamedValues("3")}, makeNamedValues("1", "2", "3")},
-		{"1 / 1 2 3", args{a: makeNamedValues("1", "2", "3"), b: makeNamedValues("1")}, makeNamedValues("1", "2", "3")},
-		{"2 / 1 2 3", args{a: makeNamedValues("1", "2", "3"), b: makeNamedValues("2")}, makeNamedValues("1", "2", "3")},
-		{"3 / 1 2 3", args{a: makeNamedValues("1", "2", "3"), b: makeNamedValues("3")}, makeNamedValues("1", "2", "3")},
+		{name: "nil / nil", args: args{a: nil, b: nil}, want: nil},
+		{name: "empty / empty", args: args{a: Values{}, b: Values{}}, want: Values{}},
+		{name: "nil / 1", args: args{a: nil, b: stringVals("b", "1")}, want: stringVals("b", "1")},
+		{name: "1 / nil", args: args{a: stringVals("a", "1"), b: nil}, want: stringVals("a", "1")},
+		{name: "1 / 2", args: args{a: stringVals("a", "1"), b: stringVals("b", "2")}, want: mergedStringVals("1", "a1", "2", "b2")},
+		{name: "1 2 / 1", args: args{a: stringVals("a", "1", "2"), b: stringVals("b", "2")}, want: mergedStringVals("1", "a1", "2", "b2")},
+		{name: "1 / 1 2", args: args{a: stringVals("a", "1"), b: stringVals("b", "1", "2")}, want: mergedStringVals("1", "b1", "2", "b2")},
+		{name: "1 2 3 / 1", args: args{a: stringVals("a", "1", "2", "3"), b: stringVals("b", "1")}, want: mergedStringVals("2", "a2", "3", "a3", "1", "b1")},
+		{name: "1 2 3 / 2", args: args{a: stringVals("a", "1", "2", "3"), b: stringVals("b", "2")}, want: mergedStringVals("1", "a1", "3", "a3", "2", "b2")},
+		{name: "1 2 3 / 3", args: args{a: stringVals("a", "1", "2", "3"), b: stringVals("b", "3")}, want: mergedStringVals("1", "a1", "2", "a2", "3", "b3")},
+		{name: "1 / 1 2 3", args: args{a: stringVals("a", "1"), b: stringVals("b", "1", "2", "3")}, want: mergedStringVals("1", "b1", "2", "b2", "3", "b3")},
+		{name: "2 / 1 2 3", args: args{a: stringVals("a", "2"), b: stringVals("b", "1", "2", "3")}, want: mergedStringVals("1", "b1", "2", "b2", "3", "b3")},
+		{name: "3 / 1 2 3", args: args{a: stringVals("a", "3"), b: stringVals("b", "1", "2", "3")}, want: mergedStringVals("1", "b1", "2", "b2", "3", "b3")},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := MergeValues(tt.args.a, tt.args.b); !cmp.Equal(got, tt.want, comparer) {
+			got := MergeValues(tt.args.a, tt.args.b)
+			if !stringValsEqual(got, tt.want) {
 				t.Errorf("MergeNamedValues() = %v, want %v", got, tt.want)
 			}
 		})

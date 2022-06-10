@@ -84,7 +84,8 @@ func (m *Message) SubLoggerContext(ctx context.Context) (subLogger *Logger, subC
 	if !ok {
 		panic("golog.Message was not created by golog.Logger.With()")
 	}
-	subLogger = m.logger.WithValues(MergeValues(ValuesFromContext(ctx), recorder.Values())...)
+	values := MergeValues(ValuesFromContext(ctx), recorder.Values())
+	subLogger = m.logger.WithValues(values...)
 	subContext = recorder.Values().AddToContext(ctx)
 	return subLogger, subContext
 }

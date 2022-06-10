@@ -2,12 +2,14 @@ package golog
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 )
 
 // Value extends the Loggable interface and allows
 // values to log themselfes and be referenced by a name.
 type Value interface {
+	fmt.Stringer
 	Loggable
 
 	// Name returns the name of the value
@@ -159,6 +161,7 @@ func MergeValues(a, b Values) Values {
 	}
 
 	c := make(Values, len(a), len(a)+len(b))
+
 	// Only copy values from a to c that don't exist with that name in b
 	i := 0
 	for _, aa := range a {
@@ -176,6 +179,7 @@ func MergeValues(a, b Values) Values {
 			i++
 		}
 	}
+
 	// Then append uniquely name values from b
 	return append(c, b...)
 }
