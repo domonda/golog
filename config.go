@@ -8,6 +8,14 @@ var FilterHTTPHeaders = map[string]struct{}{
 	"Cookie":        {},
 }
 
+// GlobalPanicLevel causes any log message with that
+// level or higher to panic the message without formatted values
+// after the complete log message has been written including values.
+// The default value LevelInvalid disables this behaviour.
+// Useful to catch any otherwise ignored warning or error
+// messages in automated tests. Don't use in production.
+var GlobalPanicLevel Level = LevelInvalid
+
 type Config interface {
 	Formatter() Formatter
 	Levels() *Levels

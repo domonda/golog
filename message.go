@@ -19,15 +19,17 @@ import (
 type Message struct {
 	logger    *Logger
 	formatter Formatter
+	level     Level
 	text      string // Used for LogAndPanic
 }
 
 var messagePool sync.Pool
 
-func newMessageFromPool(logger *Logger, formatter Formatter, text string) *Message {
+func newMessageFromPool(logger *Logger, formatter Formatter, level Level, text string) *Message {
 	if m, ok := messagePool.Get().(*Message); ok {
 		m.logger = logger
 		m.formatter = formatter
+		m.level = level
 		m.text = text
 		return m
 	}
@@ -35,6 +37,7 @@ func newMessageFromPool(logger *Logger, formatter Formatter, text string) *Messa
 	return &Message{
 		logger:    logger,
 		formatter: formatter,
+		level:     level,
 		text:      text,
 	}
 }
@@ -974,7 +977,13 @@ func (m *Message) Log() {
 	if m == nil {
 		return
 	}
+
 	m.formatter.FlushAndFree()
+
+	if GlobalPanicLevel.Valid() && m.level >= GlobalPanicLevel {
+		panic(m.text)
+	}
+
 	m.formatter = nil
 	m.logger = nil
 	m.text = ""
