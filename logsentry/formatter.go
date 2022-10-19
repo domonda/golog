@@ -127,7 +127,6 @@ func filterFrames(frames []sentry.Frame) []sentry.Frame {
 	return filtered
 }
 
-// String is here only for debugging
 func (f *Formatter) String() string {
 	return f.message.String()
 }

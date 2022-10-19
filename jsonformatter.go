@@ -73,7 +73,6 @@ func (f *JSONFormatter) FlushUnderlying() {
 	flushUnderlying(f.writer)
 }
 
-// String is here only for debugging
 func (f *JSONFormatter) String() string {
 	return string(f.buf)
 }

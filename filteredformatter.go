@@ -35,7 +35,6 @@ func (f *FilteredFormatter) FlushUnderlying() {
 	f.wrapped.FlushUnderlying()
 }
 
-// String is here only for debugging
 func (f *FilteredFormatter) String() string {
 	return f.wrapped.String()
 }

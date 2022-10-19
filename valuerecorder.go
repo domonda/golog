@@ -40,7 +40,6 @@ func (r *valueRecorder) FlushAndFree() {
 
 func (r *valueRecorder) FlushUnderlying() {}
 
-// String is here only for debugging
 func (r *valueRecorder) String() string {
 	return fmt.Sprintf("golog.valueRecorder with %d recored values", r.recordedValues)
 }

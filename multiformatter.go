@@ -46,7 +46,6 @@ func (mf MultiFormatter) FlushUnderlying() {
 	}
 }
 
-// String is here only for debugging
 func (mf MultiFormatter) String() string {
 	var b strings.Builder
 	for i, f := range mf {
