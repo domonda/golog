@@ -11,9 +11,9 @@ func (f nopFormatter) Clone(level Level) Formatter {
 	return f
 }
 
-func (nopFormatter) WriteText(t time.Time, levels *Levels, level Level, prefix, text string) {}
+func (nopFormatter) BeginMessage(t time.Time, levels *Levels, level Level, prefix, text string) {}
 
-func (nopFormatter) FlushAndFree() {}
+func (nopFormatter) FinishMessage() {}
 
 func (nopFormatter) FlushUnderlying() {}
 

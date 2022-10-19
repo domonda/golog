@@ -26,15 +26,15 @@ func (mf MultiFormatter) Clone(level Level) Formatter {
 	return clone
 }
 
-func (mf MultiFormatter) WriteText(t time.Time, levels *Levels, level Level, prefix, text string) {
+func (mf MultiFormatter) BeginMessage(t time.Time, levels *Levels, level Level, prefix, text string) {
 	for _, f := range mf {
-		f.WriteText(t, levels, level, prefix, text)
+		f.BeginMessage(t, levels, level, prefix, text)
 	}
 }
 
-func (mf MultiFormatter) FlushAndFree() {
+func (mf MultiFormatter) FinishMessage() {
 	for i, f := range mf {
-		f.FlushAndFree()
+		f.FinishMessage()
 		mf[i] = nil
 	}
 	multiFormatterPool.Put(mf)
@@ -42,7 +42,7 @@ func (mf MultiFormatter) FlushAndFree() {
 
 func (mf MultiFormatter) FlushUnderlying() {
 	for _, f := range mf {
-		f.FlushAndFree()
+		f.FlushUnderlying()
 	}
 }
 

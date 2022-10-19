@@ -6,7 +6,7 @@ import (
 
 // Formatter gets implemented to format log messages
 // in a certain message format.
-// FlushAndFree must be called before a formatter
+// FinishMessage must be called before a formatter
 // can be re-used for a new message.
 type Formatter interface {
 	// Clone the formatter for a new message with the passed log level
@@ -15,8 +15,8 @@ type Formatter interface {
 	// String is here only for debugging
 	String() string
 
-	// WriteText of a new log message
-	WriteText(t time.Time, levels *Levels, level Level, prefix, text string)
+	// BeginMessage with a level and text
+	BeginMessage(t time.Time, levels *Levels, level Level, prefix, text string)
 
 	WriteKey(key string)
 	WriteSliceKey(key string)
@@ -33,10 +33,10 @@ type Formatter interface {
 	WriteJSON(val []byte)
 	// WritePtr(val uintptr)
 
-	// FlushAndFree flushes the current log message
+	// FinishMessage flushes the current log message
 	// to the underlying writer and frees any resources
 	// to make the formatter ready for a new message.
-	FlushAndFree()
+	FinishMessage()
 
 	// FlushUnderlying flushes underlying log writing
 	// streams to make sure all messages have been

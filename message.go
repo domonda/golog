@@ -978,7 +978,7 @@ func (m *Message) Log() {
 		return
 	}
 
-	m.formatter.FlushAndFree()
+	m.formatter.FinishMessage()
 
 	if GlobalPanicLevel.Valid() && m.level >= GlobalPanicLevel {
 		panic(m.text)

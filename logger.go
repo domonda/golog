@@ -53,7 +53,8 @@ func (l *Logger) WithCtx(ctx context.Context) *Logger {
 // the prefix for a sub-logger.
 //
 // Example:
-//   log := log.With().UUID("requestID", requestID).SubLogger()
+//
+//	log := log.With().UUID("requestID", requestID).SubLogger()
 func (l *Logger) With() *Message {
 	if l == nil {
 		return nil
@@ -153,7 +154,7 @@ func (l *Logger) NewMessageAt(t time.Time, level Level, text string) *Message {
 	}
 	m := newMessageFromPool(l, l.config.Formatter().Clone(level), level, text)
 	// First write message text
-	m.formatter.WriteText(t, l.config.Levels(), level, l.prefix, text)
+	m.formatter.BeginMessage(t, l.config.Levels(), level, l.prefix, text)
 	// Then write values from the logger
 	if values := m.logger.values; len(values) > 0 {
 		// Temporarely set logger values to nil

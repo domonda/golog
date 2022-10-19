@@ -54,7 +54,7 @@ func (f *Formatter) Clone(level golog.Level) golog.Formatter {
 	return NewFormatter(f.hub, f.filter, f.valsAsMsg, f.extra) // Clone hub too?
 }
 
-func (f *Formatter) WriteText(t time.Time, levels *golog.Levels, level golog.Level, prefix, text string) {
+func (f *Formatter) BeginMessage(t time.Time, levels *golog.Levels, level golog.Level, prefix, text string) {
 	f.timestamp = t
 
 	switch level {
@@ -78,7 +78,7 @@ func (f *Formatter) WriteText(t time.Time, levels *golog.Levels, level golog.Lev
 	f.message.WriteString(text)
 }
 
-func (f *Formatter) FlushAndFree() {
+func (f *Formatter) FinishMessage() {
 	// Flush f.message
 	if f.message.Len() > 0 {
 		event := sentry.NewEvent()

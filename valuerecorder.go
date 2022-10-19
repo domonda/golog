@@ -30,11 +30,11 @@ func (r *valueRecorder) Clone(level Level) Formatter {
 	panic("Clone not supported by golog.valueRecorder")
 }
 
-func (r *valueRecorder) WriteText(t time.Time, levels *Levels, level Level, prefix, text string) {
-	panic("WriteText not supported by golog.valueRecorder")
+func (r *valueRecorder) BeginMessage(t time.Time, levels *Levels, level Level, prefix, text string) {
+	panic("BeginMessage not supported by golog.valueRecorder")
 }
 
-func (r *valueRecorder) FlushAndFree() {
+func (r *valueRecorder) FinishMessage() {
 	panic("calling golog.Message.Log() after golog.Logger.With() is not valid, call golog.Message.SubLogger() instead")
 }
 
