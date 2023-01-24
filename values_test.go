@@ -60,6 +60,11 @@ func TestMergeNamedValues(t *testing.T) {
 		{name: "1 / 1 2 3", args: args{a: stringVals("a", "1"), b: stringVals("b", "1", "2", "3")}, want: mergedStringVals("1", "b1", "2", "b2", "3", "b3")},
 		{name: "2 / 1 2 3", args: args{a: stringVals("a", "2"), b: stringVals("b", "1", "2", "3")}, want: mergedStringVals("1", "b1", "2", "b2", "3", "b3")},
 		{name: "3 / 1 2 3", args: args{a: stringVals("a", "3"), b: stringVals("b", "1", "2", "3")}, want: mergedStringVals("1", "b1", "2", "b2", "3", "b3")},
+
+		{name: "nil / Values{nil}", args: args{a: nil, b: Values{nil}}, want: nil},
+		{name: "Values{nil} / nil", args: args{a: Values{nil}, b: nil}, want: nil},
+		{name: "Values{nil} / Values{nil, nil}", args: args{a: Values{nil}, b: Values{nil, nil}}, want: nil},
+		{name: "1 / 2 nil", args: args{a: stringVals("a", "1"), b: append(stringVals("b", "2"), nil)}, want: mergedStringVals("1", "a1", "2", "b2")},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

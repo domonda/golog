@@ -150,6 +150,18 @@ func (v Values) AddToRequest(request *http.Request) *http.Request {
 // The slices a and b will never be modified,
 // in case of a merge the result is always a new slice.
 func MergeValues(a, b Values) Values {
+	// Remove nil interfaces. They should not happen but robustness of logging is important!
+	for i := len(a) - 1; i >= 0; i-- {
+		if a[i] == nil {
+			a = append(a[:i], a[i+1:]...)
+		}
+	}
+	for i := len(b) - 1; i >= 0; i-- {
+		if b[i] == nil {
+			b = append(b[:i], b[i+1:]...)
+		}
+	}
+
 	if len(a) == 0 {
 		return b
 	}
