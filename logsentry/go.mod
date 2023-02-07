@@ -1,10 +1,12 @@
 module github.com/domonda/golog/logsentry
 
-go 1.19
+go 1.20
+
+replace github.com/domonda/golog => ../.
 
 require (
-	github.com/domonda/golog v0.0.0-20221213155158-b50ac70226b4
-	github.com/getsentry/sentry-go v0.17.0
+	github.com/domonda/golog v0.0.0-20230124102541-81056aaba2cb
+	github.com/getsentry/sentry-go v0.18.0
 )
 
 require (
@@ -13,10 +15,8 @@ require (
 	github.com/lucasb-eyer/go-colorful v1.2.0 // indirect
 	github.com/mattn/go-isatty v0.0.17 // indirect
 	github.com/mattn/go-runewidth v0.0.14 // indirect
-	github.com/muesli/termenv v0.13.0 // indirect
+	github.com/muesli/termenv v0.14.0 // indirect
 	github.com/rivo/uniseg v0.4.3 // indirect
-	golang.org/x/sys v0.4.0 // indirect
+	golang.org/x/sys v0.5.0 // indirect
 	golang.org/x/text v0.6.0 // indirect
 )
-
-replace github.com/domonda/golog => ../.
