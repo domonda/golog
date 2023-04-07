@@ -41,8 +41,8 @@ func HTTPMiddlewareFunc(level golog.Level, message string, restrictHeaders ...st
 	return golog.HTTPMiddlewareFunc(Logger, level, message, restrictHeaders...)
 }
 
-func WithValues(values ...golog.Value) *golog.Logger {
-	return Logger.WithValues(values...)
+func WithValues(values ...golog.Attrib) *golog.Logger {
+	return Logger.WithAttribs(values...)
 }
 
 func WithLevelFilter(filter golog.LevelFilter) *golog.Logger {
@@ -63,7 +63,8 @@ func WithCtx(ctx context.Context) *golog.Logger {
 // the prefix for a sub-logger.
 //
 // Example:
-//   log := log.With().UUID("requestID", requestID).SubLogger()
+//
+//	log := log.With().UUID("requestID", requestID).SubLogger()
 func With() *golog.Message {
 	return Logger.With()
 }

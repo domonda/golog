@@ -39,7 +39,7 @@ func HTTPMiddlewareHandler(next http.Handler, logger *Logger, level Level, messa
 			requestID := GetOrCreateRequestID(request)
 			response.Header().Set("X-Request-ID", FormatUUID(requestID))
 
-			requestWithID := AddValueToRequest(request, NewUUIDValue("requestID", requestID))
+			requestWithID := AddAttribToRequest(request, UUID{Key: "requestID", Val: requestID})
 
 			logger.NewMessage(level, message).
 				Request(requestWithID, restrictHeaders...).

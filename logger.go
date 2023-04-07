@@ -7,46 +7,46 @@ import (
 )
 
 type Logger struct {
-	config Config
-	prefix string
-	values Values
+	config  Config
+	prefix  string
+	attribs Attribs
 }
 
-// NewLogger returns a Logger with the given config and per message values.
+// NewLogger returns a Logger with the given config and per message attributes.
 // If config is nil, then a nil Logger will be returned.
 // A nil Logger is still valid to use but will not log anything.
-// The passed perMessageValues will be repeated for every new log message.
-func NewLogger(config Config, perMessageValues ...Value) *Logger {
+// The passed perMessageAttribs will be repeated for every new log message.
+func NewLogger(config Config, perMessageAttribs ...Attrib) *Logger {
 	if config == nil {
 		return nil
 	}
 	return &Logger{
-		config: config,
-		values: perMessageValues,
+		config:  config,
+		attribs: perMessageAttribs,
 	}
 }
 
-// NewLogger returns a Logger with the given config, prefix, and per message values.
+// NewLogger returns a Logger with the given config, prefix, and per message attributes.
 // If config is nil, then a nil Logger will be returned.
 // A nil Logger is still valid to use but will not log anything.
 // Every log message will begin with the passed prefix.
-// The passed perMessageValues will be repeated for every new log message.
-func NewLoggerWithPrefix(config Config, prefix string, perMessageValues ...Value) *Logger {
+// The passed perMessageAttribs will be repeated for every new log message.
+func NewLoggerWithPrefix(config Config, prefix string, perMessageAttribs ...Attrib) *Logger {
 	if config == nil {
 		return nil
 	}
 	return &Logger{
-		config: config,
-		prefix: prefix,
-		values: perMessageValues,
+		config:  config,
+		prefix:  prefix,
+		attribs: perMessageAttribs,
 	}
 }
 
-// WithCtx returns a new sub Logger with the Values from
+// WithCtx returns a new sub Logger with the Attribs from
 // the context add to if as per message values.
-// Returns l unchanged, ther there were no Values added to the context.
+// Returns the logger unchanged if there were no Attribs added to the context.
 func (l *Logger) WithCtx(ctx context.Context) *Logger {
-	return l.WithValues(ValuesFromContext(ctx)...)
+	return l.WithAttribs(AttribsFromContext(ctx)...)
 }
 
 // With returns a new Message that can be used to record
@@ -59,7 +59,7 @@ func (l *Logger) With() *Message {
 	if l == nil {
 		return nil
 	}
-	return newMessageFromPool(l, NewValueRecorder(), LevelInvalid, "")
+	return newMessageFromPool(l, NewAttrRecorder(), LevelInvalid, "")
 }
 
 // WithLevelFilter returns a clone of the logger using
@@ -69,9 +69,9 @@ func (l *Logger) WithLevelFilter(filter LevelFilter) *Logger {
 		return nil
 	}
 	return &Logger{
-		config: NewDerivedConfig(&l.config, filter),
-		prefix: l.prefix,
-		values: l.values,
+		config:  NewDerivedConfig(&l.config, filter),
+		prefix:  l.prefix,
+		attribs: l.attribs,
 	}
 }
 
@@ -84,27 +84,27 @@ func (l *Logger) Config() Config {
 	return l.config
 }
 
-// Values returns the values that will be repeated
+// Attribs returns the attributes that will be repeated
 // for every message of the logger.
-// See Logger.WithValues
-func (l *Logger) Values() Values {
+// See Logger.WithAttribs
+func (l *Logger) Attribs() Attribs {
 	if l == nil {
 		return nil
 	}
-	return l.values
+	return l.attribs
 }
 
-// WithValues returns a new Logger with the passed
-// perMessageValues appended to the existing perMessageValues.
-// See Logger.Values
-func (l *Logger) WithValues(perMessageValues ...Value) *Logger {
-	if l == nil || len(perMessageValues) == 0 {
+// WithAttribs returns a new Logger with the passed
+// perMessageAttribs merged with the existing perMessageAttribs.
+// See Logger.Attribs and MergeAttribs
+func (l *Logger) WithAttribs(perMessageAttribs ...Attrib) *Logger {
+	if l == nil || len(perMessageAttribs) == 0 {
 		return l
 	}
 	return &Logger{
-		config: l.config,
-		prefix: l.prefix,
-		values: MergeValues(l.values, perMessageValues),
+		config:  l.config,
+		prefix:  l.prefix,
+		attribs: MergeAttribs(l.attribs, perMessageAttribs),
 	}
 }
 
@@ -126,9 +126,9 @@ func (l *Logger) WithPrefix(prefix string) *Logger {
 		return nil
 	}
 	return &Logger{
-		config: l.config,
-		values: l.values,
-		prefix: prefix,
+		config:  l.config,
+		attribs: l.attribs,
+		prefix:  prefix,
 	}
 }
 
@@ -155,14 +155,14 @@ func (l *Logger) NewMessageAt(t time.Time, level Level, text string) *Message {
 	m := newMessageFromPool(l, l.config.Formatter().Clone(level), level, text)
 	// First write message text
 	m.formatter.BeginMessage(t, l.config.Levels(), level, l.prefix, text)
-	// Then write values from the logger
-	if values := m.logger.values; len(values) > 0 {
-		// Temporarely set logger values to nil
-		// because logging the values will be prevented
-		// if the logger already has values with the same names
-		m.logger.values = nil
-		values.Log(m)
-		m.logger.values = values // Restore logger values
+	// Then write attribs from the logger
+	if attribs := m.logger.attribs; len(attribs) > 0 {
+		// Temporarely set logger attribs to nil
+		// because logging the attribs will be prevented
+		// if the logger already has attribs with the same keys
+		m.logger.attribs = nil
+		attribs.Log(m)
+		m.logger.attribs = attribs // Restore logger attribs
 	}
 	return m
 }
