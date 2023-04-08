@@ -2,6 +2,7 @@ package goslog
 
 import (
 	"context"
+	"time"
 
 	"golang.org/x/exp/slog"
 
@@ -54,8 +55,12 @@ func (h *handler) Enabled(_ context.Context, level slog.Level) bool {
 	return h.logger.IsActive(h.convertLevel(level))
 }
 
-func (h *handler) Handle(_ context.Context, r slog.Record) error {
-	msg := h.logger.NewMessageAt(r.Time, h.convertLevel(r.Level), r.Message)
+func (h *handler) Handle(_ context.Context, record slog.Record) error {
+	t := record.Time
+	if t.IsZero() {
+		t = time.Now()
+	}
+	msg := h.logger.NewMessageAt(t, h.convertLevel(record.Level), record.Message)
 	for _, a := range h.attrs {
 		msg = writeAttr(msg, h.groupPrefix, a.Key, a.Value)
 	}
@@ -86,10 +91,18 @@ func (h *handler) WithGroup(name string) slog.Handler {
 }
 
 func writeAttr(m *golog.Message, group, key string, value slog.Value) *golog.Message {
+	kind := value.Kind()
+	if kind == slog.KindGroup {
+		group = prefix(group, key)
+		for _, attr := range value.Group() {
+			m = writeAttr(m, group, attr.Key, attr.Value)
+		}
+		return m
+	}
 	if key == "" {
 		return m
 	}
-	switch value.Kind() {
+	switch kind {
 	case slog.KindAny:
 		return m.Any(prefix(group, key), value.Any())
 	case slog.KindBool:
@@ -106,15 +119,10 @@ func writeAttr(m *golog.Message, group, key string, value slog.Value) *golog.Mes
 		return m.Time(prefix(group, key), value.Time())
 	case slog.KindUint64:
 		return m.Uint64(prefix(group, key), value.Uint64())
-	case slog.KindGroup:
-		for _, attr := range value.Group() {
-			m = writeAttr(m, prefix(group, key), attr.Key, attr.Value)
-		}
-		return m
 	case slog.KindLogValuer:
 		return writeAttr(m, group, key, value.LogValuer().LogValue())
 	default:
-		// Should never happen, but don't panic and still log invalid value
+		// Should never happen, but don't panic and still log any value
 		return m.Any(prefix(group, key), value)
 	}
 }
