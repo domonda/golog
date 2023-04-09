@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func newTestConfig(textWriter, jsonWriter io.Writer) Config {
+func newTestConfig(textOut, jsonOut io.Writer) Config {
 	format := &Format{
 		TimestampFormat: "2006-01-02 15:04:05",
 		TimestampKey:    "time",
@@ -25,10 +25,10 @@ func newTestConfig(textWriter, jsonWriter io.Writer) Config {
 		MessageKey:      "message",
 	}
 
-	textFormatter := NewTextFormatter(textWriter, format, NoColorizer)
-	jsonFormatter := NewJSONFormatter(jsonWriter, format)
+	textWriter := NewTextWriter(textOut, format, NoColorizer)
+	jsonWriter := NewJSONWriter(jsonOut, format)
 
-	return NewConfig(&DefaultLevels, NoFilter, textFormatter, jsonFormatter)
+	return NewConfig(&DefaultLevels, NoFilter, textWriter, jsonWriter)
 }
 
 func newTestLogger() (log *Logger, textOut, jsonOut *bytes.Buffer) {

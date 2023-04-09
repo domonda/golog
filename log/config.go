@@ -21,7 +21,7 @@ var (
 	Config = golog.NewConfig(
 		Levels,
 		Levels.LevelOfNameOrDefault(os.Getenv("LOG_LEVEL"), Levels.Debug).FilterOutBelow(),
-		golog.NewTextFormatter(os.Stdout, &Format, &Colorizer),
+		golog.NewTextWriter(os.Stdout, &Format, &Colorizer),
 	)
 
 	// Logger uses a golog.DerivedConfig referencing the

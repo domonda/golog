@@ -20,10 +20,10 @@ var (
 	FlushTimeout time.Duration = 3 * time.Second
 )
 
-// Compile time check Formatter implements interface golog.Formatter
-var _ golog.Formatter = new(Formatter)
+// Writer implements interface golog.Writer
+var _ golog.Writer = new(Writer)
 
-type Formatter struct {
+type Writer struct {
 	hub       *sentry.Hub
 	filter    golog.LevelFilter
 	timestamp time.Time
@@ -36,10 +36,10 @@ type Formatter struct {
 	slice     []any
 }
 
-// NewFormatter returns a new Formatter for a sentry.Hub.
+// NewWriter returns a new Writer for a sentry.Hub.
 // Any values passed as extra will be added to every log messsage.
-func NewFormatter(hub *sentry.Hub, filter golog.LevelFilter, valsAsMsg bool, extra map[string]any) *Formatter {
-	return &Formatter{
+func NewWriter(hub *sentry.Hub, filter golog.LevelFilter, valsAsMsg bool, extra map[string]any) *Writer {
+	return &Writer{
 		filter:    filter,
 		hub:       hub,
 		valsAsMsg: valsAsMsg,
@@ -47,14 +47,14 @@ func NewFormatter(hub *sentry.Hub, filter golog.LevelFilter, valsAsMsg bool, ext
 	}
 }
 
-func (f *Formatter) Clone(level golog.Level) golog.Formatter {
+func (f *Writer) Clone(level golog.Level) golog.Writer {
 	if !f.filter.IsActive(level) {
-		return golog.NopFormatter
+		return golog.NopWriter
 	}
-	return NewFormatter(f.hub, f.filter, f.valsAsMsg, f.extra) // Clone hub too?
+	return NewWriter(f.hub, f.filter, f.valsAsMsg, f.extra) // Clone hub too?
 }
 
-func (f *Formatter) BeginMessage(t time.Time, levels *golog.Levels, level golog.Level, prefix, text string) {
+func (f *Writer) BeginMessage(t time.Time, levels *golog.Levels, level golog.Level, prefix, text string) {
 	f.timestamp = t
 
 	switch level {
@@ -78,7 +78,7 @@ func (f *Formatter) BeginMessage(t time.Time, levels *golog.Levels, level golog.
 	f.message.WriteString(text)
 }
 
-func (f *Formatter) FinishMessage() {
+func (f *Writer) FinishMessage() {
 	// Flush f.message
 	if f.message.Len() > 0 {
 		event := sentry.NewEvent()
@@ -113,7 +113,7 @@ func (f *Formatter) FinishMessage() {
 	f.hub = nil
 }
 
-func (f *Formatter) FlushUnderlying() {
+func (f *Writer) FlushUnderlying() {
 	f.hub.Flush(FlushTimeout)
 }
 
@@ -127,11 +127,11 @@ func filterFrames(frames []sentry.Frame) []sentry.Frame {
 	return filtered
 }
 
-func (f *Formatter) String() string {
+func (f *Writer) String() string {
 	return f.message.String()
 }
 
-func (f *Formatter) WriteKey(key string) {
+func (f *Writer) WriteKey(key string) {
 	f.key = key
 
 	if f.valsAsMsg {
@@ -139,7 +139,7 @@ func (f *Formatter) WriteKey(key string) {
 	}
 }
 
-func (f *Formatter) WriteSliceKey(key string) {
+func (f *Writer) WriteSliceKey(key string) {
 	f.key = key
 	f.slice = make([]any, 0)
 
@@ -148,7 +148,7 @@ func (f *Formatter) WriteSliceKey(key string) {
 	}
 }
 
-func (f *Formatter) WriteSliceEnd() {
+func (f *Writer) WriteSliceEnd() {
 	f.writeFinalVal(f.slice)
 	f.slice = nil
 
@@ -157,43 +157,43 @@ func (f *Formatter) WriteSliceEnd() {
 	}
 }
 
-func (f *Formatter) WriteNil() {
+func (f *Writer) WriteNil() {
 	f.writeVal(nil)
 }
 
-func (f *Formatter) WriteBool(val bool) {
+func (f *Writer) WriteBool(val bool) {
 	f.writeVal(val)
 }
 
-func (f *Formatter) WriteInt(val int64) {
+func (f *Writer) WriteInt(val int64) {
 	f.writeVal(val)
 }
 
-func (f *Formatter) WriteUint(val uint64) {
+func (f *Writer) WriteUint(val uint64) {
 	f.writeVal(val)
 }
 
-func (f *Formatter) WriteFloat(val float64) {
+func (f *Writer) WriteFloat(val float64) {
 	f.writeVal(val)
 }
 
-func (f *Formatter) WriteString(val string) {
+func (f *Writer) WriteString(val string) {
 	f.writeVal(val)
 }
 
-func (f *Formatter) WriteError(val error) {
+func (f *Writer) WriteError(val error) {
 	f.writeVal(val.Error())
 }
 
-func (f *Formatter) WriteUUID(val [16]byte) {
+func (f *Writer) WriteUUID(val [16]byte) {
 	f.writeVal(golog.FormatUUID(val))
 }
 
-func (f *Formatter) WriteJSON(val []byte) {
+func (f *Writer) WriteJSON(val []byte) {
 	f.writeVal(json.RawMessage(val))
 }
 
-func (f *Formatter) writeVal(val any) {
+func (f *Writer) writeVal(val any) {
 	if f.slice != nil {
 		f.slice = append(f.slice, val)
 	} else {
@@ -217,7 +217,7 @@ func (f *Formatter) writeVal(val any) {
 
 var valueMapPool sync.Pool
 
-func (f *Formatter) writeFinalVal(val any) {
+func (f *Writer) writeFinalVal(val any) {
 	if f.values != nil {
 		f.values[f.key] = val
 		return

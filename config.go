@@ -17,7 +17,7 @@ var FilterHTTPHeaders = map[string]struct{}{
 var GlobalPanicLevel Level = LevelInvalid
 
 type Config interface {
-	Formatter() Formatter
+	Writer() Writer
 	Levels() *Levels
 	IsActive(level Level) bool
 	Fatal() Level
@@ -28,35 +28,35 @@ type Config interface {
 	Trace() Level
 }
 
-func NewConfig(levels *Levels, filter LevelFilter, formatters ...Formatter) Config {
-	switch len(formatters) {
+func NewConfig(levels *Levels, filter LevelFilter, writers ...Writer) Config {
+	switch len(writers) {
 	case 0:
-		panic("golog.Config needs a Formatter")
+		panic("golog.Config needs a Writer")
 
 	case 1:
 		return &config{
-			levels:    levels,
-			filter:    filter,
-			formatter: formatters[0],
+			levels: levels,
+			filter: filter,
+			writer: writers[0],
 		}
 
 	default:
 		return &config{
-			levels:    levels,
-			filter:    filter,
-			formatter: MultiFormatter(formatters),
+			levels: levels,
+			filter: filter,
+			writer: MultiWriter(writers),
 		}
 	}
 }
 
 type config struct {
-	levels    *Levels
-	filter    LevelFilter
-	formatter Formatter
+	levels *Levels
+	filter LevelFilter
+	writer Writer
 }
 
-func (c *config) Formatter() Formatter {
-	return c.formatter
+func (c *config) Writer() Writer {
+	return c.writer
 }
 
 func (c *config) Levels() *Levels {

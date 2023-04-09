@@ -4,13 +4,13 @@ import (
 	"time"
 )
 
-// Formatter gets implemented to format log messages
+// Writer implementations write log messages
 // in a certain message format.
 // FinishMessage must be called before a formatter
 // can be re-used for a new message.
-type Formatter interface {
+type Writer interface {
 	// Clone the formatter for a new message with the passed log level
-	Clone(level Level) Formatter
+	Clone(level Level) Writer
 
 	// String is here only for debugging
 	String() string

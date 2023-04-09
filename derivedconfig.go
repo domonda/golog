@@ -41,8 +41,8 @@ func (c *DerivedConfig) SetFilter(filters ...LevelFilter) {
 	c.mutex.Unlock()
 }
 
-func (c *DerivedConfig) Formatter() Formatter {
-	return (*c.parent).Formatter()
+func (c *DerivedConfig) Writer() Writer {
+	return (*c.parent).Writer()
 }
 
 func (c *DerivedConfig) Levels() *Levels {

@@ -28,8 +28,8 @@ func TestRotatingWriter(t *testing.T) {
 	log.Config = golog.NewConfig(
 		log.Levels,
 		golog.NoFilter,
-		golog.NewJSONFormatter(jsonWriter, &log.Format),
-		golog.NewTextFormatter(textWriter, &log.Format, golog.NoColorizer),
+		golog.NewJSONWriter(jsonWriter, &log.Format),
+		golog.NewTextWriter(textWriter, &log.Format, golog.NoColorizer),
 	)
 
 	numThreads := 8

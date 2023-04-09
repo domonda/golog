@@ -59,7 +59,7 @@ func (l *Logger) With() *Message {
 	if l == nil {
 		return nil
 	}
-	return newMessageFromPool(l, NewAttrRecorder(), LevelInvalid, "")
+	return newMessageFromPool(l, NewAttribsRecorder(), LevelInvalid, "")
 }
 
 // WithLevelFilter returns a clone of the logger using
@@ -145,14 +145,14 @@ func (l *Logger) Flush() {
 	if l == nil {
 		return
 	}
-	l.config.Formatter().FlushUnderlying()
+	l.config.Writer().FlushUnderlying()
 }
 
 func (l *Logger) NewMessageAt(t time.Time, level Level, text string) *Message {
 	if !l.IsActive(level) {
 		return nil
 	}
-	m := newMessageFromPool(l, l.config.Formatter().Clone(level), level, text)
+	m := newMessageFromPool(l, l.config.Writer().Clone(level), level, text)
 	// First write message text
 	m.formatter.BeginMessage(t, l.config.Levels(), level, l.prefix, text)
 	// Then write attribs from the logger

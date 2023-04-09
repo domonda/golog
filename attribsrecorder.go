@@ -6,11 +6,11 @@ import (
 )
 
 var (
-	_ Formatter    = new(attribsRecorder)
+	_ Writer       = new(attribsRecorder)
 	_ fmt.Stringer = new(attribsRecorder)
 )
 
-// attribsRecorder implements the Formatter interface
+// attribsRecorder implements the Writer interface
 // and records all logged attributes that can be retrieved
 // with the Attribs() method.
 type attribsRecorder struct {
@@ -21,17 +21,17 @@ type attribsRecorder struct {
 	recorded Attribs
 }
 
-// NewAttrRecorder returns a Formatter that records all logged attributes
+// NewAttribsRecorder returns a Writer that records all logged attributes
 // instead of formatting and printing them somewhere.
 // The recorded values can be retrieved with the Attrs() method.
-func NewAttrRecorder() *attribsRecorder { return new(attribsRecorder) }
+func NewAttribsRecorder() *attribsRecorder { return new(attribsRecorder) }
 
 // Attribs returns the recorded values
 func (r *attribsRecorder) Attribs() Attribs {
 	return r.recorded
 }
 
-func (r *attribsRecorder) Clone(level Level) Formatter {
+func (r *attribsRecorder) Clone(level Level) Writer {
 	panic("Clone not supported by golog.attribsRecorder")
 }
 

@@ -1,18 +1,19 @@
 package golog
 
 import (
+	"errors"
 	"os"
 	"time"
 )
 
-func ExampleJSONFormatter() {
+func ExampleTextWriter() {
 	format := &Format{
 		TimestampFormat: "2006-01-02 15:04:05",
 		TimestampKey:    "time",
 		LevelKey:        "level",
 		MessageKey:      "message",
 	}
-	formatter := NewJSONFormatter(os.Stdout, format)
+	formatter := NewTextWriter(os.Stdout, format, NoColorizer)
 	config := NewConfig(&DefaultLevels, NoFilter, formatter)
 	log := NewLogger(config)
 
@@ -23,10 +24,16 @@ func ExampleJSONFormatter() {
 		Int("int", 66).
 		Str("str", "Hello\tWorld!\n").
 		Log()
-
-	log.NewMessageAt(at, config.Error(), "This is an error").Log()
+	log.NewMessageAt(at, config.Error(), "Something went wrong!").
+		Err(errors.New("Multi\nLine\n\"Error\"")).
+		Int("numberOfTheBeast", 666).
+		Log()
 
 	// Output:
-	// {"time":"2006-01-02 15:04:05","level":"INFO","message":"My log message","int":66,"str":"Hello\tWorld!\n"},
-	// {"time":"2006-01-02 15:04:05","level":"ERROR","message":"This is an error"},
+	// 2006-01-02 15:04:05 |INFO | My log message int=66 str="Hello\tWorld!\n"
+	// 2006-01-02 15:04:05 |ERROR| Something went wrong! error=`
+	// Multi
+	// Line
+	// "Error"
+	// ` numberOfTheBeast=666
 }

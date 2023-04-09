@@ -18,14 +18,14 @@ import (
 
 type Message struct {
 	logger    *Logger
-	formatter Formatter
+	formatter Writer
 	level     Level
 	text      string // Used for LogAndPanic
 }
 
 var messagePool sync.Pool
 
-func newMessageFromPool(logger *Logger, formatter Formatter, level Level, text string) *Message {
+func newMessageFromPool(logger *Logger, formatter Writer, level Level, text string) *Message {
 	if m, ok := messagePool.Get().(*Message); ok {
 		m.logger = logger
 		m.formatter = formatter
