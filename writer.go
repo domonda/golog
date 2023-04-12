@@ -5,43 +5,50 @@ import (
 )
 
 // Writer implementations write log messages
-// in a certain message format.
-// FinishMessage must be called before a formatter
+// in a certain message format to some underlying
+// data stream.
+// CommitMessage must be called before the Writer
 // can be re-used for a new message.
 type Writer interface {
-	// Clone the formatter for a new message with the passed log level
-	Clone(level Level) Writer
-
-	// String is here only for debugging
-	String() string
-
-	// BeginMessage with a level and text
-	BeginMessage(t time.Time, levels *Levels, level Level, prefix, text string)
+	// BeginMessage clones the Writer with its configuration for
+	// writing a new message that must be finished with CommitMessage.
+	// This method is only called for log levels that are active at the logger,
+	// so implementations don't have to check the passed logger to decide
+	// if they should log the passed level.
+	// The logger is passed to give access to other data that might be needed
+	// for message formatting like level names.
+	BeginMessage(logger *Logger, t time.Time, level Level, prefix, text string) Writer
 
 	WriteKey(key string)
 	WriteSliceKey(key string)
 	WriteSliceEnd()
 
 	WriteNil()
-	WriteBool(val bool)
-	WriteInt(val int64)
-	WriteUint(val uint64)
-	WriteFloat(val float64)
-	WriteString(val string)
-	WriteError(val error)
-	WriteUUID(val [16]byte)
-	WriteJSON(val []byte)
-	// WritePtr(val uintptr)
+	WriteBool(bool)
+	WriteInt(int64)
+	WriteUint(uint64)
+	WriteFloat(float64)
+	WriteString(string)
+	WriteError(error)
+	WriteUUID([16]byte)
+	WriteJSON([]byte)
+	// WritePtr(uintptr)
 
-	// FinishMessage flushes the current log message
+	// CommitMessage flushes the current log message
 	// to the underlying writer and frees any resources
-	// to make the formatter ready for a new message.
-	FinishMessage()
+	// to make the Writer ready for a new message.
+	CommitMessage()
 
 	// FlushUnderlying flushes underlying log writing
 	// streams to make sure all messages have been
 	// saved or transmitted.
+	// This method is intended for special circumstances like
+	// before exiting the application, it's not necessary
+	// to call it for every message in addtion to CommitMessage.
 	FlushUnderlying()
+
+	// String is here only for debugging
+	String() string
 }
 
 func flushUnderlying(writer any) {

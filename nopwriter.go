@@ -7,18 +7,16 @@ const NopWriter nopWriter = 0
 
 type nopWriter int
 
-func (f nopWriter) Clone(level Level) Writer {
-	return f
+func (w nopWriter) BeginMessage(logger *Logger, t time.Time, level Level, prefix, text string) Writer {
+	return w
 }
 
-func (nopWriter) BeginMessage(t time.Time, levels *Levels, level Level, prefix, text string) {}
-
-func (nopWriter) FinishMessage() {}
+func (nopWriter) CommitMessage() {}
 
 func (nopWriter) FlushUnderlying() {}
 
 func (nopWriter) String() string {
-	return "nopWriter"
+	return "NopWriter"
 }
 
 func (nopWriter) WriteKey(key string) {}

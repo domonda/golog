@@ -10,31 +10,24 @@ type MultiWriter []Writer
 
 var multiWriterPool sync.Pool
 
-func newMultiWriter(l int) MultiWriter {
-	if f, ok := multiWriterPool.Get().(MultiWriter); ok && l <= cap(f) {
-		return f[:l]
+func getMultiWriter(numWriters int) MultiWriter {
+	if recycled, ok := multiWriterPool.Get().(MultiWriter); ok && numWriters <= cap(recycled) {
+		return recycled[:numWriters]
 	}
-
-	return make(MultiWriter, l)
+	return make(MultiWriter, numWriters)
 }
 
-func (m MultiWriter) Clone(level Level) Writer {
-	clone := newMultiWriter(len(m))
+func (m MultiWriter) BeginMessage(logger *Logger, t time.Time, level Level, prefix, text string) Writer {
+	next := getMultiWriter(len(m))
+	for i, w := range m {
+		next[i] = w.BeginMessage(logger, t, level, prefix, text)
+	}
+	return next
+}
+
+func (m MultiWriter) CommitMessage() {
 	for i, f := range m {
-		clone[i] = f.Clone(level)
-	}
-	return clone
-}
-
-func (m MultiWriter) BeginMessage(t time.Time, levels *Levels, level Level, prefix, text string) {
-	for _, f := range m {
-		f.BeginMessage(t, levels, level, prefix, text)
-	}
-}
-
-func (m MultiWriter) FinishMessage() {
-	for i, f := range m {
-		f.FinishMessage()
+		f.CommitMessage()
 		m[i] = nil
 	}
 	multiWriterPool.Put(m)
@@ -42,7 +35,9 @@ func (m MultiWriter) FinishMessage() {
 
 func (m MultiWriter) FlushUnderlying() {
 	for _, f := range m {
-		f.FlushUnderlying()
+		if f != nil {
+			f.FlushUnderlying()
+		}
 	}
 }
 

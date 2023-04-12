@@ -37,23 +37,30 @@ func NewTextWriter(writer io.Writer, format *Format, colorizer Colorizer) *TextW
 	}
 }
 
-func (w *TextWriter) Clone(level Level) Writer {
-	if clone, ok := textWriterPool.Get().(*TextWriter); ok {
-		clone.writer = w.writer
-		clone.format = w.format
-		clone.colorizer = w.colorizer
-		return clone
+func getTextWriter(writer io.Writer, format *Format, colorizer Colorizer) *TextWriter {
+	if recycled, ok := textWriterPool.Get().(*TextWriter); ok {
+		recycled.writer = writer
+		recycled.format = format
+		recycled.colorizer = colorizer
+		return recycled
 	}
-	return NewTextWriter(w.writer, w.format, w.colorizer)
+	return NewTextWriter(writer, format, colorizer)
 }
 
-func (w *TextWriter) BeginMessage(t time.Time, levels *Levels, level Level, prefix, text string) {
+func (w *TextWriter) BeginMessage(logger *Logger, t time.Time, level Level, prefix, text string) Writer {
+	next := getTextWriter(w.writer, w.format, w.colorizer)
+	next.beginWriteMessage(logger, t, level, prefix, text)
+	return next
+}
+
+func (w *TextWriter) beginWriteMessage(logger *Logger, t time.Time, level Level, prefix, text string) {
 	// Write timestamp
 	timestamp := t.Format(w.format.TimestampFormat)
 	w.buf = append(w.buf, w.colorizer.ColorizeTimestamp(timestamp)...)
 	w.buf = append(w.buf, ' ')
 
 	// Write level
+	levels := logger.Config().Levels()
 	if min, max := levels.NameLenRange(); min != max {
 		levels = levels.CopyWithRightPaddedNames() // TODO optimize performance
 	}
@@ -69,7 +76,7 @@ func (w *TextWriter) BeginMessage(t time.Time, levels *Levels, level Level, pref
 	}
 }
 
-func (w *TextWriter) FinishMessage() {
+func (w *TextWriter) CommitMessage() {
 	// Flush w.buf
 	if len(w.buf) > 0 {
 		_, err := w.writer.Write(append(w.buf, '\n'))

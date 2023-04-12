@@ -47,52 +47,55 @@ func NewWriter(hub *sentry.Hub, filter golog.LevelFilter, valsAsMsg bool, extra 
 	}
 }
 
-func (f *Writer) Clone(level golog.Level) golog.Writer {
-	if !f.filter.IsActive(level) {
+func (w *Writer) BeginMessage(logger *golog.Logger, t time.Time, level golog.Level, prefix, text string) golog.Writer {
+	if !w.filter.IsActive(level) {
 		return golog.NopWriter
 	}
-	return NewWriter(f.hub, f.filter, f.valsAsMsg, f.extra) // Clone hub too?
+	next := NewWriter(w.hub, w.filter, w.valsAsMsg, w.extra) // Clone hub too?
+	next.beginWriteMessage(logger, t, level, prefix, text)
+	return next
 }
 
-func (f *Writer) BeginMessage(t time.Time, levels *golog.Levels, level golog.Level, prefix, text string) {
-	f.timestamp = t
+func (w *Writer) beginWriteMessage(logger *golog.Logger, t time.Time, level golog.Level, prefix, text string) {
+	w.timestamp = t
 
+	levels := logger.Config().Levels()
 	switch level {
 	case levels.Fatal:
-		f.level = sentry.LevelFatal
+		w.level = sentry.LevelFatal
 	case levels.Error:
-		f.level = sentry.LevelError
+		w.level = sentry.LevelError
 	case levels.Warn:
-		f.level = sentry.LevelWarning
+		w.level = sentry.LevelWarning
 	case levels.Info:
-		f.level = sentry.LevelInfo
+		w.level = sentry.LevelInfo
 	case levels.Debug:
-		f.level = sentry.LevelDebug
+		w.level = sentry.LevelDebug
 	case levels.Trace:
-		f.level = sentry.LevelDebug
+		w.level = sentry.LevelDebug
 	default:
-		f.level = UnknownLevel
+		w.level = UnknownLevel
 	}
 
-	f.message.WriteString(prefix)
-	f.message.WriteString(text)
+	w.message.WriteString(prefix)
+	w.message.WriteString(text)
 }
 
-func (f *Writer) FinishMessage() {
-	// Flush f.message
-	if f.message.Len() > 0 {
+func (w *Writer) CommitMessage() {
+	// Flush w.message
+	if w.message.Len() > 0 {
 		event := sentry.NewEvent()
-		event.Timestamp = f.timestamp
-		event.Level = f.level
-		event.Message = f.message.String()
+		event.Timestamp = w.timestamp
+		event.Level = w.level
+		event.Message = w.message.String()
 		event.Fingerprint = []string{event.Message}
-		for key, val := range f.extra {
+		for key, val := range w.extra {
 			event.Extra[key] = val
 		}
-		for key, val := range f.values {
+		for key, val := range w.values {
 			event.Extra[key] = val
 		}
-		if f.hub.Client().Options().AttachStacktrace {
+		if w.hub.Client().Options().AttachStacktrace {
 			stackTrace := sentry.NewStacktrace()
 			stackTrace.Frames = filterFrames(stackTrace.Frames)
 			event.Threads = []sentry.Thread{{
@@ -100,21 +103,21 @@ func (f *Writer) FinishMessage() {
 				Current:    true,
 			}}
 		}
-		f.hub.CaptureEvent(event)
+		w.hub.CaptureEvent(event)
 	}
 
 	// Free pointers
-	f.message.Reset()
-	if f.values != nil {
-		valueMapPool.Put(f.values)
-		f.values = nil
+	w.message.Reset()
+	if w.values != nil {
+		valueMapPool.Put(w.values)
+		w.values = nil
 	}
-	f.slice = nil
-	f.hub = nil
+	w.slice = nil
+	w.hub = nil
 }
 
-func (f *Writer) FlushUnderlying() {
-	f.hub.Flush(FlushTimeout)
+func (w *Writer) FlushUnderlying() {
+	w.hub.Flush(FlushTimeout)
 }
 
 func filterFrames(frames []sentry.Frame) []sentry.Frame {
@@ -127,108 +130,108 @@ func filterFrames(frames []sentry.Frame) []sentry.Frame {
 	return filtered
 }
 
-func (f *Writer) String() string {
-	return f.message.String()
+func (w *Writer) String() string {
+	return w.message.String()
 }
 
-func (f *Writer) WriteKey(key string) {
-	f.key = key
+func (w *Writer) WriteKey(key string) {
+	w.key = key
 
-	if f.valsAsMsg {
-		fmt.Fprintf(&f.message, " %s=", key)
+	if w.valsAsMsg {
+		fmt.Fprintf(&w.message, " %s=", key)
 	}
 }
 
-func (f *Writer) WriteSliceKey(key string) {
-	f.key = key
-	f.slice = make([]any, 0)
+func (w *Writer) WriteSliceKey(key string) {
+	w.key = key
+	w.slice = make([]any, 0)
 
-	if f.valsAsMsg {
-		fmt.Fprintf(&f.message, " %s=[", key)
+	if w.valsAsMsg {
+		fmt.Fprintf(&w.message, " %s=[", key)
 	}
 }
 
-func (f *Writer) WriteSliceEnd() {
-	f.writeFinalVal(f.slice)
-	f.slice = nil
+func (w *Writer) WriteSliceEnd() {
+	w.writeFinalVal(w.slice)
+	w.slice = nil
 
-	if f.valsAsMsg {
-		f.message.WriteByte(']')
+	if w.valsAsMsg {
+		w.message.WriteByte(']')
 	}
 }
 
-func (f *Writer) WriteNil() {
-	f.writeVal(nil)
+func (w *Writer) WriteNil() {
+	w.writeVal(nil)
 }
 
-func (f *Writer) WriteBool(val bool) {
-	f.writeVal(val)
+func (w *Writer) WriteBool(val bool) {
+	w.writeVal(val)
 }
 
-func (f *Writer) WriteInt(val int64) {
-	f.writeVal(val)
+func (w *Writer) WriteInt(val int64) {
+	w.writeVal(val)
 }
 
-func (f *Writer) WriteUint(val uint64) {
-	f.writeVal(val)
+func (w *Writer) WriteUint(val uint64) {
+	w.writeVal(val)
 }
 
-func (f *Writer) WriteFloat(val float64) {
-	f.writeVal(val)
+func (w *Writer) WriteFloat(val float64) {
+	w.writeVal(val)
 }
 
-func (f *Writer) WriteString(val string) {
-	f.writeVal(val)
+func (w *Writer) WriteString(val string) {
+	w.writeVal(val)
 }
 
-func (f *Writer) WriteError(val error) {
-	f.writeVal(val.Error())
+func (w *Writer) WriteError(val error) {
+	w.writeVal(val.Error())
 }
 
-func (f *Writer) WriteUUID(val [16]byte) {
-	f.writeVal(golog.FormatUUID(val))
+func (w *Writer) WriteUUID(val [16]byte) {
+	w.writeVal(golog.FormatUUID(val))
 }
 
-func (f *Writer) WriteJSON(val []byte) {
-	f.writeVal(json.RawMessage(val))
+func (w *Writer) WriteJSON(val []byte) {
+	w.writeVal(json.RawMessage(val))
 }
 
-func (f *Writer) writeVal(val any) {
-	if f.slice != nil {
-		f.slice = append(f.slice, val)
+func (w *Writer) writeVal(val any) {
+	if w.slice != nil {
+		w.slice = append(w.slice, val)
 	} else {
-		f.writeFinalVal(val)
+		w.writeFinalVal(val)
 	}
 
-	if f.valsAsMsg {
-		if len(f.slice) > 1 {
-			f.message.WriteByte(',')
+	if w.valsAsMsg {
+		if len(w.slice) > 1 {
+			w.message.WriteByte(',')
 		}
 		switch x := val.(type) {
 		case json.RawMessage:
-			f.message.Write(x)
+			w.message.Write(x)
 		case string:
-			fmt.Fprintf(&f.message, "%q", val)
+			fmt.Fprintf(&w.message, "%q", val)
 		default:
-			fmt.Fprintf(&f.message, "%v", val)
+			fmt.Fprintf(&w.message, "%v", val)
 		}
 	}
 }
 
 var valueMapPool sync.Pool
 
-func (f *Writer) writeFinalVal(val any) {
-	if f.values != nil {
-		f.values[f.key] = val
+func (w *Writer) writeFinalVal(val any) {
+	if w.values != nil {
+		w.values[w.key] = val
 		return
 	}
 	if m, _ := valueMapPool.Get().(map[string]any); m != nil {
 		for k := range m {
 			delete(m, k)
 		}
-		m[f.key] = val
-		f.values = m
+		m[w.key] = val
+		w.values = m
 	} else {
-		f.values = map[string]any{f.key: val}
+		w.values = map[string]any{w.key: val}
 	}
 }

@@ -152,17 +152,18 @@ func (l *Logger) NewMessageAt(t time.Time, level Level, text string) *Message {
 	if !l.IsActive(level) {
 		return nil
 	}
-	m := newMessageFromPool(l, l.config.Writer().Clone(level), level, text)
-	// First write message text
-	m.formatter.BeginMessage(t, l.config.Levels(), level, l.prefix, text)
-	// Then write attribs from the logger
+	m := newMessageFromPool(l, l.config.Writer().BeginMessage(l, t, level, l.prefix, text), level, text)
 	if attribs := m.logger.attribs; len(attribs) > 0 {
-		// Temporarely set logger attribs to nil
+		loggerWithoutAttribs := Logger{
+			config: l.config,
+			prefix: l.prefix,
+		}
+		// Temporarely set the message logger to a copy without attribs
 		// because logging the attribs will be prevented
 		// if the logger already has attribs with the same keys
-		m.logger.attribs = nil
+		m.logger = &loggerWithoutAttribs
 		attribs.Log(m)
-		m.logger.attribs = attribs // Restore logger attribs
+		m.logger = l // Restore logger with attribs
 	}
 	return m
 }

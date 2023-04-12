@@ -25,16 +25,22 @@ func NewJSONWriter(writer io.Writer, format *Format) *JSONWriter {
 	}
 }
 
-func (w *JSONWriter) Clone(level Level) Writer {
-	if clone, ok := jsonWriterPool.Get().(*JSONWriter); ok {
-		clone.writer = w.writer
-		clone.format = w.format
-		return clone
+func getJSONWriter(writer io.Writer, format *Format) *JSONWriter {
+	if recycled, ok := jsonWriterPool.Get().(*JSONWriter); ok {
+		recycled.writer = writer
+		recycled.format = format
+		return recycled
 	}
-	return NewJSONWriter(w.writer, w.format)
+	return NewJSONWriter(writer, format)
 }
 
-func (w *JSONWriter) BeginMessage(t time.Time, levels *Levels, level Level, prefix, text string) {
+func (w *JSONWriter) BeginMessage(logger *Logger, t time.Time, level Level, prefix, text string) Writer {
+	next := getJSONWriter(w.writer, w.format)
+	next.beginWriteMessage(logger, t, level, prefix, text)
+	return next
+}
+
+func (w *JSONWriter) beginWriteMessage(logger *Logger, t time.Time, level Level, prefix, text string) {
 	w.buf = append(w.buf, '{')
 
 	if w.format.TimestampKey != "" {
@@ -44,7 +50,7 @@ func (w *JSONWriter) BeginMessage(t time.Time, levels *Levels, level Level, pref
 
 	if w.format.LevelKey != "" {
 		w.buf = encjson.AppendKey(w.buf, w.format.LevelKey)
-		w.buf = encjson.AppendString(w.buf, levels.Name(level))
+		w.buf = encjson.AppendString(w.buf, logger.Config().Levels().Name(level))
 	}
 
 	if w.format.MessageKey != "" && text != "" {
@@ -53,7 +59,7 @@ func (w *JSONWriter) BeginMessage(t time.Time, levels *Levels, level Level, pref
 	}
 }
 
-func (w *JSONWriter) FinishMessage() {
+func (w *JSONWriter) CommitMessage() {
 	// Flush f.buf
 	if len(w.buf) > 0 {
 		_, err := w.writer.Write(append(w.buf, '}', ',', '\n'))

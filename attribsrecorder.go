@@ -31,15 +31,11 @@ func (r *attribsRecorder) Attribs() Attribs {
 	return r.recorded
 }
 
-func (r *attribsRecorder) Clone(level Level) Writer {
-	panic("Clone not supported by golog.attribsRecorder")
-}
-
-func (r *attribsRecorder) BeginMessage(t time.Time, levels *Levels, level Level, prefix, text string) {
+func (r *attribsRecorder) BeginMessage(logger *Logger, t time.Time, level Level, prefix, text string) Writer {
 	panic("BeginMessage not supported by golog.attribsRecorder")
 }
 
-func (r *attribsRecorder) FinishMessage() {
+func (r *attribsRecorder) CommitMessage() {
 	panic("calling golog.Message.Log() after golog.Logger.With() is not valid, call golog.Message.SubLogger() instead")
 }
 
