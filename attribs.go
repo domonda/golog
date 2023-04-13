@@ -124,50 +124,55 @@ func (a Attribs) AddToRequest(request *http.Request) *http.Request {
 	return request.WithContext(ctx)
 }
 
-// MergeAttribs merges a and b so that attribute keys are unique
-// using attribs from b in case of identical keyed attribs in a.
-// The slices a and b will never be modified,
+// MergeAttribs merges left and right so that attribute keys are unique
+// using attribs from right in case of identical keyed attribs in left
+// (values from right overwrite values from left).
+//
+// The slices left and right will never be modified,
 // in case of a merge the result is always a new slice.
-func MergeAttribs(a, b Attribs) Attribs {
+func MergeAttribs(left, right Attribs) Attribs {
 	// Remove nil interfaces. They should not happen but robustness of logging is important!
-	for i := len(a) - 1; i >= 0; i-- {
-		if a[i] == nil {
-			a = append(a[:i], a[i+1:]...)
+	for i := len(left) - 1; i >= 0; i-- {
+		if left[i] == nil {
+			left = append(left[:i], left[i+1:]...)
 		}
 	}
-	for i := len(b) - 1; i >= 0; i-- {
-		if b[i] == nil {
-			b = append(b[:i], b[i+1:]...)
+	for i := len(right) - 1; i >= 0; i-- {
+		if right[i] == nil {
+			right = append(right[:i], right[i+1:]...)
 		}
 	}
 
-	if len(a) == 0 {
-		return b
-	}
-	if len(b) == 0 {
-		return a
+	// No merge cases
+	switch {
+	case len(left) == 0:
+		return right
+	case len(right) == 0:
+		return left
 	}
 
-	c := make(Attribs, len(a), len(a)+len(b))
+	merged := make(Attribs, len(left), len(left)+len(right))
 
-	// Only copy attribs from a to c that don't exist with that key in b
+	// Only copy attribs from left to merged that don't exist with that key in right
 	i := 0
-	for _, aa := range a {
-		key := aa.GetKey()
-		keyInB := false
-		for _, bb := range b {
-			if key == bb.GetKey() {
-				keyInB = true
-				c = c[:len(c)-1]
+	for _, l := range left {
+		key := l.GetKey()
+		keyInRight := false
+		for _, r := range right {
+			if key == r.GetKey() {
+				keyInRight = true
+				merged = merged[:len(merged)-1]
 				break
 			}
 		}
-		if !keyInB {
-			c[i] = aa
+		if !keyInRight {
+			merged[i] = l
 			i++
 		}
 	}
 
-	// Then append uniquely keyed attribs from b
-	return append(c, b...)
+	// Then append uniquely keyed attribs from right
+	merged = append(merged, right...)
+
+	return merged
 }
