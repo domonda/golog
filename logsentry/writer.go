@@ -25,6 +25,7 @@ var _ golog.Writer = new(Writer)
 
 type Writer struct {
 	hub       *sentry.Hub
+	format    *golog.Format
 	filter    golog.LevelFilter
 	timestamp time.Time
 	level     sentry.Level
@@ -38,25 +39,26 @@ type Writer struct {
 
 // NewWriter returns a new Writer for a sentry.Hub.
 // Any values passed as extra will be added to every log messsage.
-func NewWriter(hub *sentry.Hub, filter golog.LevelFilter, valsAsMsg bool, extra map[string]any) *Writer {
+func NewWriter(hub *sentry.Hub, format *golog.Format, filter golog.LevelFilter, valsAsMsg bool, extra map[string]any) *Writer {
 	return &Writer{
-		filter:    filter,
 		hub:       hub,
+		format:    format,
+		filter:    filter,
 		valsAsMsg: valsAsMsg,
 		extra:     extra,
 	}
 }
 
-func (w *Writer) BeginMessage(logger *golog.Logger, t time.Time, level golog.Level, prefix, text string) golog.Writer {
+func (w *Writer) BeginMessage(logger *golog.Logger, t time.Time, level golog.Level, text string) golog.Writer {
 	if !w.filter.IsActive(level) {
 		return golog.NopWriter
 	}
-	next := NewWriter(w.hub, w.filter, w.valsAsMsg, w.extra) // Clone hub too?
-	next.beginWriteMessage(logger, t, level, prefix, text)
+	next := NewWriter(w.hub, w.format, w.filter, w.valsAsMsg, w.extra) // Clone hub too?
+	next.beginWriteMessage(logger, t, level, text)
 	return next
 }
 
-func (w *Writer) beginWriteMessage(logger *golog.Logger, t time.Time, level golog.Level, prefix, text string) {
+func (w *Writer) beginWriteMessage(logger *golog.Logger, t time.Time, level golog.Level, text string) {
 	w.timestamp = t
 
 	levels := logger.Config().Levels()
@@ -77,7 +79,10 @@ func (w *Writer) beginWriteMessage(logger *golog.Logger, t time.Time, level golo
 		w.level = UnknownLevel
 	}
 
-	w.message.WriteString(prefix)
+	if prefix := logger.Prefix(); prefix != "" {
+		w.message.WriteString(prefix)
+		w.message.WriteString(w.format.PrefixSep)
+	}
 	w.message.WriteString(text)
 }
 

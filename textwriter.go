@@ -21,11 +21,10 @@ var textWriterPool sync.Pool
 
 type TextWriter struct {
 	writer    io.Writer
-	levels    *Levels
 	format    *Format
+	colorizer Colorizer
 	sliceMode sliceMode
 	buf       []byte
-	colorizer Colorizer
 }
 
 func NewTextWriter(writer io.Writer, format *Format, colorizer Colorizer) *TextWriter {
@@ -47,13 +46,13 @@ func getTextWriter(writer io.Writer, format *Format, colorizer Colorizer) *TextW
 	return NewTextWriter(writer, format, colorizer)
 }
 
-func (w *TextWriter) BeginMessage(logger *Logger, t time.Time, level Level, prefix, text string) Writer {
+func (w *TextWriter) BeginMessage(logger *Logger, t time.Time, level Level, text string) Writer {
 	next := getTextWriter(w.writer, w.format, w.colorizer)
-	next.beginWriteMessage(logger, t, level, prefix, text)
+	next.beginWriteMessage(logger, t, level, text)
 	return next
 }
 
-func (w *TextWriter) beginWriteMessage(logger *Logger, t time.Time, level Level, prefix, text string) {
+func (w *TextWriter) beginWriteMessage(logger *Logger, t time.Time, level Level, text string) {
 	// Write timestamp
 	timestamp := t.Format(w.format.TimestampFormat)
 	w.buf = append(w.buf, w.colorizer.ColorizeTimestamp(timestamp)...)
@@ -71,8 +70,11 @@ func (w *TextWriter) beginWriteMessage(logger *Logger, t time.Time, level Level,
 
 	// Write message
 	if text != "" {
+		if logger.prefix != "" {
+			text = logger.prefix + w.format.PrefixSep + text
+		}
 		w.buf = append(w.buf, ' ')
-		w.buf = append(w.buf, w.colorizer.ColorizeMsg(prefix+text)...)
+		w.buf = append(w.buf, w.colorizer.ColorizeMsg(text)...)
 	}
 }
 
@@ -87,7 +89,6 @@ func (w *TextWriter) CommitMessage() {
 
 	// Free
 	w.writer = nil
-	w.levels = nil
 	w.format = nil
 	w.sliceMode = sliceModeNone
 	w.buf = w.buf[:0]

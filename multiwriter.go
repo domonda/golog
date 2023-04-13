@@ -17,10 +17,10 @@ func getMultiWriter(numWriters int) MultiWriter {
 	return make(MultiWriter, numWriters)
 }
 
-func (m MultiWriter) BeginMessage(logger *Logger, t time.Time, level Level, prefix, text string) Writer {
+func (m MultiWriter) BeginMessage(logger *Logger, t time.Time, level Level, text string) Writer {
 	next := getMultiWriter(len(m))
 	for i, w := range m {
-		next[i] = w.BeginMessage(logger, t, level, prefix, text)
+		next[i] = w.BeginMessage(logger, t, level, text)
 	}
 	return next
 }

@@ -22,17 +22,17 @@ type Attribs []Attrib
 // Log implements the Loggable interface by logging
 // the attributes in the slice in the given order.
 func (a Attribs) Log(m *Message) {
-	for _, value := range a {
-		value.Log(m)
+	for _, attrib := range a {
+		attrib.Log(m)
 	}
 }
 
 // Get returns the first Attrib with the passed key
 // or nil if not Attrib was found.
 func (a Attribs) Get(key string) Attrib {
-	for _, value := range a {
-		if value.GetKey() == key {
-			return value
+	for _, attrib := range a {
+		if attrib.GetKey() == key {
+			return attrib
 		}
 	}
 	return nil
@@ -40,8 +40,8 @@ func (a Attribs) Get(key string) Attrib {
 
 // Has indicates if the Attribs contain an Attrib with the passed key
 func (a Attribs) Has(key string) bool {
-	for _, value := range a {
-		if value.GetKey() == key {
+	for _, attrib := range a {
+		if attrib.GetKey() == key {
 			return true
 		}
 	}
@@ -68,13 +68,13 @@ func (v *Attribs) ReplaceOrAppend(value Attrib) {
 }
 */
 
-var valuesCtxKey int
+var attribsCtxKey int
 
 // AttribsFromContext returns Attribs from the context
 // or nil if the context has none.
 func AttribsFromContext(ctx context.Context) Attribs {
-	values, _ := ctx.Value(&valuesCtxKey).(Attribs)
-	return values
+	attribs, _ := ctx.Value(&attribsCtxKey).(Attribs)
+	return attribs
 }
 
 // AttribFromContext returns an Attrib from the context
@@ -109,7 +109,7 @@ func (a Attribs) AddToContext(ctx context.Context) context.Context {
 	}
 	ctxAttribs := AttribsFromContext(ctx)
 	mergedAttribs := MergeAttribs(ctxAttribs, a)
-	return context.WithValue(ctx, &valuesCtxKey, mergedAttribs)
+	return context.WithValue(ctx, &attribsCtxKey, mergedAttribs)
 }
 
 // AddToRequest returns a http.Request with v added to its context
@@ -125,7 +125,7 @@ func (a Attribs) AddToRequest(request *http.Request) *http.Request {
 }
 
 // MergeAttribs merges a and b so that attribute keys are unique
-// using values from b in case of identical keyed values in a.
+// using attribs from b in case of identical keyed attribs in a.
 // The slices a and b will never be modified,
 // in case of a merge the result is always a new slice.
 func MergeAttribs(a, b Attribs) Attribs {
@@ -150,7 +150,7 @@ func MergeAttribs(a, b Attribs) Attribs {
 
 	c := make(Attribs, len(a), len(a)+len(b))
 
-	// Only copy values from a to c that don't exist with that key in b
+	// Only copy attribs from a to c that don't exist with that key in b
 	i := 0
 	for _, aa := range a {
 		key := aa.GetKey()
@@ -168,6 +168,6 @@ func MergeAttribs(a, b Attribs) Attribs {
 		}
 	}
 
-	// Then append uniquely keyed values from b
+	// Then append uniquely keyed attribs from b
 	return append(c, b...)
 }

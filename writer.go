@@ -16,11 +16,11 @@ type Writer interface {
 	// so implementations don't have to check the passed logger to decide
 	// if they should log the passed level.
 	// The logger is passed to give access to other data that might be needed
-	// for message formatting like level names.
-	BeginMessage(logger *Logger, t time.Time, level Level, prefix, text string) Writer
+	// for message formatting like the prefix or level names.
+	BeginMessage(logger *Logger, t time.Time, level Level, text string) Writer
 
-	WriteKey(key string)
-	WriteSliceKey(key string)
+	WriteKey(string)
+	WriteSliceKey(string)
 	WriteSliceEnd()
 
 	WriteNil()

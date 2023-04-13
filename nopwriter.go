@@ -7,7 +7,7 @@ const NopWriter nopWriter = 0
 
 type nopWriter int
 
-func (w nopWriter) BeginMessage(logger *Logger, t time.Time, level Level, prefix, text string) Writer {
+func (w nopWriter) BeginMessage(logger *Logger, t time.Time, level Level, text string) Writer {
 	return w
 }
 

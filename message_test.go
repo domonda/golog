@@ -22,6 +22,7 @@ func newTestConfig(textOut, jsonOut io.Writer) Config {
 		TimestampFormat: "2006-01-02 15:04:05",
 		TimestampKey:    "time",
 		LevelKey:        "level",
+		PrefixSep:       ": ",
 		MessageKey:      "message",
 	}
 
@@ -303,7 +304,7 @@ func TestMessage_SubLoggerContext(t *testing.T) {
 	uuid := MustParseUUID("a547276f-b02b-4e7d-b67e-c6deb07567da")
 	uuid2 := MustParseUUID("064c6bc6-3ec1-4cda-83e7-67815af25a7f")
 
-	log, textOut, jsonOut := newTestLoggerWithPrefix("pkg: ")
+	log, textOut, jsonOut := newTestLoggerWithPrefix("pkg")
 	infoLevel := log.Config().Info()
 
 	log, ctx := log.With().
@@ -396,7 +397,7 @@ func TestMessage_SubContext(t *testing.T) {
 func TestMessage_Ctx(t *testing.T) {
 	at, _ := time.Parse("2006-01-02 15:04:05", "2006-01-02 15:04:05")
 
-	log, textOut, jsonOut := newTestLoggerWithPrefix("pkg: ")
+	log, textOut, jsonOut := newTestLoggerWithPrefix("pkg")
 	infoLevel := log.Config().Info()
 
 	ctx := log.With().

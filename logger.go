@@ -59,7 +59,7 @@ func (l *Logger) With() *Message {
 	if l == nil {
 		return nil
 	}
-	return newMessageFromPool(l, NewAttribsRecorder(), LevelInvalid, "")
+	return newMessageFromPool(l, l.attribs, NewAttribsRecorder(), LevelInvalid, "")
 }
 
 // WithLevelFilter returns a clone of the logger using
@@ -134,10 +134,7 @@ func (l *Logger) WithPrefix(prefix string) *Logger {
 
 // IsActive returns if the passed level is active at the logger
 func (l *Logger) IsActive(level Level) bool {
-	if l == nil {
-		return false
-	}
-	return l.config.IsActive(level)
+	return l != nil && l.config.IsActive(level)
 }
 
 // Flush unwritten logs
@@ -152,20 +149,16 @@ func (l *Logger) NewMessageAt(t time.Time, level Level, text string) *Message {
 	if !l.IsActive(level) {
 		return nil
 	}
-	m := newMessageFromPool(l, l.config.Writer().BeginMessage(l, t, level, l.prefix, text), level, text)
-	if attribs := m.logger.attribs; len(attribs) > 0 {
-		loggerWithoutAttribs := Logger{
-			config: l.config,
-			prefix: l.prefix,
-		}
-		// Temporarely set the message logger to a copy without attribs
-		// because logging the attribs will be prevented
-		// if the logger already has attribs with the same keys
-		m.logger = &loggerWithoutAttribs
-		attribs.Log(m)
-		m.logger = l // Restore logger with attribs
+	writer := l.config.Writer().BeginMessage(l, t, level, text)
+	// Get new Message without attribs so that the logger
+	// attribs can get logged without detecting that
+	// attribs with their keys are already present
+	msg := newMessageFromPool(l, nil, writer, level, text)
+	if len(l.attribs) > 0 {
+		l.attribs.Log(msg)
+		msg.attribs = l.attribs
 	}
-	return m
+	return msg
 }
 
 func (l *Logger) NewMessage(level Level, text string) *Message {

@@ -17,7 +17,7 @@ var (
 )
 
 // NewPackageLogger creates a logger for a package
-// where every log message will be prefixed with pkgName+": ".
+// where every log message will be prefixed with pkgName.
 // Note that pkgName is the name, not the import path of the package.
 // It still has to be unique for all package loggers because
 // the logger config is added to PackageRegistry by pkgName.
@@ -42,7 +42,7 @@ func NewPackageLogger(pkgName string, filters ...golog.LevelFilter) *golog.Logge
 
 	config := golog.NewDerivedConfig(&Config, filters...)
 	pkgPath := PackageRegistry.AddPackageConfig(pkgName, config)
-	logger := golog.NewLoggerWithPrefix(config, pkgName+": ")
+	logger := golog.NewLoggerWithPrefix(config, pkgName)
 
 	if AddImportPathToPackageLogger {
 		logger = logger.With().Str("pkg", pkgPath).SubLogger()

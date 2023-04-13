@@ -34,13 +34,13 @@ func getJSONWriter(writer io.Writer, format *Format) *JSONWriter {
 	return NewJSONWriter(writer, format)
 }
 
-func (w *JSONWriter) BeginMessage(logger *Logger, t time.Time, level Level, prefix, text string) Writer {
+func (w *JSONWriter) BeginMessage(logger *Logger, t time.Time, level Level, text string) Writer {
 	next := getJSONWriter(w.writer, w.format)
-	next.beginWriteMessage(logger, t, level, prefix, text)
+	next.beginWriteMessage(logger, t, level, text)
 	return next
 }
 
-func (w *JSONWriter) beginWriteMessage(logger *Logger, t time.Time, level Level, prefix, text string) {
+func (w *JSONWriter) beginWriteMessage(logger *Logger, t time.Time, level Level, text string) {
 	w.buf = append(w.buf, '{')
 
 	if w.format.TimestampKey != "" {
@@ -54,8 +54,11 @@ func (w *JSONWriter) beginWriteMessage(logger *Logger, t time.Time, level Level,
 	}
 
 	if w.format.MessageKey != "" && text != "" {
+		if logger.prefix != "" {
+			text = logger.prefix + w.format.PrefixSep + text
+		}
 		w.buf = encjson.AppendKey(w.buf, w.format.MessageKey)
-		w.buf = encjson.AppendString(w.buf, prefix+text)
+		w.buf = encjson.AppendString(w.buf, text)
 	}
 }
 

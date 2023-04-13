@@ -31,7 +31,7 @@ func (r *attribsRecorder) Attribs() Attribs {
 	return r.recorded
 }
 
-func (r *attribsRecorder) BeginMessage(logger *Logger, t time.Time, level Level, prefix, text string) Writer {
+func (r *attribsRecorder) BeginMessage(logger *Logger, t time.Time, level Level, text string) Writer {
 	panic("BeginMessage not supported by golog.attribsRecorder")
 }
 

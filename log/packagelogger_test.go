@@ -20,7 +20,7 @@ func TestNewPackageLogger(t *testing.T) {
 		{
 			name: "pkgName",
 			args: args{pkgName: "mypkg", filters: nil},
-			want: golog.NewLoggerWithPrefix(golog.NewDerivedConfig(&Config), "mypkg: "),
+			want: golog.NewLoggerWithPrefix(golog.NewDerivedConfig(&Config), "mypkg"),
 		},
 	}
 	for _, tt := range tests {
