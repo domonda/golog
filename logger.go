@@ -50,7 +50,7 @@ func (l *Logger) WithCtx(ctx context.Context) *Logger {
 }
 
 // With returns a new Message that can be used to record
-// the prefix for a sub-logger.
+// the per message attribs for a sub-logger.
 //
 // Example:
 //
@@ -59,7 +59,11 @@ func (l *Logger) With() *Message {
 	if l == nil {
 		return nil
 	}
-	return newMessageFromPool(l, l.attribs, NewAttribsRecorder(), LevelInvalid, "")
+	// Using nil as writer will make the message
+	// record attribs instead of writing them.
+	// Message.SubLogger() will then create a new
+	// logger with the recorded attribs.
+	return newMessageFromPool(l, l.attribs, nil, LevelInvalid, "")
 }
 
 // WithLevelFilter returns a clone of the logger using
@@ -104,7 +108,7 @@ func (l *Logger) WithAttribs(perMessageAttribs ...Attrib) *Logger {
 	return &Logger{
 		config:  l.config,
 		prefix:  l.prefix,
-		attribs: MergeAttribs(l.attribs, perMessageAttribs),
+		attribs: l.attribs.AppendUnique(perMessageAttribs...),
 	}
 }
 
@@ -155,7 +159,12 @@ func (l *Logger) NewMessageAt(t time.Time, level Level, text string) *Message {
 	// attribs with their keys are already present
 	msg := newMessageFromPool(l, nil, writer, level, text)
 	if len(l.attribs) > 0 {
-		l.attribs.Log(msg)
+		for _, attrib := range l.attribs {
+			attrib.Log(msg)
+		}
+		// After logger attribs have been written
+		// set them at the message to prevent
+		// writing more attribs with the same keys
 		msg.attribs = l.attribs
 	}
 	return msg

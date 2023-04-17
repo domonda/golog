@@ -2,6 +2,7 @@ package golog
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -324,7 +325,7 @@ func (a UUIDs) String() string {
 
 type JSON struct {
 	Key string
-	Val []byte
+	Val json.RawMessage
 }
 
 func (a JSON) GetKey() string { return a.Key }
@@ -336,3 +337,20 @@ func (a JSON) Log(m *Message) {
 func (a JSON) String() string {
 	return fmt.Sprintf("JSON{%q: %s}", a.Key, a.Val)
 }
+
+// // Bytes
+
+// type Bytes struct {
+// 	Key string
+// 	Val []byte
+// }
+
+// func (a Bytes) GetKey() string { return a.Key }
+
+// func (a Bytes) Log(m *Message) {
+// 	m.Bytes(a.Key, a.Val)
+// }
+
+// func (a Bytes) String() string {
+// 	return fmt.Sprintf("Bytes{%q: %x}", a.Key, a.Val)
+// }

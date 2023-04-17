@@ -70,52 +70,30 @@ func (v *Attribs) ReplaceOrAppend(value Attrib) {
 
 var attribsCtxKey int
 
-// AttribsFromContext returns Attribs from the context
-// or nil if the context has none.
+// AttribsFromContext returns the Attribs that were added
+// to a context or nil.
 func AttribsFromContext(ctx context.Context) Attribs {
 	attribs, _ := ctx.Value(&attribsCtxKey).(Attribs)
 	return attribs
 }
 
-// AttribFromContext returns an Attrib from the context
-// or nil if the context has no Attrib with the given key.
-func AttribFromContext(ctx context.Context, key string) Attrib {
-	return AttribsFromContext(ctx).Get(key)
-}
-
-// AddAttribsToContext returns a context with the passed attribs added to it
-// so they can be retrieved again with AttribsFromContext.
-// If the context already has Attribs, then the result of
-// MergeAttribs(ctxAttribs, attribs) will added to the context.
-func AddAttribsToContext(ctx context.Context, attribs ...Attrib) context.Context {
-	return Attribs(attribs).AddToContext(ctx)
-}
-
-// AddAttribsToRequest returns a http.Request with the passed attribs added to its context
-// so they can be retrieved again with AttribsFromContext(request.Context()).
-// If the context already has Attribs, then the result of
-// MergeAttribs(ctxAttribs, attribs) will added to the context.
-func AddAttribsToRequest(request *http.Request, attribs ...Attrib) *http.Request {
-	return Attribs(attribs).AddToRequest(request)
-}
-
-// AddToContext returns a context with a added to it
-// so it can be retrieved again with AttribsFromContext.
-// If the context already has Attribs, then the result of
-// MergeAttribs(ctxAttribs, a) will added to the context.
+// AddToContext returns a context with the Attribs
+// added to it overwriting any attribs with the same keys
+// already added to the context.
+//
+// The added attribs can be retreved from the context
+// with AttribsFromContext.
 func (a Attribs) AddToContext(ctx context.Context) context.Context {
 	if len(a) == 0 {
 		return ctx
 	}
-	ctxAttribs := AttribsFromContext(ctx)
-	mergedAttribs := MergeAttribs(ctxAttribs, a)
+	mergedAttribs := a.AppendUnique(AttribsFromContext(ctx)...)
 	return context.WithValue(ctx, &attribsCtxKey, mergedAttribs)
 }
 
-// AddToRequest returns a http.Request with v added to its context
-// so it can be retrieved again with AttribsFromContext(request.Context()).
-// If the context already has Attribs, then the result of
-// MergeAttribs(ctxAttribs, a) will added to the context.
+// AddToRequest returns a http.Request with the Attribs
+// added to its context it overwriting any attribs with the same keys
+// already added to the request context.
 func (a Attribs) AddToRequest(request *http.Request) *http.Request {
 	if len(a) == 0 {
 		return request
@@ -124,55 +102,48 @@ func (a Attribs) AddToRequest(request *http.Request) *http.Request {
 	return request.WithContext(ctx)
 }
 
-// MergeAttribs merges left and right so that attribute keys are unique
-// using attribs from right in case of identical keyed attribs in left
-// (values from right overwrite values from left).
+// AppendUnique merges a and b so that keys are unique
+// using attribs from a in case of identical keyed attribs in b.
 //
 // The slices left and right will never be modified,
 // in case of a merge the result is always a new slice.
-func MergeAttribs(left, right Attribs) Attribs {
+func (a Attribs) AppendUnique(b ...Attrib) Attribs {
 	// Remove nil interfaces. They should not happen but robustness of logging is important!
-	for i := len(left) - 1; i >= 0; i-- {
-		if left[i] == nil {
-			left = append(left[:i], left[i+1:]...)
+	for i := len(a) - 1; i >= 0; i-- {
+		if a[i] == nil {
+			a = append(a[:i], a[i+1:]...)
 		}
 	}
-	for i := len(right) - 1; i >= 0; i-- {
-		if right[i] == nil {
-			right = append(right[:i], right[i+1:]...)
+	for i := len(b) - 1; i >= 0; i-- {
+		if b[i] == nil {
+			b = append(b[:i], b[i+1:]...)
 		}
 	}
 
 	// No merge cases
 	switch {
-	case len(left) == 0:
-		return right
-	case len(right) == 0:
-		return left
+	case len(a) == 0:
+		return b
+	case len(b) == 0:
+		return a
 	}
 
-	merged := make(Attribs, len(left), len(left)+len(right))
-
-	// Only copy attribs from left to merged that don't exist with that key in right
-	i := 0
-	for _, l := range left {
-		key := l.GetKey()
-		keyInRight := false
-		for _, r := range right {
-			if key == r.GetKey() {
-				keyInRight = true
-				merged = merged[:len(merged)-1]
-				break
-			}
+	var result Attribs
+	for _, bAttrib := range b {
+		if a.Has(bAttrib.GetKey()) {
+			// Ignore bAttrib value because the value from a is preferred
+			continue
 		}
-		if !keyInRight {
-			merged[i] = l
-			i++
+		if result == nil {
+			// Allocate new slice for merged result
+			result = append(result, a...)
 		}
+		result = append(result, bAttrib)
 	}
-
-	// Then append uniquely keyed attribs from right
-	merged = append(merged, right...)
-
-	return merged
+	if result == nil {
+		// All keys of b were present in a
+		// so result is identical to a
+		return a
+	}
+	return result
 }

@@ -405,12 +405,24 @@ func TestMessage_Ctx(t *testing.T) {
 		SubContext(context.Background())
 
 	log.NewMessageAt(at, infoLevel, "Msg").
-		Ctx(ctx).      // Logs int
-		Int("int", 2). // Log a second int
+		Ctx(ctx). // Logs int=1
 		Log()
 
-	textMsg := `2006-01-02 15:04:05 |INFO | pkg: Msg int=1 int=2` + "\n"
-	jsonMsg := `{"time":"2006-01-02 15:04:05","level":"INFO","message":"pkg: Msg","int":1,"int":2},` + "\n"
+	textMsg := `2006-01-02 15:04:05 |INFO | pkg: Msg int=1` + "\n"
+	jsonMsg := `{"time":"2006-01-02 15:04:05","level":"INFO","message":"pkg: Msg","int":1},` + "\n"
+
+	assert.Equal(t, textMsg, textOut.String())
+	assert.Equal(t, jsonMsg, jsonOut.String())
+	textOut.Reset()
+	jsonOut.Reset()
+
+	log.NewMessageAt(at, infoLevel, "Msg").
+		Ctx(ctx).      // Logs int=1
+		Int("int", 2). // Logs int=2 because the previous write of int=1 is not checked
+		Log()
+
+	textMsg = `2006-01-02 15:04:05 |INFO | pkg: Msg int=1 int=2` + "\n"
+	jsonMsg = `{"time":"2006-01-02 15:04:05","level":"INFO","message":"pkg: Msg","int":1,"int":2},` + "\n"
 
 	assert.Equal(t, textMsg, textOut.String())
 	assert.Equal(t, jsonMsg, jsonOut.String())
@@ -422,8 +434,8 @@ func TestMessage_Ctx(t *testing.T) {
 		SubContext(ctx)
 
 	log.NewMessageAt(at, infoLevel, "Msg").
-		Ctx(ctx).      // Logs int
-		Int("int", 4). // Log a second int
+		Ctx(ctx).      // Logs int=3
+		Int("int", 4). // Logs int=4 because the previous write of int=3 is not checked
 		Log()
 
 	textMsg = `2006-01-02 15:04:05 |INFO | pkg: Msg int=3 int=4` + "\n"

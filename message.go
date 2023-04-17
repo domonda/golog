@@ -54,11 +54,11 @@ func (m *Message) SubLogger() *Logger {
 	if m == nil {
 		return nil
 	}
-	recorder, ok := m.writer.(*attribsRecorder)
-	if !ok {
-		panic("golog.Message was not created by golog.Logger.With()")
+	if m.writer != nil {
+		// Message was not created by Logger.With() for recording attribs
+		return m.logger
 	}
-	return m.logger.WithAttribs(recorder.Attribs()...)
+	return m.logger.WithAttribs(m.attribs...)
 }
 
 // SubLoggerContext returns a new sub-logger with recorded per message attribs
@@ -68,13 +68,13 @@ func (m *Message) SubLoggerContext(ctx context.Context) (subLogger *Logger, subC
 	if m == nil {
 		return nil, ctx
 	}
-	recorder, ok := m.writer.(*attribsRecorder)
-	if !ok {
-		panic("golog.Message was not created by golog.Logger.With()")
+	if m.writer != nil {
+		// Message was not created by Logger.With() for recording attribs
+		return m.logger, m.attribs.AddToContext(ctx)
 	}
-	attribs := MergeAttribs(AttribsFromContext(ctx), recorder.Attribs())
+	attribs := m.attribs.AppendUnique(AttribsFromContext(ctx)...)
 	subLogger = m.logger.WithAttribs(attribs...)
-	subContext = recorder.Attribs().AddToContext(ctx)
+	subContext = m.attribs.AddToContext(ctx)
 	return subLogger, subContext
 }
 
@@ -84,11 +84,7 @@ func (m *Message) SubContext(ctx context.Context) context.Context {
 	if m == nil {
 		return ctx
 	}
-	recorder, ok := m.writer.(*attribsRecorder)
-	if !ok {
-		panic("golog.Message was not created by golog.Logger.With()")
-	}
-	return recorder.Attribs().AddToContext(ctx)
+	return m.attribs.AddToContext(ctx)
 }
 
 // Ctx logs any attribs that were added to the context
@@ -127,6 +123,10 @@ func (m *Message) Error(key string, val error) *Message {
 	if m == nil || m.attribs.Has(key) {
 		return m
 	}
+	if m.writer == nil {
+		m.attribs = append(m.attribs, Error{Key: key, Val: val})
+		return m
+	}
 	if val == nil {
 		return m.Nil(key)
 	}
@@ -137,6 +137,10 @@ func (m *Message) Error(key string, val error) *Message {
 
 func (m *Message) Errors(key string, vals []error) *Message {
 	if m == nil || m.attribs.Has(key) {
+		return m
+	}
+	if m.writer == nil {
+		m.attribs = append(m.attribs, Errors{Key: key, Vals: vals})
 		return m
 	}
 	m.writer.WriteSliceKey(key)
@@ -153,6 +157,11 @@ func (m *Message) Any(key string, val any) *Message {
 	if m == nil || m.attribs.Has(key) {
 		return m
 	}
+	if m.writer == nil {
+		m.attribs = append(m.attribs, Any{Key: key, Val: val})
+		return m
+	}
+
 	if val == nil {
 		return m.Nil(key)
 	}
@@ -354,6 +363,18 @@ func (m *Message) Print(key string, vals ...any) *Message {
 	if m == nil || m.attribs.Has(key) {
 		return m
 	}
+	if m.writer == nil {
+		if len(vals) == 1 {
+			m.attribs = append(m.attribs, String{Key: key, Val: fmt.Sprint(vals...)})
+		} else {
+			strs := make([]string, len(vals))
+			for i, val := range vals {
+				strs[i] = fmt.Sprint(val)
+			}
+			m.attribs = append(m.attribs, Strings{Key: key, Vals: strs})
+		}
+		return m
+	}
 	if len(vals) == 1 {
 		m.writer.WriteKey(key)
 		m.writer.WriteString(fmt.Sprint(vals...))
@@ -371,6 +392,10 @@ func (m *Message) Nil(key string) *Message {
 	if m == nil || m.attribs.Has(key) {
 		return m
 	}
+	if m.writer == nil {
+		m.attribs = append(m.attribs, Nil{Key: key})
+		return m
+	}
 	m.writer.WriteKey(key)
 	m.writer.WriteNil()
 	return m
@@ -378,6 +403,10 @@ func (m *Message) Nil(key string) *Message {
 
 func (m *Message) Bool(key string, val bool) *Message {
 	if m == nil || m.attribs.Has(key) {
+		return m
+	}
+	if m.writer == nil {
+		m.attribs = append(m.attribs, Bool{Key: key, Val: val})
 		return m
 	}
 	m.writer.WriteKey(key)
@@ -396,6 +425,11 @@ func (m *Message) Bools(key string, vals []bool) *Message {
 	if m == nil || m.attribs.Has(key) {
 		return m
 	}
+	if m.writer == nil {
+		valsCpy := append([]bool(nil), vals...)
+		m.attribs = append(m.attribs, Bools{Key: key, Vals: valsCpy})
+		return m
+	}
 	m.writer.WriteSliceKey(key)
 	for _, val := range vals {
 		m.writer.WriteBool(val)
@@ -406,6 +440,10 @@ func (m *Message) Bools(key string, vals []bool) *Message {
 
 func (m *Message) Int(key string, val int) *Message {
 	if m == nil || m.attribs.Has(key) {
+		return m
+	}
+	if m.writer == nil {
+		m.attribs = append(m.attribs, Int{Key: key, Val: int64(val)})
 		return m
 	}
 	m.writer.WriteKey(key)
@@ -424,6 +462,14 @@ func (m *Message) Ints(key string, vals []int) *Message {
 	if m == nil || m.attribs.Has(key) {
 		return m
 	}
+	if m.writer == nil {
+		valsCpy := make([]int64, len(vals))
+		for i, val := range vals {
+			valsCpy[i] = int64(val)
+		}
+		m.attribs = append(m.attribs, Ints{Key: key, Vals: valsCpy})
+		return m
+	}
 	m.writer.WriteSliceKey(key)
 	for _, val := range vals {
 		m.writer.WriteInt(int64(val))
@@ -434,6 +480,10 @@ func (m *Message) Ints(key string, vals []int) *Message {
 
 func (m *Message) Int8(key string, val int8) *Message {
 	if m == nil || m.attribs.Has(key) {
+		return m
+	}
+	if m.writer == nil {
+		m.attribs = append(m.attribs, Int{Key: key, Val: int64(val)})
 		return m
 	}
 	m.writer.WriteKey(key)
@@ -452,6 +502,14 @@ func (m *Message) Int8s(key string, vals []int8) *Message {
 	if m == nil || m.attribs.Has(key) {
 		return m
 	}
+	if m.writer == nil {
+		valsCpy := make([]int64, len(vals))
+		for i, val := range vals {
+			valsCpy[i] = int64(val)
+		}
+		m.attribs = append(m.attribs, Ints{Key: key, Vals: valsCpy})
+		return m
+	}
 	m.writer.WriteSliceKey(key)
 	for _, val := range vals {
 		m.writer.WriteInt(int64(val))
@@ -462,6 +520,10 @@ func (m *Message) Int8s(key string, vals []int8) *Message {
 
 func (m *Message) Int16(key string, val int16) *Message {
 	if m == nil || m.attribs.Has(key) {
+		return m
+	}
+	if m.writer == nil {
+		m.attribs = append(m.attribs, Int{Key: key, Val: int64(val)})
 		return m
 	}
 	m.writer.WriteKey(key)
@@ -480,6 +542,14 @@ func (m *Message) Int16s(key string, vals []int16) *Message {
 	if m == nil || m.attribs.Has(key) {
 		return m
 	}
+	if m.writer == nil {
+		valsCpy := make([]int64, len(vals))
+		for i, val := range vals {
+			valsCpy[i] = int64(val)
+		}
+		m.attribs = append(m.attribs, Ints{Key: key, Vals: valsCpy})
+		return m
+	}
 	m.writer.WriteSliceKey(key)
 	for _, val := range vals {
 		m.writer.WriteInt(int64(val))
@@ -490,6 +560,10 @@ func (m *Message) Int16s(key string, vals []int16) *Message {
 
 func (m *Message) Int32(key string, val int32) *Message {
 	if m == nil || m.attribs.Has(key) {
+		return m
+	}
+	if m.writer == nil {
+		m.attribs = append(m.attribs, Int{Key: key, Val: int64(val)})
 		return m
 	}
 	m.writer.WriteKey(key)
@@ -508,6 +582,14 @@ func (m *Message) Int32s(key string, vals []int32) *Message {
 	if m == nil || m.attribs.Has(key) {
 		return m
 	}
+	if m.writer == nil {
+		valsCpy := make([]int64, len(vals))
+		for i, val := range vals {
+			valsCpy[i] = int64(val)
+		}
+		m.attribs = append(m.attribs, Ints{Key: key, Vals: valsCpy})
+		return m
+	}
 	m.writer.WriteSliceKey(key)
 	for _, val := range vals {
 		m.writer.WriteInt(int64(val))
@@ -518,6 +600,10 @@ func (m *Message) Int32s(key string, vals []int32) *Message {
 
 func (m *Message) Int64(key string, val int64) *Message {
 	if m == nil || m.attribs.Has(key) {
+		return m
+	}
+	if m.writer == nil {
+		m.attribs = append(m.attribs, Int{Key: key, Val: val})
 		return m
 	}
 	m.writer.WriteKey(key)
@@ -536,6 +622,11 @@ func (m *Message) Int64s(key string, vals []int64) *Message {
 	if m == nil || m.attribs.Has(key) {
 		return m
 	}
+	if m.writer == nil {
+		valsCpy := append([]int64(nil), vals...)
+		m.attribs = append(m.attribs, Ints{Key: key, Vals: valsCpy})
+		return m
+	}
 	m.writer.WriteSliceKey(key)
 	for _, val := range vals {
 		m.writer.WriteInt(val)
@@ -546,6 +637,10 @@ func (m *Message) Int64s(key string, vals []int64) *Message {
 
 func (m *Message) Uint(key string, val uint) *Message {
 	if m == nil || m.attribs.Has(key) {
+		return m
+	}
+	if m.writer == nil {
+		m.attribs = append(m.attribs, Uint{Key: key, Val: uint64(val)})
 		return m
 	}
 	m.writer.WriteKey(key)
@@ -564,6 +659,14 @@ func (m *Message) Uints(key string, vals []uint) *Message {
 	if m == nil || m.attribs.Has(key) {
 		return m
 	}
+	if m.writer == nil {
+		valsCpy := make([]uint64, len(vals))
+		for i, val := range vals {
+			valsCpy[i] = uint64(val)
+		}
+		m.attribs = append(m.attribs, Uints{Key: key, Vals: valsCpy})
+		return m
+	}
 	m.writer.WriteSliceKey(key)
 	for _, val := range vals {
 		m.writer.WriteUint(uint64(val))
@@ -574,6 +677,10 @@ func (m *Message) Uints(key string, vals []uint) *Message {
 
 func (m *Message) Uint8(key string, val uint8) *Message {
 	if m == nil || m.attribs.Has(key) {
+		return m
+	}
+	if m.writer == nil {
+		m.attribs = append(m.attribs, Uint{Key: key, Val: uint64(val)})
 		return m
 	}
 	m.writer.WriteKey(key)
@@ -592,6 +699,14 @@ func (m *Message) Uint8s(key string, vals []uint8) *Message {
 	if m == nil || m.attribs.Has(key) {
 		return m
 	}
+	if m.writer == nil {
+		valsCpy := make([]uint64, len(vals))
+		for i, val := range vals {
+			valsCpy[i] = uint64(val)
+		}
+		m.attribs = append(m.attribs, Uints{Key: key, Vals: valsCpy})
+		return m
+	}
 	m.writer.WriteSliceKey(key)
 	for _, val := range vals {
 		m.writer.WriteUint(uint64(val))
@@ -602,6 +717,10 @@ func (m *Message) Uint8s(key string, vals []uint8) *Message {
 
 func (m *Message) Uint16(key string, val uint16) *Message {
 	if m == nil || m.attribs.Has(key) {
+		return m
+	}
+	if m.writer == nil {
+		m.attribs = append(m.attribs, Uint{Key: key, Val: uint64(val)})
 		return m
 	}
 	m.writer.WriteKey(key)
@@ -620,6 +739,14 @@ func (m *Message) Uint16s(key string, vals []uint16) *Message {
 	if m == nil || m.attribs.Has(key) {
 		return m
 	}
+	if m.writer == nil {
+		valsCpy := make([]uint64, len(vals))
+		for i, val := range vals {
+			valsCpy[i] = uint64(val)
+		}
+		m.attribs = append(m.attribs, Uints{Key: key, Vals: valsCpy})
+		return m
+	}
 	m.writer.WriteSliceKey(key)
 	for _, val := range vals {
 		m.writer.WriteUint(uint64(val))
@@ -630,6 +757,10 @@ func (m *Message) Uint16s(key string, vals []uint16) *Message {
 
 func (m *Message) Uint32(key string, val uint32) *Message {
 	if m == nil || m.attribs.Has(key) {
+		return m
+	}
+	if m.writer == nil {
+		m.attribs = append(m.attribs, Uint{Key: key, Val: uint64(val)})
 		return m
 	}
 	m.writer.WriteKey(key)
@@ -648,6 +779,14 @@ func (m *Message) Uint32s(key string, vals []uint32) *Message {
 	if m == nil || m.attribs.Has(key) {
 		return m
 	}
+	if m.writer == nil {
+		valsCpy := make([]uint64, len(vals))
+		for i, val := range vals {
+			valsCpy[i] = uint64(val)
+		}
+		m.attribs = append(m.attribs, Uints{Key: key, Vals: valsCpy})
+		return m
+	}
 	m.writer.WriteSliceKey(key)
 	for _, val := range vals {
 		m.writer.WriteUint(uint64(val))
@@ -658,6 +797,10 @@ func (m *Message) Uint32s(key string, vals []uint32) *Message {
 
 func (m *Message) Uint64(key string, val uint64) *Message {
 	if m == nil || m.attribs.Has(key) {
+		return m
+	}
+	if m.writer == nil {
+		m.attribs = append(m.attribs, Uint{Key: key, Val: val})
 		return m
 	}
 	m.writer.WriteKey(key)
@@ -676,6 +819,11 @@ func (m *Message) Uint64s(key string, vals []uint64) *Message {
 	if m == nil || m.attribs.Has(key) {
 		return m
 	}
+	if m.writer == nil {
+		valsCpy := append([]uint64(nil), vals...)
+		m.attribs = append(m.attribs, Uints{Key: key, Vals: valsCpy})
+		return m
+	}
 	m.writer.WriteSliceKey(key)
 	for _, val := range vals {
 		m.writer.WriteUint(val)
@@ -686,6 +834,10 @@ func (m *Message) Uint64s(key string, vals []uint64) *Message {
 
 func (m *Message) Float32(key string, val float32) *Message {
 	if m == nil || m.attribs.Has(key) {
+		return m
+	}
+	if m.writer == nil {
+		m.attribs = append(m.attribs, Float{Key: key, Val: float64(val)})
 		return m
 	}
 	m.writer.WriteKey(key)
@@ -704,6 +856,14 @@ func (m *Message) Float32s(key string, vals []float32) *Message {
 	if m == nil || m.attribs.Has(key) {
 		return m
 	}
+	if m.writer == nil {
+		valsCpy := make([]float64, len(vals))
+		for i, val := range vals {
+			valsCpy[i] = float64(val)
+		}
+		m.attribs = append(m.attribs, Floats{Key: key, Vals: valsCpy})
+		return m
+	}
 	m.writer.WriteSliceKey(key)
 	for _, val := range vals {
 		m.writer.WriteFloat(float64(val))
@@ -715,6 +875,10 @@ func (m *Message) Float32s(key string, vals []float32) *Message {
 // Float is not called Float64 on purpose
 func (m *Message) Float(key string, val float64) *Message {
 	if m == nil || m.attribs.Has(key) {
+		return m
+	}
+	if m.writer == nil {
+		m.attribs = append(m.attribs, Float{Key: key, Val: val})
 		return m
 	}
 	m.writer.WriteKey(key)
@@ -733,6 +897,11 @@ func (m *Message) Floats(key string, vals []float64) *Message {
 	if m == nil || m.attribs.Has(key) {
 		return m
 	}
+	if m.writer == nil {
+		valsCpy := append([]float64(nil), vals...)
+		m.attribs = append(m.attribs, Floats{Key: key, Vals: valsCpy})
+		return m
+	}
 	m.writer.WriteSliceKey(key)
 	for _, val := range vals {
 		m.writer.WriteFloat(val)
@@ -743,6 +912,10 @@ func (m *Message) Floats(key string, vals []float64) *Message {
 
 func (m *Message) Str(key, val string) *Message {
 	if m == nil || m.attribs.Has(key) {
+		return m
+	}
+	if m.writer == nil {
+		m.attribs = append(m.attribs, String{Key: key, Val: val})
 		return m
 	}
 	m.writer.WriteKey(key)
@@ -759,6 +932,11 @@ func (m *Message) StrPtr(key string, val *string) *Message {
 
 func (m *Message) Strs(key string, vals []string) *Message {
 	if m == nil || m.attribs.Has(key) {
+		return m
+	}
+	if m.writer == nil {
+		valsCpy := append([]string(nil), vals...)
+		m.attribs = append(m.attribs, Strings{Key: key, Vals: valsCpy})
 		return m
 	}
 	m.writer.WriteSliceKey(key)
@@ -811,6 +989,10 @@ func (m *Message) UUID(key string, val [16]byte) *Message {
 	if m == nil || m.attribs.Has(key) {
 		return m
 	}
+	if m.writer == nil {
+		m.attribs = append(m.attribs, UUID{Key: key, Val: val})
+		return m
+	}
 	m.writer.WriteKey(key)
 	if IsNilUUID(val) {
 		m.writer.WriteNil()
@@ -835,6 +1017,11 @@ func (m *Message) UUIDs(key string, vals [][16]byte) *Message {
 	if m == nil || m.attribs.Has(key) {
 		return m
 	}
+	if m.writer == nil {
+		valsCpy := append([][16]byte(nil), vals...)
+		m.attribs = append(m.attribs, UUIDs{Key: key, Vals: valsCpy})
+		return m
+	}
 	m.writer.WriteSliceKey(key)
 	for _, val := range vals {
 		if IsNilUUID(val) {
@@ -848,18 +1035,26 @@ func (m *Message) UUIDs(key string, vals [][16]byte) *Message {
 }
 
 // JSON logs JSON encoded bytes
-func (m *Message) JSON(key string, val []byte) *Message {
+func (m *Message) JSON(key string, val json.RawMessage) *Message {
 	if m == nil || m.attribs.Has(key) {
+		return m
+	}
+	valCpy := bytes.NewBuffer(make([]byte, 0, len(val)))
+	err := json.Compact(valCpy, val)
+	if m.writer == nil {
+		if err == nil {
+			m.attribs = append(m.attribs, JSON{Key: key, Val: valCpy.Bytes()})
+		} else {
+			m.attribs = append(m.attribs, Error{Key: key, Val: errors.New(string(val))})
+		}
 		return m
 	}
 	if val == nil {
 		return m.Nil(key)
 	}
 	m.writer.WriteKey(key)
-	buf := bytes.NewBuffer(make([]byte, 0, len(val)))
-	err := json.Compact(buf, val)
 	if err == nil {
-		m.writer.WriteJSON(buf.Bytes())
+		m.writer.WriteJSON(valCpy.Bytes())
 	} else {
 		m.writer.WriteError(errors.New(string(val)))
 	}
@@ -871,26 +1066,28 @@ func (m *Message) AsJSON(key string, val any) *Message {
 	if m == nil || m.attribs.Has(key) {
 		return m
 	}
-	j, err := json.Marshal(val)
+	jsonVal, err := json.Marshal(val)
 	if err != nil {
 		return m.Error(key, fmt.Errorf("can't log %T AsJSON because of: %w", val, err))
 	}
+	if m.writer == nil {
+		m.attribs = append(m.attribs, JSON{Key: key, Val: jsonVal})
+		return m
+	}
 	m.writer.WriteKey(key)
-	m.writer.WriteJSON(j)
+	m.writer.WriteJSON(jsonVal)
 	return m
 }
 
-// Binary logs binary data as string encoded using base64.RawURLEncoding
-func (m *Message) Binary(key string, val []byte) *Message {
+// Bytes logs binary data as string encoded using base64.RawURLEncoding
+func (m *Message) Bytes(key string, val []byte) *Message {
 	if m == nil || m.attribs.Has(key) {
 		return m
 	}
 	if val == nil {
 		return m.Nil(key)
 	}
-	m.writer.WriteKey(key)
-	m.writer.WriteString(base64.RawURLEncoding.EncodeToString(val))
-	return m
+	return m.Str(key, base64.RawURLEncoding.EncodeToString(val))
 }
 
 // StrBytes logs the passed bytes as string if they are valid UTF-8,
@@ -902,13 +1099,10 @@ func (m *Message) StrBytes(key string, val []byte) *Message {
 	if val == nil {
 		return m.Nil(key)
 	}
-	m.writer.WriteKey(key)
-	if utf8.Valid(val) {
-		m.writer.WriteString(string(val))
-	} else {
-		m.writer.WriteString(base64.RawURLEncoding.EncodeToString(val))
+	if !utf8.Valid(val) {
+		return m.Str(key, base64.RawURLEncoding.EncodeToString(val))
 	}
-	return m
+	return m.Str(key, string(val))
 }
 
 // Request logs a http.Request including values added to the request context.
