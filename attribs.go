@@ -95,6 +95,13 @@ func AddAttribsToContext(ctx context.Context, attribs ...Attrib) context.Context
 	return Attribs(attribs).AddToContext(ctx)
 }
 
+// AddAttribsToRequest returns an http.Request with the Attribs
+// added to its context, overwriting any attribs with
+// the same keys already added to the request context.
+func AddAttribsToRequest(request *http.Request, attribs ...Attrib) *http.Request {
+	return Attribs(attribs).AddToRequest(request)
+}
+
 // AddToContext returns a context with the Attribs
 // added to it, overwriting any attribs with the same keys
 // already added to the context.
@@ -109,9 +116,9 @@ func (a Attribs) AddToContext(ctx context.Context) context.Context {
 	return context.WithValue(ctx, &attribsCtxKey, mergedAttribs)
 }
 
-// AddToRequest returns a http.Request with the Attribs
-// added to its context it overwriting any attribs with the same keys
-// already added to the request context.
+// AddToRequest returns an http.Request with the Attribs
+// added to its context, overwriting any attribs with
+// the same keys already added to the request context.
 func (a Attribs) AddToRequest(request *http.Request) *http.Request {
 	if len(a) == 0 {
 		return request

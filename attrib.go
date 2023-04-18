@@ -1,10 +1,8 @@
 package golog
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"strings"
 )
 
@@ -16,22 +14,6 @@ type Attrib interface {
 
 	// GetKey returns the attribute key
 	GetKey() string
-}
-
-// AddAttribToContext returns a context with the passed attrib added to it
-// so it can be retrieved again with AttribsFromContext.
-// If the context already has Attribs, then the result of
-// MergeAttribs(ctxAttribs, Attribs{attrib}) will added to the context.
-func AddAttribToContext(ctx context.Context, attrib Attrib) context.Context {
-	return Attribs{attrib}.AddToContext(ctx)
-}
-
-// AddAttribToRequest returns a http.Request with the passed attrib added to its context
-// so it can be retrieved again with AttribsFromContext(request.Context()).
-// If the context already has Attribs, then the result of
-// MergeAttribs(ctxAttribs, Attribs{attrib}) will added to the context.
-func AddAttribToRequest(request *http.Request, attrib Attrib) *http.Request {
-	return Attribs{attrib}.AddToRequest(request)
 }
 
 // Attrib implementations

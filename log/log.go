@@ -8,14 +8,14 @@ import (
 	"github.com/domonda/golog"
 )
 
-// HTTPMiddlewareHandler returns a HTTP middleware handler that passes through a UUID requestID value.
-// The requestID will be added as value to the http.Request before calling the next handler.
+// HTTPMiddlewareHandler returns a HTTP middleware handler that passes through a UUID requestID.
+// The requestID will be added as UUID golog.Attrib to the http.Request before calling the next handler.
 // If available the X-Request-ID or X-Correlation-ID HTTP request header will be used as requestID.
 // It has to be a valid UUID in the format "994d5800-afca-401f-9c2f-d9e3e106e9ef".
 // If the request has no requestID, then a random v4 UUID will be used.
 // The requestID will also be set at the http.ResponseWriter as X-Request-ID header
 // before calling the next handler, which has a chance to change it.
-// If restrictHeaders are passed, then only those headers are logged if available,
+// If restrictHeaders are passed then only those headers are logged if available,
 // or pass golog.HTTPNoHeaders to disable header logging.
 // To disable logging of the request at all and just pass through
 // the requestID pass golog.LevelInvalid as log level.
@@ -24,14 +24,14 @@ func HTTPMiddlewareHandler(next http.Handler, level golog.Level, message string,
 	return golog.HTTPMiddlewareHandler(next, Logger, level, message, restrictHeaders...)
 }
 
-// HTTPMiddlewareFunc returns a HTTP middleware function that passes through a UUID requestID value.
-// The requestID will be added as value to the http.Request before calling the next handler.
+// HTTPMiddlewareFunc returns a HTTP middleware function that passes through a UUID requestID.
+// The requestID will be added as UUID golog.Attrib to the http.Request before calling the next handler.
 // If available the X-Request-ID or X-Correlation-ID HTTP request header will be used as requestID.
 // It has to be a valid UUID in the format "994d5800-afca-401f-9c2f-d9e3e106e9ef".
 // If the request has no requestID, then a random v4 UUID will be used.
 // The requestID will also be set at the http.ResponseWriter as X-Request-ID header
 // before calling the next handler, which has a chance to change it.
-// If restrictHeaders are passed, then only those headers are logged if available,
+// If restrictHeaders are passed then only those headers are logged if available,
 // or pass golog.HTTPNoHeaders to disable header logging.
 // To disable logging of the request at all and just pass through
 // the requestID pass golog.LevelInvalid as log level.
