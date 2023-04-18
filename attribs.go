@@ -77,11 +77,29 @@ func AttribsFromContext(ctx context.Context) Attribs {
 	return attribs
 }
 
-// AddToContext returns a context with the Attribs
-// added to it overwriting any attribs with the same keys
+// AttribFromContext returns an attrib with a given key and type
+// from a context or false for ok if no such attribute was
+// added to the context.
+func AttribFromContext[T Attrib](ctx context.Context, key string) (attrib T, ok bool) {
+	attrib, ok = AttribsFromContext(ctx).Get(key).(T)
+	return attrib, ok
+}
+
+// AddAttribsToContext returns a context with the passed attribs
+// added to it, overwriting any attribs with the same keys
 // already added to the context.
 //
-// The added attribs can be retreved from the context
+// The added attribs can be retrieved from the context
+// with AttribsFromContext.
+func AddAttribsToContext(ctx context.Context, attribs ...Attrib) context.Context {
+	return Attribs(attribs).AddToContext(ctx)
+}
+
+// AddToContext returns a context with the Attribs
+// added to it, overwriting any attribs with the same keys
+// already added to the context.
+//
+// The added attribs can be retrieved from the context
 // with AttribsFromContext.
 func (a Attribs) AddToContext(ctx context.Context) context.Context {
 	if len(a) == 0 {

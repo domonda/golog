@@ -1,7 +1,10 @@
 package golog
 
 import (
+	"context"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestAttribs_AppendUnique(t *testing.T) {
@@ -74,4 +77,17 @@ func TestAttribs_AppendUnique(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestAttribFromContext(t *testing.T) {
+	_, ok := AttribFromContext[Int](context.Background(), "invalid")
+	require.False(t, ok, "attrib not added to context")
+
+	ctx := AddAttribsToContext(context.Background(), Int{Key: "Int", Val: 1})
+	_, ok = AttribFromContext[Int](ctx, "invalid")
+	require.False(t, ok, "attrib not added to context")
+
+	attrib, ok := AttribFromContext[Int](ctx, "Int")
+	require.True(t, ok, "attrib added to context")
+	require.Equal(t, attrib, Int{Key: "Int", Val: 1})
 }
