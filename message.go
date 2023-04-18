@@ -1035,7 +1035,7 @@ func (m *Message) UUIDs(key string, vals [][16]byte) *Message {
 }
 
 // JSON logs JSON encoded bytes
-func (m *Message) JSON(key string, val json.RawMessage) *Message {
+func (m *Message) JSON(key string, val []byte) *Message {
 	if m == nil || m.attribs.Has(key) {
 		return m
 	}
