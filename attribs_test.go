@@ -83,7 +83,7 @@ func TestAttribFromContext(t *testing.T) {
 	_, ok := AttribFromContext[Int](context.Background(), "invalid")
 	require.False(t, ok, "attrib not added to context")
 
-	ctx := AddAttribsToContext(context.Background(), Int{Key: "Int", Val: 1})
+	ctx := ContextWithAttribs(context.Background(), Int{Key: "Int", Val: 1})
 	_, ok = AttribFromContext[Int](ctx, "invalid")
 	require.False(t, ok, "attrib not added to context")
 

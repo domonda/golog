@@ -85,20 +85,20 @@ func AttribFromContext[T Attrib](ctx context.Context, key string) (attrib T, ok 
 	return attrib, ok
 }
 
-// AddAttribsToContext returns a context with the passed attribs
+// ContextWithAttribs returns a context with the passed attribs
 // added to it, overwriting any attribs with the same keys
 // already added to the context.
 //
 // The added attribs can be retrieved from the context
 // with AttribsFromContext.
-func AddAttribsToContext(ctx context.Context, attribs ...Attrib) context.Context {
+func ContextWithAttribs(ctx context.Context, attribs ...Attrib) context.Context {
 	return Attribs(attribs).AddToContext(ctx)
 }
 
-// AddAttribsToRequest returns an http.Request with the Attribs
+// RequestWithAttribs returns an http.Request with the Attribs
 // added to its context, overwriting any attribs with
 // the same keys already added to the request context.
-func AddAttribsToRequest(request *http.Request, attribs ...Attrib) *http.Request {
+func RequestWithAttribs(request *http.Request, attribs ...Attrib) *http.Request {
 	return Attribs(attribs).AddToRequest(request)
 }
 

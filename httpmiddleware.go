@@ -60,6 +60,12 @@ func GetOrCreateRequestIDFromContext(ctx context.Context) [16]byte {
 	return requestID.Val
 }
 
+// ContextWithRequestID adds the passed requestID as UUID
+// attribute with the key "requestID" to the context.
+func ContextWithRequestID(ctx context.Context, requestID [16]byte) context.Context {
+	return ContextWithAttribs(ctx, UUID{Key: "requestID", Val: requestID})
+}
+
 // HTTPMiddlewareHandler returns a HTTP middleware handler that passes through a UUID requestID.
 // The requestID will be added as UUID Attrib to the http.Request before calling the next handler.
 // If available the X-Request-ID or X-Correlation-ID HTTP request header will be used as requestID.
@@ -78,7 +84,7 @@ func HTTPMiddlewareHandler(next http.Handler, logger *Logger, level Level, messa
 			requestID := GetOrCreateRequestID(request)
 			response.Header().Set("X-Request-ID", FormatUUID(requestID))
 
-			requestWithID := AddAttribsToRequest(request, UUID{Key: "requestID", Val: requestID})
+			requestWithID := RequestWithAttribs(request, UUID{Key: "requestID", Val: requestID})
 
 			logger.NewMessage(level, message).
 				Request(requestWithID, restrictHeaders...).
