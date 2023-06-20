@@ -1,13 +1,16 @@
 package golog
 
-import "time"
+import (
+	"context"
+	"time"
+)
 
 // NopWriter is a Writer that does nothing (no operation)
 const NopWriter nopWriter = 0
 
 type nopWriter int
 
-func (w nopWriter) BeginMessage(logger *Logger, t time.Time, level Level, text string) Writer {
+func (w nopWriter) BeginMessage(_ context.Context, logger *Logger, t time.Time, level Level, text string) Writer {
 	return w
 }
 

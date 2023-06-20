@@ -1,6 +1,7 @@
 package logsentry
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -18,7 +19,15 @@ var (
 	UnknownLevel = sentry.LevelError
 
 	FlushTimeout time.Duration = 3 * time.Second
+
+	activeCtxKey int
 )
+
+// ContextWithoutLogging returns a new context with
+// Sentry logging disabled for all levels.
+func ContextWithoutLogging(parent context.Context) context.Context {
+	return context.WithValue(parent, &activeCtxKey, false)
+}
 
 // Writer implements interface golog.Writer
 var _ golog.Writer = new(Writer)
@@ -49,9 +58,14 @@ func NewWriter(hub *sentry.Hub, format *golog.Format, filter golog.LevelFilter, 
 	}
 }
 
-func (w *Writer) BeginMessage(logger *golog.Logger, t time.Time, level golog.Level, text string) golog.Writer {
-	if !w.filter.IsActive(level) {
+func (w *Writer) BeginMessage(ctx context.Context, logger *golog.Logger, t time.Time, level golog.Level, text string) golog.Writer {
+	if !w.filter.IsActive(ctx, level) {
 		return golog.NopWriter
+	}
+	if ctx != nil {
+		if active, ok := ctx.Value(&activeCtxKey).(bool); ok && !active {
+			return golog.NopWriter
+		}
 	}
 	next := NewWriter(w.hub, w.format, w.filter, w.valsAsMsg, w.extra) // Clone hub too?
 	next.beginWriteMessage(logger, t, level, text)

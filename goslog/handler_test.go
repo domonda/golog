@@ -4,8 +4,11 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/domonda/golog"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slog"
+	"golang.org/x/exp/slog/slogtest"
+
+	"github.com/domonda/golog"
 )
 
 func TestConvertDefaultLevels(t *testing.T) {
@@ -30,4 +33,16 @@ func TestConvertDefaultLevels(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestHandler(t *testing.T) {
+	var rec recorder
+	config := golog.NewConfig(&golog.DefaultLevels, golog.AllLevelsActive, &rec)
+
+	handler := Handler(golog.NewLogger(config), ConvertDefaultLevels)
+
+	err := slogtest.TestHandler(handler, func() []map[string]any {
+		return rec.Result
+	})
+	require.NoError(t, err)
 }

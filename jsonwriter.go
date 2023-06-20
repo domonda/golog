@@ -1,6 +1,7 @@
 package golog
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"sync"
@@ -34,7 +35,7 @@ func getJSONWriter(writer io.Writer, format *Format) *JSONWriter {
 	return NewJSONWriter(writer, format)
 }
 
-func (w *JSONWriter) BeginMessage(logger *Logger, t time.Time, level Level, text string) Writer {
+func (w *JSONWriter) BeginMessage(_ context.Context, logger *Logger, t time.Time, level Level, text string) Writer {
 	next := getJSONWriter(w.writer, w.format)
 	next.beginWriteMessage(logger, t, level, text)
 	return next

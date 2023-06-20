@@ -86,7 +86,7 @@ func HTTPMiddlewareHandler(next http.Handler, logger *Logger, level Level, messa
 
 			requestWithID := RequestWithAttribs(request, UUID{Key: "requestID", Val: requestID})
 
-			logger.NewMessage(level, message).
+			logger.NewMessage(request.Context(), level, message).
 				Request(requestWithID, restrictHeaders...).
 				Log()
 

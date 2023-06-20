@@ -48,7 +48,7 @@ func main() {
 func printMessages(colorizer golog.Colorizer) {
 	log.Config = golog.NewConfig(
 		log.Levels,
-		golog.NoFilter,
+		golog.AllLevelsActive,
 		golog.NewTextWriter(os.Stdout, &log.Format, colorizer),
 	)
 

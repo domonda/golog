@@ -1,6 +1,7 @@
 package golog
 
 import (
+	"context"
 	"os"
 	"time"
 )
@@ -13,18 +14,18 @@ func ExampleJSONWriter() {
 		MessageKey:      "message",
 	}
 	formatter := NewJSONWriter(os.Stdout, format)
-	config := NewConfig(&DefaultLevels, NoFilter, formatter)
+	config := NewConfig(&DefaultLevels, AllLevelsActive, formatter)
 	log := NewLogger(config)
 
 	// Use fixed time for reproducable example output
 	at, _ := time.Parse("2006-01-02 15:04:05", "2006-01-02 15:04:05")
 
-	log.NewMessageAt(at, config.Info(), "My log message").
+	log.NewMessageAt(context.Background(), at, config.Info(), "My log message").
 		Int("int", 66).
 		Str("str", "Hello\tWorld!\n").
 		Log()
 
-	log.NewMessageAt(at, config.Error(), "This is an error").Log()
+	log.NewMessageAt(context.Background(), at, config.Error(), "This is an error").Log()
 
 	// Output:
 	// {"time":"2006-01-02 15:04:05","level":"INFO","message":"My log message","int":66,"str":"Hello\tWorld!\n"},

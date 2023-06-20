@@ -29,7 +29,7 @@ func newTestConfig(textOut, jsonOut io.Writer) Config {
 	textWriter := NewTextWriter(textOut, format, NoColorizer)
 	jsonWriter := NewJSONWriter(jsonOut, format)
 
-	return NewConfig(&DefaultLevels, NoFilter, textWriter, jsonWriter)
+	return NewConfig(&DefaultLevels, AllLevelsActive, textWriter, jsonWriter)
 }
 
 func newTestLogger() (log *Logger, textOut, jsonOut *bytes.Buffer) {
@@ -51,7 +51,7 @@ func TestMessage(t *testing.T) {
 
 	numLines := 10
 	for i := 0; i < numLines; i++ {
-		log.NewMessageAt(at, log.Config().Info(), "My log message").Exec(writeMessage).Log()
+		log.NewMessageAt(context.Background(), at, log.Config().Info(), "My log message").Exec(writeMessage).Log()
 	}
 
 	checkOutput := func(exptectedTextLine, exptectedJSONLine string) {
@@ -85,7 +85,7 @@ func TestMessage(t *testing.T) {
 		IntPtr("SuperNilInt", nil).
 		SubLogger()
 	for i := 0; i < numLines; i++ {
-		subLog.NewMessageAt(at, log.Config().Info(), "My log message").Exec(writeMessage).Log()
+		subLog.NewMessageAt(context.Background(), at, log.Config().Info(), "My log message").Exec(writeMessage).Log()
 	}
 
 	checkOutput(exptectedTextMessageSub, exptectedJSONMessageSub)
@@ -104,7 +104,7 @@ func TestMessage(t *testing.T) {
 		IntPtr("SuperNilInt", nil).
 		SubLogger()
 	for i := 0; i < numLines; i++ {
-		subSubLog.NewMessageAt(at, log.Config().Info(), "My log message").Exec(writeMessage).Log()
+		subSubLog.NewMessageAt(context.Background(), at, log.Config().Info(), "My log message").Exec(writeMessage).Log()
 	}
 
 	checkOutput(exptectedTextMessageSubSub, exptectedJSONMessageSubSub)
@@ -275,7 +275,7 @@ func TestMessage_Any(t *testing.T) {
 
 	textMsg := `2006-01-02 15:04:05 |INFO | Msg`
 
-	log.NewMessageAt(at, log.Config().Info(), "Msg").
+	log.NewMessageAt(context.Background(), at, log.Config().Info(), "Msg").
 		Any("int", -100).
 		Log()
 	assert.Equal(t, fmt.Sprintf("%s %s\n", textMsg, `int=-100`), textOut.String())
@@ -288,7 +288,7 @@ func TestMessage_Any(t *testing.T) {
 		uuidNull uu.NullableID
 	)
 
-	log.NewMessageAt(at, log.Config().Info(), "Msg").
+	log.NewMessageAt(context.Background(), at, log.Config().Info(), "Msg").
 		Any("uuid", uuid).
 		Any("uuidNil", uuidNil).
 		Any("uuidNull", uuidNull).
@@ -310,7 +310,7 @@ func TestMessage_SubLoggerContext(t *testing.T) {
 	log, ctx := log.With().
 		UUID("uuid", uuid).
 		SubLoggerContext(context.Background())
-	log.NewMessageAt(at, infoLevel, "Msg").
+	log.NewMessageAt(context.Background(), at, infoLevel, "Msg").
 		UUID("uuid", uuid2). // Will be ignored because a "uuid" value is already in the sub-logger
 		Log()
 
@@ -322,7 +322,7 @@ func TestMessage_SubLoggerContext(t *testing.T) {
 	textOut.Reset()
 	jsonOut.Reset()
 
-	log.NewMessageAt(at, infoLevel, "Msg").
+	log.NewMessageAt(context.Background(), at, infoLevel, "Msg").
 		Ctx(ctx).            // Same as above but with ctx that also holds the values in addition to sub-logger
 		UUID("uuid", uuid2). // Will be ignored because a "uuid" value is already in the sub-logger
 		Log()
@@ -332,7 +332,7 @@ func TestMessage_SubLoggerContext(t *testing.T) {
 	textOut.Reset()
 	jsonOut.Reset()
 
-	log.NewMessageAt(at, infoLevel, "Msg").
+	log.NewMessageAt(context.Background(), at, infoLevel, "Msg").
 		Ctx(context.Background()). // Same as above but with empty context
 		UUID("uuid", uuid2).       // Will be ignored because a "uuid" value is already in the sub-logger
 		Log()
@@ -348,7 +348,7 @@ func TestMessage_SubLoggerContext(t *testing.T) {
 		log, ctx := log.With().
 			UUID("uuid", uuid3). // Does still not overwrite with uuid3
 			SubLoggerContext(ctx)
-		log.NewMessageAt(at, infoLevel, "Msg").
+		log.NewMessageAt(context.Background(), at, infoLevel, "Msg").
 			UUID("uuid", uuid2). // Will be ignored because a "uuid" value is already in the sub-logger
 			Log()
 
@@ -360,7 +360,7 @@ func TestMessage_SubLoggerContext(t *testing.T) {
 		textOut.Reset()
 		jsonOut.Reset()
 
-		log.NewMessageAt(at, infoLevel, "Msg").
+		log.NewMessageAt(context.Background(), at, infoLevel, "Msg").
 			Ctx(ctx).            // Same as above but with ctx that also holds the values in addition to sub-logger
 			UUID("uuid", uuid2). // Will be ignored because a "uuid" value is already in the sub-logger
 			Log()
@@ -404,7 +404,7 @@ func TestMessage_Ctx(t *testing.T) {
 		Int("int", 1).
 		SubContext(context.Background())
 
-	log.NewMessageAt(at, infoLevel, "Msg").
+	log.NewMessageAt(context.Background(), at, infoLevel, "Msg").
 		Ctx(ctx). // Logs int=1
 		Log()
 
@@ -416,7 +416,7 @@ func TestMessage_Ctx(t *testing.T) {
 	textOut.Reset()
 	jsonOut.Reset()
 
-	log.NewMessageAt(at, infoLevel, "Msg").
+	log.NewMessageAt(context.Background(), at, infoLevel, "Msg").
 		Ctx(ctx).      // Logs int=1
 		Int("int", 2). // Logs int=2 because the previous write of int=1 is not checked
 		Log()
@@ -433,7 +433,7 @@ func TestMessage_Ctx(t *testing.T) {
 		Int("int", 3). // Overwrites int value in ctx
 		SubContext(ctx)
 
-	log.NewMessageAt(at, infoLevel, "Msg").
+	log.NewMessageAt(context.Background(), at, infoLevel, "Msg").
 		Ctx(ctx).      // Logs int=3
 		Int("int", 4). // Logs int=4 because the previous write of int=3 is not checked
 		Log()

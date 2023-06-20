@@ -1,6 +1,7 @@
 package golog
 
 import (
+	"context"
 	"strings"
 	"sync"
 	"time"
@@ -17,10 +18,10 @@ func getMultiWriter(numWriters int) MultiWriter {
 	return make(MultiWriter, numWriters)
 }
 
-func (m MultiWriter) BeginMessage(logger *Logger, t time.Time, level Level, text string) Writer {
+func (m MultiWriter) BeginMessage(ctx context.Context, logger *Logger, t time.Time, level Level, text string) Writer {
 	next := getMultiWriter(len(m))
 	for i, w := range m {
-		next[i] = w.BeginMessage(logger, t, level, text)
+		next[i] = w.BeginMessage(ctx, logger, t, level, text)
 	}
 	return next
 }

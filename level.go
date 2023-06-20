@@ -12,6 +12,10 @@ func (l Level) Valid() bool {
 	return l >= LevelMin && l <= LevelMax
 }
 
+func (l Level) FilterOut() LevelFilter {
+	return LevelFilterOut(l)
+}
+
 func (l Level) FilterOutAbove() LevelFilter {
 	return LevelFilterOutAbove(l)
 }

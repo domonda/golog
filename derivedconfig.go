@@ -1,6 +1,9 @@
 package golog
 
-import "sync"
+import (
+	"context"
+	"sync"
+)
 
 // DerivedConfig
 type DerivedConfig struct {
@@ -49,15 +52,15 @@ func (c *DerivedConfig) Levels() *Levels {
 	return (*c.parent).Levels()
 }
 
-func (c *DerivedConfig) IsActive(level Level) bool {
+func (c *DerivedConfig) IsActive(ctx context.Context, level Level) bool {
 	var active bool
 	c.mutex.Lock()
 	if c.filter != nil {
 		// If DerivedConfig has its own filter, use it
-		active = c.filter.IsActive(level)
+		active = c.filter.IsActive(ctx, level)
 	} else {
 		// else use the filter of the parent Config
-		active = (*c.parent).IsActive(level)
+		active = (*c.parent).IsActive(ctx, level)
 	}
 	c.mutex.Unlock()
 	return active

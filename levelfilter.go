@@ -1,11 +1,26 @@
 package golog
 
-// NoFilter allows all log levels.
-const NoFilter LevelFilter = 0
+import "context"
+
+var _ LevelDecider = LevelFilter(0)
+
+const (
+	// AllLevelsActive allows all log levels.
+	AllLevelsActive LevelFilter = 0
+
+	// AllLevelsInactive disabled all log levels.
+	AllLevelsInactive LevelFilter = 0xFFFFFFFFFFFFFFFF
+)
 
 // LevelFilter is a bit mask filter for levels 0..63,
 // where a set bit filters out and zero allows a log level.
 type LevelFilter uint64
+
+func LevelFilterOut(level Level) LevelFilter {
+	levelBitIndex := LevelFilter(level + 32)  // LevelMin is -32
+	filter := LevelFilter(1) << levelBitIndex // Set bit with levelBitIndex
+	return filter
+}
 
 func LevelFilterOutBelow(level Level) LevelFilter {
 	levelBitIndex := LevelFilter(level + 32)  // LevelMin is -32
@@ -48,7 +63,10 @@ func newLevelFilterOrNil(filters []LevelFilter) *LevelFilter {
 	return &combined
 }
 
-func (f LevelFilter) IsActive(level Level) bool {
+// IsActive returns if the passed level is active or filtered out.
+// The context argument is ignored and only there to implement
+// the LevelDecider interface.
+func (f LevelFilter) IsActive(_ context.Context, level Level) bool {
 	if level < LevelMin || level > LevelMax {
 		return false
 	}
@@ -76,7 +94,7 @@ func (f *LevelFilter) SetActive(level Level, active bool) {
 func (f *LevelFilter) ActiveLevelNames(levels *Levels) []string {
 	var names []string
 	for l := LevelMin; l <= LevelMax; l++ {
-		if levels.HasName(l) && f.IsActive(l) {
+		if levels.HasName(l) && f.IsActive(nil, l) {
 			names = append(names, levels.Name(l))
 		}
 	}
@@ -86,7 +104,7 @@ func (f *LevelFilter) ActiveLevelNames(levels *Levels) []string {
 func (f *LevelFilter) InactiveLevelNames(levels *Levels) []string {
 	var names []string
 	for l := LevelMin; l <= LevelMax; l++ {
-		if levels.HasName(l) && !f.IsActive(l) {
+		if levels.HasName(l) && !f.IsActive(nil, l) {
 			names = append(names, levels.Name(l))
 		}
 	}

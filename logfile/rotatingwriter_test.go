@@ -27,7 +27,7 @@ func TestRotatingWriter(t *testing.T) {
 
 	log.Config = golog.NewConfig(
 		log.Levels,
-		golog.NoFilter,
+		golog.AllLevelsActive,
 		golog.NewJSONWriter(jsonWriter, &log.Format),
 		golog.NewTextWriter(textWriter, &log.Format, golog.NoColorizer),
 	)

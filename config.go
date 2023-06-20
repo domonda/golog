@@ -1,5 +1,7 @@
 package golog
 
+import "context"
+
 // FilterHTTPHeaders holds names of HTTP headers
 // that should not be logged for requests.
 // Defaults are "Authorization" and "Cookie".
@@ -16,10 +18,15 @@ var FilterHTTPHeaders = map[string]struct{}{
 // messages in automated tests. Don't use in production.
 var GlobalPanicLevel Level = LevelInvalid
 
+// Config implements LevelDecider
+var _ LevelDecider = Config(nil)
+
 type Config interface {
 	Writer() Writer
 	Levels() *Levels
-	IsActive(level Level) bool
+	// IsActive implements the LevelDecider interface.
+	// It's valid to pass a nil context.
+	IsActive(ctx context.Context, level Level) bool
 	Fatal() Level
 	Error() Level
 	Warn() Level
@@ -63,8 +70,8 @@ func (c *config) Levels() *Levels {
 	return c.levels
 }
 
-func (c *config) IsActive(level Level) bool {
-	return c.filter.IsActive(level)
+func (c *config) IsActive(ctx context.Context, level Level) bool {
+	return c.filter.IsActive(ctx, level)
 }
 
 func (c *config) Fatal() Level {

@@ -1,6 +1,7 @@
 package golog
 
 import (
+	"context"
 	"time"
 )
 
@@ -17,7 +18,7 @@ type Writer interface {
 	// if they should log the passed level.
 	// The logger is passed to give access to other data that might be needed
 	// for message formatting like the prefix or level names.
-	BeginMessage(logger *Logger, t time.Time, level Level, text string) Writer
+	BeginMessage(ctx context.Context, logger *Logger, t time.Time, level Level, text string) Writer
 
 	WriteKey(string)
 	WriteSliceKey(string)

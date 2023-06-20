@@ -2,7 +2,7 @@ package goslog
 
 import (
 	"context"
-	"time"
+	"strings"
 
 	"golang.org/x/exp/slog"
 
@@ -51,19 +51,19 @@ func (h *handler) clone() *handler {
 	}
 }
 
-func (h *handler) Enabled(_ context.Context, level slog.Level) bool {
-	return h.logger.IsActive(h.convertLevel(level))
+func (h *handler) Enabled(ctx context.Context, level slog.Level) bool {
+	return h.logger.IsActive(ctx, h.convertLevel(level))
 }
 
-func (h *handler) Handle(_ context.Context, record slog.Record) error {
-	t := record.Time
-	if t.IsZero() {
-		t = time.Now()
-	}
-	msg := h.logger.NewMessageAt(t, h.convertLevel(record.Level), record.Message)
+func (h *handler) Handle(ctx context.Context, record slog.Record) error {
+	msg := h.logger.NewMessageAt(ctx, record.Time, h.convertLevel(record.Level), record.Message)
 	for _, a := range h.attrs {
 		msg = writeAttr(msg, h.groupPrefix, a.Key, a.Value)
 	}
+	record.Attrs(func(a slog.Attr) bool {
+		msg = writeAttr(msg, h.groupPrefix, a.Key, a.Value)
+		return true
+	})
 	msg.Log()
 	return nil
 }
@@ -86,14 +86,14 @@ func (h *handler) WithGroup(name string) slog.Handler {
 		return h
 	}
 	with := h.clone()
-	with.groupPrefix = prefix(with.groupPrefix, name)
+	with.groupPrefix = prefixKey(with.groupPrefix, name)
 	return with
 }
 
 func writeAttr(m *golog.Message, group, key string, value slog.Value) *golog.Message {
 	kind := value.Kind()
 	if kind == slog.KindGroup {
-		group = prefix(group, key)
+		group = prefixKey(group, key)
 		for _, attr := range value.Group() {
 			m = writeAttr(m, group, attr.Key, attr.Value)
 		}
@@ -104,35 +104,52 @@ func writeAttr(m *golog.Message, group, key string, value slog.Value) *golog.Mes
 	}
 	switch kind {
 	case slog.KindAny:
-		return m.Any(prefix(group, key), value.Any())
+		return m.Any(prefixKey(group, key), value.Any())
 	case slog.KindBool:
-		return m.Bool(prefix(group, key), value.Bool())
+		return m.Bool(prefixKey(group, key), value.Bool())
 	case slog.KindDuration:
-		return m.Duration(prefix(group, key), value.Duration())
+		return m.Duration(prefixKey(group, key), value.Duration())
 	case slog.KindFloat64:
-		return m.Float(prefix(group, key), value.Float64())
+		return m.Float(prefixKey(group, key), value.Float64())
 	case slog.KindInt64:
-		return m.Int64(prefix(group, key), value.Int64())
+		return m.Int64(prefixKey(group, key), value.Int64())
 	case slog.KindString:
-		return m.Str(prefix(group, key), value.String())
+		return m.Str(prefixKey(group, key), value.String())
 	case slog.KindTime:
-		return m.Time(prefix(group, key), value.Time())
+		return m.Time(prefixKey(group, key), value.Time())
 	case slog.KindUint64:
-		return m.Uint64(prefix(group, key), value.Uint64())
+		return m.Uint64(prefixKey(group, key), value.Uint64())
 	case slog.KindLogValuer:
-		return writeAttr(m, group, key, value.LogValuer().LogValue())
+		return writeAttr(m, group, key, value.LogValuer().LogValue().Resolve())
 	default:
 		// Should never happen, but don't panic and still log any value
-		return m.Any(prefix(group, key), value)
+		return m.Any(prefixKey(group, key), value)
 	}
 }
 
-func prefix(current, name string) string {
-	if current == "" {
-		return name
+func prefixKey(group, key string) string {
+	if group == "" {
+		return key
 	}
-	if name == "" {
-		return current
+	if key == "" {
+		return group
 	}
-	return current + "." + name
+	return group + "." + key
+}
+
+func canSplitGroupKey(key string) bool {
+	return strings.ContainsRune(key, '.')
+}
+
+func splitGroupKeyVal(key string, val any) (rootKey string, rootVal any) {
+	if !strings.ContainsRune(key, '.') {
+		return key, val
+	}
+
+	keys := strings.Split(key, ".")
+	groupVals := map[string]any{keys[len(keys)-1]: val}
+	for i := len(keys) - 2; i >= 0; i-- {
+		groupVals = map[string]any{keys[i]: groupVals}
+	}
+	return keys[0], groupVals
 }

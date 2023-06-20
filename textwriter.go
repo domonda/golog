@@ -1,6 +1,7 @@
 package golog
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"strconv"
@@ -46,7 +47,7 @@ func getTextWriter(writer io.Writer, format *Format, colorizer Colorizer) *TextW
 	return NewTextWriter(writer, format, colorizer)
 }
 
-func (w *TextWriter) BeginMessage(logger *Logger, t time.Time, level Level, text string) Writer {
+func (w *TextWriter) BeginMessage(_ context.Context, logger *Logger, t time.Time, level Level, text string) Writer {
 	next := getTextWriter(w.writer, w.format, w.colorizer)
 	next.beginWriteMessage(logger, t, level, text)
 	return next

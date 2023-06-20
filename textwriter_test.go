@@ -1,6 +1,7 @@
 package golog
 
 import (
+	"context"
 	"errors"
 	"os"
 	"time"
@@ -14,17 +15,17 @@ func ExampleTextWriter() {
 		MessageKey:      "message",
 	}
 	formatter := NewTextWriter(os.Stdout, format, NoColorizer)
-	config := NewConfig(&DefaultLevels, NoFilter, formatter)
+	config := NewConfig(&DefaultLevels, AllLevelsActive, formatter)
 	log := NewLogger(config)
 
 	// Use fixed time for reproducable example output
 	at, _ := time.Parse("2006-01-02 15:04:05", "2006-01-02 15:04:05")
 
-	log.NewMessageAt(at, config.Info(), "My log message").
+	log.NewMessageAt(context.Background(), at, config.Info(), "My log message").
 		Int("int", 66).
 		Str("str", "Hello\tWorld!\n").
 		Log()
-	log.NewMessageAt(at, config.Error(), "Something went wrong!").
+	log.NewMessageAt(context.Background(), at, config.Error(), "Something went wrong!").
 		Err(errors.New("Multi\nLine\n\"Error\"")).
 		Int("numberOfTheBeast", 666).
 		Log()
