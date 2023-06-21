@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"strings"
 )
 
 // LevelWriter writes unstructured messages to a Logger with a fixed Level.
@@ -18,32 +17,32 @@ type LevelWriter struct {
 
 // Write implements io.Writer
 func (w *LevelWriter) Write(data []byte) (int, error) {
-	w.Msg(context.Background(), strings.TrimSuffix(string(data), "\n"))
+	w.WriteMessage(context.Background(), string(data))
 	return len(data), nil
 }
 
-// Msg writes a string message.
-func (w *LevelWriter) Msg(ctx context.Context, msg string) {
+// WriteMessage writes a string message.
+func (w *LevelWriter) WriteMessage(ctx context.Context, msg string) {
 	if w.logger == nil {
 		return
+	}
+	// Remove newline at end
+	if last := len(msg) - 1; last >= 0 && msg[last] == '\n' {
+		msg = msg[:last]
 	}
 	w.logger.NewMessage(ctx, w.level, msg).Log()
 }
 
 func (w *LevelWriter) Print(v ...any) {
-	w.Msg(context.Background(), fmt.Sprint(v...))
+	w.WriteMessage(context.Background(), fmt.Sprint(v...))
 }
 
 func (w *LevelWriter) Println(v ...any) {
-	msg := fmt.Sprintln(v...)
-	w.Msg(context.Background(), msg[:len(msg)-1])
+	w.WriteMessage(context.Background(), fmt.Sprintln(v...))
 }
 
 func (w *LevelWriter) Printf(format string, v ...any) {
-	if w.logger == nil {
-		return
-	}
-	w.logger.NewMessagef(context.Background(), w.level, format, v...).Log()
+	w.WriteMessage(context.Background(), fmt.Sprintf(format, v...))
 }
 
 // Func returns a function with the log.Printf call signature.
