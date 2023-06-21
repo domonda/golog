@@ -5,9 +5,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/domonda/golog"
+	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slog"
 )
 
@@ -42,20 +44,20 @@ func (w *recorder) BeginMessage(_ context.Context, logger *golog.Logger, t time.
 }
 
 func (w *recorder) CommitMessage() {
-	valuesWithGroups := w.values
+	// valuesWithGroups := w.values
 	// TODO
 	// Split keys into groups when they have been prefixed with group names
-	// valuesWithGroups := make(map[string]any, len(w.values))
-	// for key, val := range w.values {
-	// 	key, val = splitGroupKeyVal(key, val)
-	// 	if curVal, ok := valuesWithGroups[key].(map[string]any); ok {
-	// 		if newVal, ok := val.(map[string]any); ok {
-	// 			maps.Copy(curVal, newVal)
-	// 			val = curVal
-	// 		}
-	// 	}
-	// 	valuesWithGroups[key] = val
-	// }
+	valuesWithGroups := make(map[string]any, len(w.values))
+	for key, val := range w.values {
+		key, val = splitGroupKeyVal(key, val)
+		if curVal, ok := valuesWithGroups[key].(map[string]any); ok {
+			if newVal, ok := val.(map[string]any); ok {
+				maps.Copy(curVal, newVal)
+				val = curVal
+			}
+		}
+		valuesWithGroups[key] = val
+	}
 
 	// Add valuesWithGroups to result
 	w.Result = append(w.Result, valuesWithGroups)
@@ -143,4 +145,20 @@ func (w *recorder) writeVal(val any) {
 	w.values[w.key] = val
 
 	fmt.Printf(" %s=%#v", w.key, val)
+}
+
+func canSplitGroupKey(key string) bool {
+	return strings.ContainsRune(key, '.')
+}
+
+func splitGroupKeyVal(key string, val any) (rootKey string, rootVal any) {
+	if !strings.ContainsRune(key, '.') {
+		return key, val
+	}
+	keys := strings.Split(key, ".")
+	groupVals := map[string]any{keys[len(keys)-1]: val}
+	for i := len(keys) - 2; i > 0; i-- {
+		groupVals = map[string]any{keys[i]: groupVals}
+	}
+	return keys[0], groupVals
 }

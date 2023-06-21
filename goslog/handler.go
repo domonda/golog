@@ -2,7 +2,6 @@ package goslog
 
 import (
 	"context"
-	"strings"
 
 	"golang.org/x/exp/slog"
 
@@ -58,7 +57,7 @@ func (h *handler) Enabled(ctx context.Context, level slog.Level) bool {
 func (h *handler) Handle(ctx context.Context, record slog.Record) error {
 	msg := h.logger.NewMessageAt(ctx, record.Time, h.convertLevel(record.Level), record.Message)
 	for _, a := range h.attrs {
-		msg = writeAttr(msg, h.groupPrefix, a.Key, a.Value)
+		msg = writeAttr(msg, "", a.Key, a.Value)
 	}
 	record.Attrs(func(a slog.Attr) bool {
 		msg = writeAttr(msg, h.groupPrefix, a.Key, a.Value)
@@ -73,11 +72,12 @@ func (h *handler) WithAttrs(attrs []slog.Attr) slog.Handler {
 		return h
 	}
 	with := h.clone()
-	if with.attrs == nil {
-		with.attrs = attrs
-	} else {
-		with.attrs = append(with.attrs, attrs...)
+	if h.groupPrefix != "" {
+		for i := range attrs {
+			attrs[i].Key = prefixKey(h.groupPrefix, attrs[i].Key)
+		}
 	}
+	with.attrs = append(with.attrs, attrs...)
 	return with
 }
 
@@ -135,21 +135,4 @@ func prefixKey(group, key string) string {
 		return group
 	}
 	return group + "." + key
-}
-
-func canSplitGroupKey(key string) bool {
-	return strings.ContainsRune(key, '.')
-}
-
-func splitGroupKeyVal(key string, val any) (rootKey string, rootVal any) {
-	if !strings.ContainsRune(key, '.') {
-		return key, val
-	}
-
-	keys := strings.Split(key, ".")
-	groupVals := map[string]any{keys[len(keys)-1]: val}
-	for i := len(keys) - 2; i >= 0; i-- {
-		groupVals = map[string]any{keys[i]: groupVals}
-	}
-	return keys[0], groupVals
 }
