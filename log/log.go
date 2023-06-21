@@ -84,48 +84,96 @@ func Fatal(text string) *golog.Message {
 	return Logger.Fatal(text)
 }
 
+func FatalCtx(ctx context.Context, text string) *golog.Message {
+	return Logger.FatalCtx(ctx, text)
+}
+
 func Fatalf(format string, args ...any) *golog.Message {
 	return Logger.Fatalf(format, args...)
+}
+
+func FatalfCtx(ctx context.Context, format string, args ...any) *golog.Message {
+	return Logger.FatalfCtx(ctx, format, args...)
 }
 
 func Error(text string) *golog.Message {
 	return Logger.Error(text)
 }
 
+func ErrorCtx(ctx context.Context, text string) *golog.Message {
+	return Logger.ErrorCtx(ctx, text)
+}
+
 func Errorf(format string, args ...any) *golog.Message {
 	return Logger.Errorf(format, args...)
+}
+
+func ErrorfCtx(ctx context.Context, format string, args ...any) *golog.Message {
+	return Logger.ErrorfCtx(ctx, format, args...)
 }
 
 func Warn(text string) *golog.Message {
 	return Logger.Warn(text)
 }
 
+func WarnCtx(ctx context.Context, text string) *golog.Message {
+	return Logger.WarnCtx(ctx, text)
+}
+
 func Warnf(format string, args ...any) *golog.Message {
 	return Logger.Warnf(format, args...)
+}
+
+func WarnfCtx(ctx context.Context, format string, args ...any) *golog.Message {
+	return Logger.WarnfCtx(ctx, format, args...)
 }
 
 func Info(text string) *golog.Message {
 	return Logger.Info(text)
 }
 
+func InfoCtx(ctx context.Context, text string) *golog.Message {
+	return Logger.InfoCtx(ctx, text)
+}
+
 func Infof(format string, args ...any) *golog.Message {
 	return Logger.Infof(format, args...)
+}
+
+func InfofCtx(ctx context.Context, format string, args ...any) *golog.Message {
+	return Logger.InfofCtx(ctx, format, args...)
 }
 
 func Debug(text string) *golog.Message {
 	return Logger.Debug(text)
 }
 
+func DebugCtx(ctx context.Context, text string) *golog.Message {
+	return Logger.DebugCtx(ctx, text)
+}
+
 func Debugf(format string, args ...any) *golog.Message {
 	return Logger.Debugf(format, args...)
+}
+
+func DebugfCtx(ctx context.Context, format string, args ...any) *golog.Message {
+	return Logger.DebugfCtx(ctx, format, args...)
 }
 
 func Trace(text string) *golog.Message {
 	return Logger.Trace(text)
 }
 
+func TraceCtx(ctx context.Context, text string) *golog.Message {
+	return Logger.TraceCtx(ctx, text)
+}
+
 func Tracef(format string, args ...any) *golog.Message {
 	return Logger.Tracef(format, args...)
+}
+
+func TracefCtx(ctx context.Context, format string, args ...any) *golog.Message {
+	return Logger.TracefCtx(ctx, format, args...)
 }
 
 func NewLevelWriter(level golog.Level) *golog.LevelWriter {
