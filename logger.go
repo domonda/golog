@@ -150,6 +150,11 @@ func (l *Logger) Flush() {
 }
 
 func (l *Logger) NewMessageAt(ctx context.Context, t time.Time, level Level, text string) *Message {
+	// Logging should always err on the side of robustness
+	// so accept nil to prevent panics.
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	if !l.IsActive(ctx, level) {
 		return nil
 	}
@@ -167,20 +172,18 @@ func (l *Logger) NewMessageAt(ctx context.Context, t time.Time, level Level, tex
 		// writing more attribs with the same keys
 		msg.attribs = l.attribs
 	}
+	// Context attribs are logged after logger attribs
+	// meaning they are ignored if attribs
+	// with the same key were already logged
+	AttribsFromContext(ctx).Log(msg)
 	return msg
 }
 
 func (l *Logger) NewMessage(ctx context.Context, level Level, text string) *Message {
-	if !l.IsActive(ctx, level) {
-		return nil
-	}
 	return l.NewMessageAt(ctx, time.Now(), level, text)
 }
 
 func (l *Logger) NewMessagef(ctx context.Context, level Level, format string, args ...any) *Message {
-	if !l.IsActive(ctx, level) {
-		return nil
-	}
 	return l.NewMessageAt(ctx, time.Now(), level, fmt.Sprintf(format, args...))
 }
 
