@@ -2,8 +2,7 @@ package goslog
 
 import (
 	"context"
-
-	"golang.org/x/exp/slog"
+	"log/slog"
 
 	"github.com/domonda/golog"
 )

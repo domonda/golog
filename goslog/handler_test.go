@@ -1,12 +1,12 @@
 package goslog
 
 import (
+	"log/slog"
 	"reflect"
 	"testing"
+	"testing/slogtest"
 
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/slog"
-	"golang.org/x/exp/slog/slogtest"
 
 	"github.com/domonda/golog"
 )

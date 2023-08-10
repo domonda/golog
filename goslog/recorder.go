@@ -5,12 +5,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
+	"maps"
 	"strings"
 	"time"
 
 	"github.com/domonda/golog"
-	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slog"
 )
 
 type recorder struct {
