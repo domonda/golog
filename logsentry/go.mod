@@ -5,7 +5,7 @@ go 1.21
 replace github.com/domonda/golog => ../.
 
 require (
-	github.com/domonda/golog v0.0.0-20230801205258-13d3a7cbc58f
+	github.com/domonda/golog v0.0.0-20230810134211-c003b9d7aa25
 	github.com/getsentry/sentry-go v0.23.0
 )
 
