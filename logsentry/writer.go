@@ -20,13 +20,23 @@ var (
 
 	FlushTimeout time.Duration = 3 * time.Second
 
-	activeCtxKey int
+	withoutLoggingCtxKey int
 )
 
 // ContextWithoutLogging returns a new context with
 // Sentry logging disabled for all levels.
 func ContextWithoutLogging(parent context.Context) context.Context {
-	return context.WithValue(parent, &activeCtxKey, false)
+	if IsContextWithoutLogging(parent) {
+		return parent
+	}
+	return context.WithValue(parent, &withoutLoggingCtxKey, struct{}{})
+}
+
+// IsContextWithoutLogging returns true if the passed
+// context was returned from ContextWithoutLogging,
+// which means Sentry logging disabled for all levels.
+func IsContextWithoutLogging(ctx context.Context) bool {
+	return ctx != nil && ctx.Value(&withoutLoggingCtxKey) != nil
 }
 
 // Writer implements interface golog.Writer
@@ -59,13 +69,8 @@ func NewWriter(hub *sentry.Hub, format *golog.Format, filter golog.LevelFilter, 
 }
 
 func (w *Writer) BeginMessage(ctx context.Context, logger *golog.Logger, t time.Time, level golog.Level, text string) golog.Writer {
-	if !w.filter.IsActive(ctx, level) {
+	if !w.filter.IsActive(ctx, level) || IsContextWithoutLogging(ctx) {
 		return golog.NopWriter
-	}
-	if ctx != nil {
-		if active, ok := ctx.Value(&activeCtxKey).(bool); ok && !active {
-			return golog.NopWriter
-		}
 	}
 	next := NewWriter(w.hub, w.format, w.filter, w.valsAsMsg, w.extra) // Clone hub too?
 	next.beginWriteMessage(logger, t, level, text)
