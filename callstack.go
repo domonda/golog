@@ -26,6 +26,7 @@ func filePathPrefix() string {
 }
 
 func callstack(skip int) string {
+	skip = max(2+skip, 0) // Prefer robustness in logging over panics
 	stack := make([]uintptr, 32)
 	n := runtime.Callers(skip, stack)
 	stack = stack[:n]
@@ -33,8 +34,8 @@ func callstack(skip int) string {
 	var b strings.Builder
 	frames := runtime.CallersFrames(stack)
 	for {
-		frame, more := frames.Next()
-		if frame.Function == "runtime.main" {
+		frame, _ := frames.Next()
+		if frame.Function == "" || strings.HasPrefix(frame.Function, "runtime.") {
 			break
 		}
 		_, _ = fmt.Fprintf(
@@ -44,9 +45,6 @@ func callstack(skip int) string {
 			strings.TrimPrefix(frame.File, TrimCallStackPathPrefix),
 			frame.Line,
 		)
-		if !more {
-			break
-		}
 	}
 	return b.String()
 }

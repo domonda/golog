@@ -7,7 +7,7 @@ import (
 
 func SubFunc() {
 	log.Info("Logging in SubFunc").CallStack("stack").Log()
-	log.Info("Logging in SubFunc but skip 1 frame").CallStack("stack", 1).Log()
+	log.Info("Logging in SubFunc but skip 1 frame").CallStackSkip("stack", 1).Log()
 }
 
 func TopLevelFunc() {
@@ -20,5 +20,5 @@ func main() {
 	TopLevelFunc()
 
 	golog.TrimCallStackPathPrefix = ""
-	log.Info("Logging in main with full path").CallStack("stack").Log()
+	log.Info("Logging in main with full path").CallStackSkip("stack", 0).Log()
 }

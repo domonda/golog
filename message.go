@@ -153,15 +153,15 @@ func (m *Message) Errors(key string, vals []error) *Message {
 
 // CallStack logs the current call stack
 // as an error value with the passed key.
-// The optional skip values cause their sum
-// count of frames to be skipped.
-func (m *Message) CallStack(key string, skip ...int) *Message {
-	n := 3
-	for _, s := range skip {
-		n += s
-	}
-	n = max(n, 0) // Prefer robustness in logging over panics
-	return m.Error(key, errors.New(callstack(n)))
+func (m *Message) CallStack(key string) *Message {
+	return m.CallStackSkip(key, 1)
+}
+
+// CallStack logs the current call stack
+// as an error value with the passed key,
+// with skip number of top frames omitted.
+func (m *Message) CallStackSkip(key string, skip int) *Message {
+	return m.Error(key, errors.New(callstack(1+skip)))
 }
 
 // Any logs val with the best matching typed log method
