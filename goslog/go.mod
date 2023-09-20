@@ -5,7 +5,7 @@ go 1.21
 replace github.com/domonda/golog => ../.
 
 require (
-	github.com/domonda/golog v0.0.0-20230810134211-c003b9d7aa25
+	github.com/domonda/golog v0.0.0-20230918195603-76d7dd4c5940
 	github.com/stretchr/testify v1.8.4
 )
 
@@ -20,6 +20,6 @@ require (
 	github.com/muesli/termenv v0.15.2 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/rivo/uniseg v0.4.4 // indirect
-	golang.org/x/sys v0.11.0 // indirect
+	golang.org/x/sys v0.12.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

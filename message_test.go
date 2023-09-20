@@ -446,3 +446,26 @@ func TestMessage_Ctx(t *testing.T) {
 	textOut.Reset()
 	jsonOut.Reset()
 }
+
+// func ExampleMessage_CallStack() {
+// 	at, _ := time.Parse("2006-01-02 15:04:05", "2006-01-02 15:04:05")
+
+// 	format := &Format{
+// 		TimestampFormat: "2006-01-02 15:04:05",
+// 		TimestampKey:    "time",
+// 		LevelKey:        "level",
+// 		PrefixSep:       ": ",
+// 		MessageKey:      "message",
+// 	}
+
+// 	textWriter := NewTextWriter(os.Stdout, format, NoColorizer)
+
+// 	config := NewConfig(&DefaultLevels, AllLevelsActive, textWriter)
+// 	log := NewLogger(config)
+
+// 	log.NewMessageAt(context.Background(), at, log.Config().Info(), "CallStack Example").
+// 		CallStack("stack").
+// 		Log()
+
+// 	// Output:
+// }
