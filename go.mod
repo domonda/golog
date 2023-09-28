@@ -6,7 +6,7 @@ toolchain go1.21.0
 
 require (
 	github.com/domonda/go-encjson v0.0.0-20210830085227-1beee57a72d8
-	github.com/domonda/go-types v0.0.0-20230906101320-38d31a04c999
+	github.com/domonda/go-types v0.0.0-20230926122236-a75565adcd2b
 	github.com/fatih/color v1.15.0
 	github.com/kr/text v0.2.0 // indirect
 	github.com/mattn/go-runewidth v0.0.15 // indirect

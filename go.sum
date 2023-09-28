@@ -9,8 +9,8 @@ github.com/domonda/go-errs v0.0.0-20230920094343-6b122da4d22f h1:ECYzMHlxXTmVwOY
 github.com/domonda/go-errs v0.0.0-20230920094343-6b122da4d22f/go.mod h1:DYkFE3rxUGhTCMmR5MpQ2NTtoCPiORdjBATGkIEeGKM=
 github.com/domonda/go-pretty v0.0.0-20230810130018-8920f571470a h1:b3a6MwwMrHR9dw6585e3Ky51T50OKuD3fRuLyh8ziEw=
 github.com/domonda/go-pretty v0.0.0-20230810130018-8920f571470a/go.mod h1:3QkM8UJdyJMeKZiIo7hYzSkQBpRS3k0gOHw4ysyEIB4=
-github.com/domonda/go-types v0.0.0-20230906101320-38d31a04c999 h1:+52bBeN1CEsFkKpqfv+L2wo95D96I5+Jibx9XB9uBuU=
-github.com/domonda/go-types v0.0.0-20230906101320-38d31a04c999/go.mod h1:qMSeU/23ZUopt+1kY0pJ27iqNRtsY1jATQklyCyLRAU=
+github.com/domonda/go-types v0.0.0-20230926122236-a75565adcd2b h1:CZyyHCaLPkcGXXxuC2qFcwsEnJX8MJ3jNZBlCHoIEa0=
+github.com/domonda/go-types v0.0.0-20230926122236-a75565adcd2b/go.mod h1:2mMAkLzvuxdGvjJQ8o8I0QTJGRiCaBV/ZleKeoRbgJ0=
 github.com/fatih/color v1.15.0 h1:kOqh6YHBtK8aywxGerMG2Eq3H6Qgoqeo13Bk2Mv/nBs=
 github.com/fatih/color v1.15.0/go.mod h1:0h5ZqXfHYED7Bhv2ZJamyIOUej9KtShiJESRwBDUSsw=
 github.com/fsnotify/fsnotify v1.6.0 h1:n+5WquG0fcWoWp6xPWfHdbskMCQaFnG6PfBrh1Ky4HY=
