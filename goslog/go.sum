@@ -9,8 +9,8 @@ github.com/domonda/go-errs v0.0.0-20230920094343-6b122da4d22f h1:ECYzMHlxXTmVwOY
 github.com/domonda/go-errs v0.0.0-20230920094343-6b122da4d22f/go.mod h1:DYkFE3rxUGhTCMmR5MpQ2NTtoCPiORdjBATGkIEeGKM=
 github.com/domonda/go-pretty v0.0.0-20230810130018-8920f571470a h1:b3a6MwwMrHR9dw6585e3Ky51T50OKuD3fRuLyh8ziEw=
 github.com/domonda/go-pretty v0.0.0-20230810130018-8920f571470a/go.mod h1:3QkM8UJdyJMeKZiIo7hYzSkQBpRS3k0gOHw4ysyEIB4=
-github.com/domonda/go-types v0.0.0-20230906101320-38d31a04c999 h1:+52bBeN1CEsFkKpqfv+L2wo95D96I5+Jibx9XB9uBuU=
-github.com/domonda/go-types v0.0.0-20230906101320-38d31a04c999/go.mod h1:qMSeU/23ZUopt+1kY0pJ27iqNRtsY1jATQklyCyLRAU=
+github.com/domonda/go-types v0.0.0-20230926122236-a75565adcd2b h1:CZyyHCaLPkcGXXxuC2qFcwsEnJX8MJ3jNZBlCHoIEa0=
+github.com/domonda/go-types v0.0.0-20230926122236-a75565adcd2b/go.mod h1:2mMAkLzvuxdGvjJQ8o8I0QTJGRiCaBV/ZleKeoRbgJ0=
 github.com/kr/pretty v0.3.1 h1:flRD4NNwYAUpkphVc1HcthR4KEIFJ65n8Mw5qdRn3LE=
 github.com/kr/pretty v0.3.1/go.mod h1:hoEshYVHaxMs3cyo3Yncou5ZscifuDolrwPKZanG3xk=
 github.com/kr/text v0.2.0 h1:5Nx0Ya0ZqY2ygV366QzturHI13Jq95ApcVaJBhpS+AY=
