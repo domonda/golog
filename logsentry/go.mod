@@ -5,8 +5,8 @@ go 1.21
 replace github.com/domonda/golog => ../.
 
 require (
-	github.com/domonda/golog v0.0.0-20230928132524-97bbc429cd0d
-	github.com/getsentry/sentry-go v0.24.1
+	github.com/domonda/golog v0.0.0-20230928134245-ef9e6b2cd8db
+	github.com/getsentry/sentry-go v0.25.0
 )
 
 require (
@@ -17,6 +17,6 @@ require (
 	github.com/mattn/go-runewidth v0.0.15 // indirect
 	github.com/muesli/termenv v0.15.2 // indirect
 	github.com/rivo/uniseg v0.4.4 // indirect
-	golang.org/x/sys v0.12.0 // indirect
+	golang.org/x/sys v0.13.0 // indirect
 	golang.org/x/text v0.13.0 // indirect
 )

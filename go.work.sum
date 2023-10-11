@@ -46,6 +46,7 @@ github.com/teamwork/utils v0.0.0-20220314153103-637fa45fa6cc h1:BidxxRk9kopF5IGE
 github.com/teamwork/utils v0.0.0-20220314153103-637fa45fa6cc/go.mod h1:3Fn0qxFeRNpvsg/9T1+btOOOKkd1qG2nPYKKcOmNpcs=
 github.com/ungerik/go-reflection v0.0.0-20220113085621-6c5fc1f2694a h1:9vfYtqoyrPw08TbSLxkSXEflp6iXa3RL86Qjs+DrVas=
 github.com/ungerik/go-reflection v0.0.0-20220113085621-6c5fc1f2694a/go.mod h1:6Hnd2/4g3Tpt6TjvxHx8wXOZziwApVxRdIGkr7vNpXs=
+github.com/ungerik/go-reflection v0.0.0-20230810134712-a63435f6bc7e h1:BPksMeVdgSD8L4yXHYSY3HpdJ/5z2Ok5lF6PxHIVgEQ=
 github.com/ungerik/go-reflection v0.0.0-20230810134712-a63435f6bc7e/go.mod h1:1Q14POg/xa/P6/hWKfnUexqUhW1X6jgw+6gG7lOne1E=
 github.com/valyala/bytebufferpool v1.0.0/go.mod h1:6bBcMArwyJ5K/AmCkWv1jt77kVWyCJ6HpOuEn7z0Csc=
 github.com/valyala/fasttemplate v1.2.2/go.mod h1:KHLXt3tVN2HBp8eijSv/kGJopbvo7S+qRAEEKiv+SiQ=
