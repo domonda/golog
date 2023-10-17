@@ -197,7 +197,7 @@ func isSlice(v reflect.Value) bool {
 	if !v.IsValid() {
 		return false
 	}
-	for v.Kind() == reflect.Ptr && !v.IsNil() {
+	for v.Kind() == reflect.Pointer && !v.IsNil() {
 		v = v.Elem()
 	}
 	return v.Kind() == reflect.Slice || (v.Kind() == reflect.Array && !isUUID(v))
@@ -212,7 +212,7 @@ func (m *Message) writeAny(val reflect.Value, nestedSlice bool) {
 
 	// Deref pointers
 	valChanged := false
-	for val.Kind() == reflect.Ptr && !val.IsNil() {
+	for val.Kind() == reflect.Pointer && !val.IsNil() {
 		val = val.Elem()
 		valChanged = true
 	}
@@ -340,7 +340,7 @@ func (m *Message) TaggedStructFields(strct any, tag string) *Message {
 }
 
 func (m *Message) structFields(v reflect.Value, tag string) {
-	for v.Kind() == reflect.Ptr {
+	for v.Kind() == reflect.Pointer {
 		if v.IsNil() {
 			return
 		}
