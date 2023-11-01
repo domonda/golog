@@ -16,13 +16,13 @@ import (
 // If the request has no requestID, then a random v4 UUID will be used.
 // The requestID will also be set at the http.ResponseWriter as X-Request-ID header
 // before calling the next handler, which has a chance to change it.
-// If restrictHeaders are passed then only those headers are logged if available,
+// If onlyHeaders are passed then only those headers are logged if available,
 // or pass golog.HTTPNoHeaders to disable header logging.
 // To disable logging of the request at all and just pass through
 // the requestID pass golog.LevelInvalid as log level.
 // See also HTTPMiddlewareFunc.
-func HTTPMiddlewareHandler(next http.Handler, level golog.Level, message string, restrictHeaders ...string) http.Handler {
-	return golog.HTTPMiddlewareHandler(next, Logger, level, message, restrictHeaders...)
+func HTTPMiddlewareHandler(next http.Handler, level golog.Level, message string, onlyHeaders ...string) http.Handler {
+	return golog.HTTPMiddlewareHandler(next, Logger, level, message, onlyHeaders...)
 }
 
 // HTTPMiddlewareFunc returns a HTTP middleware function that passes through a UUID requestID.
@@ -32,14 +32,14 @@ func HTTPMiddlewareHandler(next http.Handler, level golog.Level, message string,
 // If the request has no requestID, then a random v4 UUID will be used.
 // The requestID will also be set at the http.ResponseWriter as X-Request-ID header
 // before calling the next handler, which has a chance to change it.
-// If restrictHeaders are passed then only those headers are logged if available,
+// If onlyHeaders are passed then only those headers are logged if available,
 // or pass golog.HTTPNoHeaders to disable header logging.
 // To disable logging of the request at all and just pass through
 // the requestID pass golog.LevelInvalid as log level.
 // Compatible with github.com/gorilla/mux.MiddlewareFunc.
 // See also HTTPMiddlewareHandler.
-func HTTPMiddlewareFunc(level golog.Level, message string, restrictHeaders ...string) func(next http.Handler) http.Handler {
-	return golog.HTTPMiddlewareFunc(Logger, level, message, restrictHeaders...)
+func HTTPMiddlewareFunc(level golog.Level, message string, onlyHeaders ...string) func(next http.Handler) http.Handler {
+	return golog.HTTPMiddlewareFunc(Logger, level, message, onlyHeaders...)
 }
 
 func WithValues(values ...golog.Attrib) *golog.Logger {

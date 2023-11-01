@@ -96,12 +96,12 @@ func ContextWithRequestID(ctx context.Context, requestID string) context.Context
 // If the request has no requestID, then a random v4 UUID will be used.
 // The requestID will also be set at the http.ResponseWriter as X-Request-ID header
 // before calling the next handler, which has a chance to change it.
-// If restrictHeaders are passed then only those headers are logged if available,
+// If onlyHeaders are passed then only those headers are logged if available,
 // or pass HTTPNoHeaders to disable header logging.
 // To disable logging of the request at all and just pass through
 // the requestID pass LevelInvalid as log level.
 // See also HTTPMiddlewareFunc.
-func HTTPMiddlewareHandler(next http.Handler, logger *Logger, level Level, message string, restrictHeaders ...string) http.Handler {
+func HTTPMiddlewareHandler(next http.Handler, logger *Logger, level Level, message string, onlyHeaders ...string) http.Handler {
 	return http.HandlerFunc(
 		func(response http.ResponseWriter, request *http.Request) {
 			requestID := GetOrCreateRequestUUID(request)
@@ -110,7 +110,7 @@ func HTTPMiddlewareHandler(next http.Handler, logger *Logger, level Level, messa
 			requestWithID := RequestWithAttribs(request, UUID{Key: "requestID", Val: requestID})
 
 			logger.NewMessage(request.Context(), level, message).
-				Request(requestWithID, restrictHeaders...).
+				Request(requestWithID, onlyHeaders...).
 				Log()
 
 			next.ServeHTTP(response, requestWithID)
@@ -125,14 +125,14 @@ func HTTPMiddlewareHandler(next http.Handler, logger *Logger, level Level, messa
 // If the request has no requestID, then a random v4 UUID will be used.
 // The requestID will also be set at the http.ResponseWriter as X-Request-ID header
 // before calling the next handler, which has a chance to change it.
-// If restrictHeaders are passed then only those headers are logged if available,
+// If onlyHeaders are passed then only those headers are logged if available,
 // or pass HTTPNoHeaders to disable header logging.
 // To disable logging of the request at all and just pass through
 // the requestID pass LevelInvalid as log level.
 // Compatible with github.com/gorilla/mux.MiddlewareFunc.
 // See also HTTPMiddlewareHandler.
-func HTTPMiddlewareFunc(logger *Logger, level Level, message string, restrictHeaders ...string) func(next http.Handler) http.Handler {
+func HTTPMiddlewareFunc(logger *Logger, level Level, message string, onlyHeaders ...string) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
-		return HTTPMiddlewareHandler(next, logger, level, message, restrictHeaders...)
+		return HTTPMiddlewareHandler(next, logger, level, message, onlyHeaders...)
 	}
 }

@@ -1121,10 +1121,10 @@ func (m *Message) StrBytes(key string, val []byte) *Message {
 // Request logs a http.Request including values added to the request context.
 // The following request values are logged: remote, method, uri,
 // and contentLength only if available and greater than zero.
-// If restrictHeaders are passed, then only those headers are logged if available,
+// If onlyHeaders are passed, then only those headers are logged if available,
 // else all headers not in the package level FilterHTTPHeaders map will be logged.
 // To disable header logging, pass an impossible header name.
-func (m *Message) Request(request *http.Request, restrictHeaders ...string) *Message {
+func (m *Message) Request(request *http.Request, onlyHeaders ...string) *Message {
 	if m == nil {
 		return nil
 	}
@@ -1138,8 +1138,8 @@ func (m *Message) Request(request *http.Request, restrictHeaders ...string) *Mes
 		m.Int64("Content-Length", request.ContentLength)
 	}
 
-	if len(restrictHeaders) > 0 {
-		for _, header := range restrictHeaders {
+	if len(onlyHeaders) > 0 {
+		for _, header := range onlyHeaders {
 			if values, ok := request.Header[header]; ok {
 				if len(values) == 1 {
 					m.Str(header, values[0])
