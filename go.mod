@@ -6,7 +6,7 @@ toolchain go1.21.0
 
 require (
 	github.com/domonda/go-encjson v0.0.0-20210830085227-1beee57a72d8
-	github.com/domonda/go-types v0.0.0-20231009154523-c7136708a6e7
+	github.com/domonda/go-types v0.0.0-20231024131150-e5e3ba4f448e
 	github.com/fatih/color v1.15.0
 	github.com/kr/text v0.2.0 // indirect
 	github.com/mattn/go-runewidth v0.0.15 // indirect
@@ -23,10 +23,10 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/domonda/go-errs v0.0.0-20230920094343-6b122da4d22f // indirect
 	github.com/domonda/go-pretty v0.0.0-20230810130018-8920f571470a // indirect
-	github.com/fsnotify/fsnotify v1.6.0 // indirect
+	github.com/fsnotify/fsnotify v1.7.0 // indirect
 	github.com/lucasb-eyer/go-colorful v1.2.0 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
-	github.com/mattn/go-isatty v0.0.19 // indirect
+	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/rivo/uniseg v0.4.4 // indirect
 )
