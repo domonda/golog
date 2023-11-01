@@ -149,6 +149,7 @@ func (l *Logger) Flush() {
 	l.config.Writer().FlushUnderlying()
 }
 
+// NewMessageAt starts a new message logged with the time t
 func (l *Logger) NewMessageAt(ctx context.Context, t time.Time, level Level, text string) *Message {
 	// Logging should always err on the side of robustness
 	// so accept nil to prevent panics.
@@ -179,10 +180,12 @@ func (l *Logger) NewMessageAt(ctx context.Context, t time.Time, level Level, tex
 	return msg
 }
 
+// NewMessage starts a new message
 func (l *Logger) NewMessage(ctx context.Context, level Level, text string) *Message {
 	return l.NewMessageAt(ctx, time.Now(), level, text)
 }
 
+// NewMessagef starts a new message formatted using fmt.Sprintf
 func (l *Logger) NewMessagef(ctx context.Context, level Level, format string, args ...any) *Message {
 	return l.NewMessageAt(ctx, time.Now(), level, fmt.Sprintf(format, args...))
 }

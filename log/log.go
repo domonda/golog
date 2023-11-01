@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/domonda/golog"
 )
@@ -72,6 +73,21 @@ func With() *golog.Message {
 // Flush unwritten logs
 func Flush() {
 	Logger.Flush()
+}
+
+// NewMessageAt starts a new message logged with the time t
+func NewMessageAt(ctx context.Context, t time.Time, level golog.Level, text string) *golog.Message {
+	return Logger.NewMessageAt(ctx, t, level, text)
+}
+
+// NewMessage starts a new message
+func NewMessage(ctx context.Context, level golog.Level, text string) *golog.Message {
+	return Logger.NewMessage(ctx, level, text)
+}
+
+// NewMessagef starts a new message formatted using fmt.Sprintf
+func NewMessagef(ctx context.Context, level golog.Level, format string, args ...any) *golog.Message {
+	return Logger.NewMessagef(ctx, level, format, args...)
 }
 
 // FatalAndPanic is a shortcut for Fatal(fmt.Sprint(p)).LogAndPanic()
