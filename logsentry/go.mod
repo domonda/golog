@@ -2,12 +2,11 @@ module github.com/domonda/golog/logsentry
 
 go 1.22
 
-replace github.com/domonda/golog => ../.
+replace github.com/domonda/golog => ..
 
-require (
-	github.com/domonda/golog v0.0.0-20240215180050-ccd95a2d2ddf
-	github.com/getsentry/sentry-go v0.27.0
-)
+require github.com/domonda/golog v0.0.0-00010101000000-000000000000 // replaced
+
+require github.com/getsentry/sentry-go v0.27.0
 
 require (
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect

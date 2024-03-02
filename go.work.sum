@@ -23,6 +23,7 @@ github.com/jhillyerd/enmime v1.0.0/go.mod h1:EktNOa/V6ka9yCrfoB2uxgefp1lno6OVdsz
 github.com/jhillyerd/enmime v1.0.1/go.mod h1:LMMbm6oTlzWHghPavqHtOrP/NosVv3l42CUrZjn03/Q=
 github.com/jhillyerd/enmime v1.1.0 h1:ubaIzg68VY7CMCe2YbHe6nkRvU9vujixTkNz3EBvZOw=
 github.com/jhillyerd/enmime v1.1.0/go.mod h1:FRFuUPCLh8PByQv+8xRcLO9QHqaqTqreYhopv5eyk4I=
+github.com/jhillyerd/enmime v1.2.0 h1:dIu1IPEymQgoT2dzuB//ttA/xcV40NMPpQtmd4wslHk=
 github.com/jhillyerd/enmime v1.2.0/go.mod h1:FRFuUPCLh8PByQv+8xRcLO9QHqaqTqreYhopv5eyk4I=
 github.com/jinzhu/now v1.1.5 h1:/o9tlHleP7gOFmsnYNz3RGnqzefHA47wQpKrrdTIwXQ=
 github.com/jinzhu/now v1.1.5/go.mod h1:d3SSVoowX0Lcu0IBviAWJpolVfI5UJVZZ7cO71lE/z8=
@@ -71,6 +72,7 @@ golang.org/x/net v0.15.0/go.mod h1:idbUs1IY1+zTqbi8yxTbhexhEEk5ur9LInksu6HrEpk=
 golang.org/x/net v0.17.0/go.mod h1:NxSsAGuq816PNPmqtQdLE42eU2Fs7NoRIZrHJAlaCOE=
 golang.org/x/net v0.20.0 h1:aCL9BSgETF1k+blQaYUBx9hJ9LOGP3gAVemcZlf1Kpo=
 golang.org/x/net v0.20.0/go.mod h1:z8BVo6PvndSri0LbOE3hAn0apkU+1YvI6E70E9jsnvY=
+golang.org/x/net v0.21.0 h1:AQyQV4dYCvJ7vGmJyKki9+PBdyvhkSd8EIx/qb0AYv4=
 golang.org/x/net v0.21.0/go.mod h1:bIjVDfnllIU7BJ2DNgfnXvpSvtn8VRwhlsaeUTyUS44=
 golang.org/x/sync v0.1.0/go.mod h1:RxMgew5VJxzue5/jJTE5uejpjVlOe/izrB70Jof72aM=
 golang.org/x/sys v0.1.0/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
