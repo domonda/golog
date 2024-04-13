@@ -2,18 +2,16 @@ module github.com/domonda/golog
 
 go 1.22
 
-toolchain go1.22.0
-
 require (
 	github.com/domonda/go-encjson v0.0.0-20210830085227-1beee57a72d8
-	github.com/domonda/go-types v0.0.0-20240301143218-7f4371e713b4
+	github.com/domonda/go-types v0.0.0-20240314102041-2c8b079b74fa
 	github.com/fatih/color v1.16.0
 	github.com/kr/text v0.2.0 // indirect
 	github.com/mattn/go-runewidth v0.0.15 // indirect
 	github.com/muesli/termenv v0.15.2
 	github.com/stretchr/testify v1.9.0
-	github.com/ungerik/go-fs v0.0.0-20240118121925-91844f9bdba8
-	golang.org/x/sys v0.17.0 // indirect
+	github.com/ungerik/go-fs v0.0.0-20240409131647-4e9e0a7b1bc8
+	golang.org/x/sys v0.19.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

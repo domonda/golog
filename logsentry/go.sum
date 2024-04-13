@@ -8,8 +8,8 @@ github.com/domonda/go-errs v0.0.0-20240301142737-8fde935c9bd4 h1:qidwzgjM8qrKy32
 github.com/domonda/go-errs v0.0.0-20240301142737-8fde935c9bd4/go.mod h1:NnvsIo+bzAany1nQLMViGDgJ8kx3k5N/D1+UJz3hEXc=
 github.com/domonda/go-pretty v0.0.0-20240110134850-17385799142f h1:5eA74m451PqlqCXyJzWXp95Quj4PZ6Lm/ndKBuiNhe4=
 github.com/domonda/go-pretty v0.0.0-20240110134850-17385799142f/go.mod h1:3QkM8UJdyJMeKZiIo7hYzSkQBpRS3k0gOHw4ysyEIB4=
-github.com/domonda/go-types v0.0.0-20240301143218-7f4371e713b4 h1:+viX08/UY6+e3JPPZHeMKRlvP0GrInqgqjlizRKdFLI=
-github.com/domonda/go-types v0.0.0-20240301143218-7f4371e713b4/go.mod h1:iLpZ3myjpxZgM1Q8Z+Jg8WDCzHjuVj5U3WZyh+2QBac=
+github.com/domonda/go-types v0.0.0-20240314102041-2c8b079b74fa h1:mDLQVbcnh8EIDXPRh/+yPjUFU9YLAXMXVbC0L/yfiXI=
+github.com/domonda/go-types v0.0.0-20240314102041-2c8b079b74fa/go.mod h1:iLpZ3myjpxZgM1Q8Z+Jg8WDCzHjuVj5U3WZyh+2QBac=
 github.com/getsentry/sentry-go v0.27.0 h1:Pv98CIbtB3LkMWmXi4Joa5OOcwbmnX88sF5qbK3r3Ps=
 github.com/getsentry/sentry-go v0.27.0/go.mod h1:lc76E2QywIyW8WuBnwl8Lc4bkmQH4+w1gwTf25trprY=
 github.com/go-errors/errors v1.4.2 h1:J6MZopCL4uSllY1OfXM374weqZFFItUbrImctkmUxIA=
@@ -36,8 +36,8 @@ github.com/rivo/uniseg v0.4.7/go.mod h1:FN3SvrM+Zdj16jyLfmOkMNblXMcoc8DfTHruCPUc
 github.com/stretchr/testify v1.9.0 h1:HtqpIVDClZ4nwg75+f6Lvsy/wHu+3BoSGCbBAcpTsTg=
 github.com/stretchr/testify v1.9.0/go.mod h1:r2ic/lqez/lEtzL7wO/rwa5dbSLXVDPFyf8C91i36aY=
 golang.org/x/sys v0.6.0/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
-golang.org/x/sys v0.17.0 h1:25cE3gD+tdBA7lp7QfhuV+rJiE9YXTcS3VG1SqssI/Y=
-golang.org/x/sys v0.17.0/go.mod h1:/VUhepiaJMQUp4+oa/7Zr1D23ma6VTLIYjOOTFZPUcA=
+golang.org/x/sys v0.19.0 h1:q5f1RH2jigJ1MoAWp2KTp3gm5zAGFUTarQZ5U386+4o=
+golang.org/x/sys v0.19.0/go.mod h1:/VUhepiaJMQUp4+oa/7Zr1D23ma6VTLIYjOOTFZPUcA=
 golang.org/x/text v0.14.0 h1:ScX5w1eTa3QqT8oi6+ziP7dTV1S2+ALU0bI+0zXKWiQ=
 golang.org/x/text v0.14.0/go.mod h1:18ZOQIKpY8NJVqYksKHtTdi31H5itFRjB5/qKTNYzSU=
 gopkg.in/yaml.v3 v3.0.1 h1:fxVm/GzAzEWqLHuvctI91KS9hhNmmWOoWu0XTYJS7CA=

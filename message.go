@@ -1052,6 +1052,9 @@ func (m *Message) JSON(key string, val []byte) *Message {
 	if m == nil || m.attribs.Has(key) {
 		return m
 	}
+	if val == nil {
+		return m.Nil(key)
+	}
 	valCpy := bytes.NewBuffer(make([]byte, 0, len(val)))
 	err := json.Compact(valCpy, val)
 	if m.writer == nil {
@@ -1061,9 +1064,6 @@ func (m *Message) JSON(key string, val []byte) *Message {
 			m.attribs = append(m.attribs, Error{Key: key, Val: errors.New(string(val))})
 		}
 		return m
-	}
-	if val == nil {
-		return m.Nil(key)
 	}
 	m.writer.WriteKey(key)
 	if err == nil {
