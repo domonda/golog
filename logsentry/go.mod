@@ -6,7 +6,7 @@ replace github.com/domonda/golog => ..
 
 require github.com/domonda/golog v0.0.0-00010101000000-000000000000 // replaced
 
-require github.com/getsentry/sentry-go v0.27.0
+require github.com/getsentry/sentry-go v0.28.0
 
 require (
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
@@ -16,6 +16,6 @@ require (
 	github.com/mattn/go-runewidth v0.0.15 // indirect
 	github.com/muesli/termenv v0.15.2 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
-	golang.org/x/sys v0.19.0 // indirect
-	golang.org/x/text v0.14.0 // indirect
+	golang.org/x/sys v0.21.0 // indirect
+	golang.org/x/text v0.16.0 // indirect
 )
