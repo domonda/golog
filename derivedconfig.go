@@ -5,14 +5,33 @@ import (
 	"sync"
 )
 
-// DerivedConfig
+// Ensure that DerivedConfig implements Config
+var _ Config = new(DerivedConfig)
+
+// DerivedConfig wraps another changable Config by saving a pointer
+// to a variable of type Config. That variable can be changed at runtime
+// so it doesn't have to be initialized at the momenht of the DerivedConfig creation.
+//
+// A DerivedConfig can have its own LevelFilter, which will be used to decide
+// if a log message should be written or not. If the DerivedConfig has no filter,
+// the filter of the parent Config will be used.
 type DerivedConfig struct {
 	parent *Config
 	filter *LevelFilter
-	mutex  sync.Mutex
+	writer Writer
+	mutex  sync.RWMutex
 }
 
-func NewDerivedConfig(parent *Config, filters ...LevelFilter) *DerivedConfig {
+func NewDerivedConfig(parent *Config) *DerivedConfig {
+	if parent == nil || *parent == nil {
+		panic("golog.DerivedConfig parent must not be nil")
+	}
+	return &DerivedConfig{
+		parent: parent,
+	}
+}
+
+func NewDerivedConfigWithFilter(parent *Config, filters ...LevelFilter) *DerivedConfig {
 	if parent == nil || *parent == nil {
 		panic("golog.DerivedConfig parent must not be nil")
 	}
@@ -22,9 +41,19 @@ func NewDerivedConfig(parent *Config, filters ...LevelFilter) *DerivedConfig {
 	}
 }
 
+func NewDerivedConfigWithAdditionalWriters(parent *Config, writers ...Writer) *DerivedConfig {
+	if parent == nil || *parent == nil {
+		panic("golog.DerivedConfig parent must not be nil")
+	}
+	return &DerivedConfig{
+		parent: parent,
+		writer: combineWriters((*parent).Writer(), writers...),
+	}
+}
+
 func (c *DerivedConfig) Parent() Config {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
 
 	return *c.parent
 }
@@ -44,7 +73,25 @@ func (c *DerivedConfig) SetFilter(filters ...LevelFilter) {
 	c.mutex.Unlock()
 }
 
+func (c *DerivedConfig) SetAdditionalWriters(writers ...Writer) {
+	c.mutex.Lock()
+	if len(writers) == 0 {
+		c.writer = nil
+	} else {
+		c.writer = combineWriters((*c.parent).Writer(), writers...)
+	}
+	c.mutex.Unlock()
+}
+
 func (c *DerivedConfig) Writer() Writer {
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
+
+	if c.writer != nil {
+		// If DerivedConfig has its own writer, use it
+		return c.writer
+	}
+	// Else use the writer of the parent Config
 	return (*c.parent).Writer()
 }
 
@@ -53,17 +100,15 @@ func (c *DerivedConfig) Levels() *Levels {
 }
 
 func (c *DerivedConfig) IsActive(ctx context.Context, level Level) bool {
-	var active bool
-	c.mutex.Lock()
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
+
 	if c.filter != nil {
 		// If DerivedConfig has its own filter, use it
-		active = c.filter.IsActive(ctx, level)
-	} else {
-		// else use the filter of the parent Config
-		active = (*c.parent).IsActive(ctx, level)
+		return c.filter.IsActive(ctx, level)
 	}
-	c.mutex.Unlock()
-	return active
+	// Else use the filter of the parent Config
+	return (*c.parent).IsActive(ctx, level)
 }
 
 func (c *DerivedConfig) FatalLevel() Level {

@@ -21,6 +21,9 @@ var GlobalPanicLevel Level = LevelInvalid
 // Config implements LevelDecider
 var _ LevelDecider = Config(nil)
 
+// Config is an interface that gets implemented by actual Logger configurations.
+//
+// See also DerivedConfig.
 type Config interface {
 	Writer() Writer
 	Levels() *Levels
@@ -36,6 +39,9 @@ type Config interface {
 }
 
 func NewConfig(levels *Levels, filter LevelFilter, writers ...Writer) Config {
+	if levels == nil {
+		panic("golog.Config needs Levels")
+	}
 	switch len(writers) {
 	case 0:
 		panic("golog.Config needs a Writer")

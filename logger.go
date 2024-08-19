@@ -6,10 +6,12 @@ import (
 	"time"
 )
 
+// Logger starts new log messages.
+// A nil Logger is valid to use but will not log anything.
 type Logger struct {
-	config  Config
-	prefix  string
-	attribs Attribs
+	config  Config  // Can be shared between loggers
+	prefix  string  // Prefix for every log message
+	attribs Attribs // Attributes that will be repeated for every message
 }
 
 // NewLogger returns a Logger with the given config and per message attributes.
@@ -73,7 +75,18 @@ func (l *Logger) WithLevelFilter(filter LevelFilter) *Logger {
 		return nil
 	}
 	return &Logger{
-		config:  NewDerivedConfig(&l.config, filter),
+		config:  NewDerivedConfigWithFilter(&l.config, filter),
+		prefix:  l.prefix,
+		attribs: l.attribs,
+	}
+}
+
+func (l *Logger) WithAdditionalWriters(writers ...Writer) *Logger {
+	if l == nil {
+		return nil
+	}
+	return &Logger{
+		config:  NewDerivedConfigWithAdditionalWriters(&l.config, writers...),
 		prefix:  l.prefix,
 		attribs: l.attribs,
 	}

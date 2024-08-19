@@ -7,7 +7,8 @@ import (
 
 // Writer implementations write log messages
 // in a certain message format to some underlying
-// data stream.
+// data stream.`
+//
 // CommitMessage must be called before the Writer
 // can be re-used for a new message.
 type Writer interface {

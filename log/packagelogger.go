@@ -40,7 +40,7 @@ func NewPackageLogger(pkgName string, filters ...golog.LevelFilter) *golog.Logge
 		}
 	}
 
-	config := golog.NewDerivedConfig(&Config, filters...)
+	config := golog.NewDerivedConfigWithFilter(&Config, filters...)
 	pkgPath := PackageRegistry.AddPackageConfig(pkgName, config)
 	logger := golog.NewLoggerWithPrefix(config, pkgName)
 

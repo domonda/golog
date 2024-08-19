@@ -7,7 +7,35 @@ import (
 	"time"
 )
 
+// MultiWriter is a Writer that writes to multiple other Writers
 type MultiWriter []Writer
+
+// combineWriters flattens all passed Writers that are
+// themselves MultiWriters into a single MultiWriter.
+func combineWriters(writer Writer, additionalWriters ...Writer) Writer {
+	if len(additionalWriters) == 0 {
+		return writer
+	}
+	mw := make(MultiWriter, 0, 1+len(additionalWriters))
+	if writer != nil {
+		if mw2, ok := writer.(MultiWriter); ok {
+			mw = append(mw, mw2...)
+		} else {
+			mw = append(mw, writer)
+		}
+	}
+	for _, w := range additionalWriters {
+		if w == nil {
+			continue
+		}
+		if mw2, ok := w.(MultiWriter); ok {
+			mw = append(mw, mw2...)
+		} else {
+			mw = append(mw, w)
+		}
+	}
+	return mw
+}
 
 var multiWriterPool sync.Pool
 
