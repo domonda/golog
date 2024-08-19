@@ -197,101 +197,101 @@ func (l *Logger) FatalAndPanic(p any) {
 }
 
 func (l *Logger) Fatal(text string) *Message {
-	return l.NewMessage(context.Background(), l.config.Fatal(), text)
+	return l.NewMessage(context.Background(), l.config.FatalLevel(), text)
 }
 
 func (l *Logger) FatalCtx(ctx context.Context, text string) *Message {
-	return l.NewMessage(ctx, l.config.Fatal(), text)
+	return l.NewMessage(ctx, l.config.FatalLevel(), text)
 }
 
 func (l *Logger) Fatalf(format string, args ...any) *Message {
-	return l.NewMessagef(context.Background(), l.config.Fatal(), format, args...)
+	return l.NewMessagef(context.Background(), l.config.FatalLevel(), format, args...)
 }
 
 func (l *Logger) FatalfCtx(ctx context.Context, format string, args ...any) *Message {
-	return l.NewMessagef(ctx, l.config.Fatal(), format, args...)
+	return l.NewMessagef(ctx, l.config.FatalLevel(), format, args...)
 }
 
 func (l *Logger) Error(text string) *Message {
-	return l.NewMessage(context.Background(), l.config.Error(), text)
+	return l.NewMessage(context.Background(), l.config.ErrorLevel(), text)
 }
 
 func (l *Logger) ErrorCtx(ctx context.Context, text string) *Message {
-	return l.NewMessage(ctx, l.config.Error(), text)
+	return l.NewMessage(ctx, l.config.ErrorLevel(), text)
 }
 
 // Errorf uses fmt.Errorf underneath to support Go 1.13 wrapped error formatting with %w
 func (l *Logger) Errorf(format string, args ...any) *Message {
-	return l.NewMessage(context.Background(), l.config.Error(), fmt.Errorf(format, args...).Error())
+	return l.NewMessage(context.Background(), l.config.ErrorLevel(), fmt.Errorf(format, args...).Error())
 }
 
 // ErrorfCtx uses fmt.Errorf underneath to support Go 1.13 wrapped error formatting with %w
 func (l *Logger) ErrorfCtx(ctx context.Context, format string, args ...any) *Message {
-	return l.NewMessage(ctx, l.config.Error(), fmt.Errorf(format, args...).Error())
+	return l.NewMessage(ctx, l.config.ErrorLevel(), fmt.Errorf(format, args...).Error())
 }
 
 func (l *Logger) Warn(text string) *Message {
-	return l.NewMessage(context.Background(), l.config.Warn(), text)
+	return l.NewMessage(context.Background(), l.config.WarnLevel(), text)
 }
 
 func (l *Logger) WarnCtx(ctx context.Context, text string) *Message {
-	return l.NewMessage(ctx, l.config.Warn(), text)
+	return l.NewMessage(ctx, l.config.WarnLevel(), text)
 }
 
 func (l *Logger) Warnf(format string, args ...any) *Message {
-	return l.NewMessagef(context.Background(), l.config.Warn(), format, args...)
+	return l.NewMessagef(context.Background(), l.config.WarnLevel(), format, args...)
 }
 
 func (l *Logger) WarnfCtx(ctx context.Context, format string, args ...any) *Message {
-	return l.NewMessagef(ctx, l.config.Warn(), format, args...)
+	return l.NewMessagef(ctx, l.config.WarnLevel(), format, args...)
 }
 
 func (l *Logger) Info(text string) *Message {
-	return l.NewMessage(context.Background(), l.config.Info(), text)
+	return l.NewMessage(context.Background(), l.config.InfoLevel(), text)
 }
 
 func (l *Logger) InfoCtx(ctx context.Context, text string) *Message {
-	return l.NewMessage(ctx, l.config.Info(), text)
+	return l.NewMessage(ctx, l.config.InfoLevel(), text)
 }
 
 func (l *Logger) Infof(format string, args ...any) *Message {
-	return l.NewMessagef(context.Background(), l.config.Info(), format, args...)
+	return l.NewMessagef(context.Background(), l.config.InfoLevel(), format, args...)
 }
 
 func (l *Logger) InfofCtx(ctx context.Context, format string, args ...any) *Message {
-	return l.NewMessagef(ctx, l.config.Info(), format, args...)
+	return l.NewMessagef(ctx, l.config.InfoLevel(), format, args...)
 }
 
 func (l *Logger) Debug(text string) *Message {
-	return l.NewMessage(context.Background(), l.config.Debug(), text)
+	return l.NewMessage(context.Background(), l.config.DebugLevel(), text)
 }
 
 func (l *Logger) DebugCtx(ctx context.Context, text string) *Message {
-	return l.NewMessage(ctx, l.config.Debug(), text)
+	return l.NewMessage(ctx, l.config.DebugLevel(), text)
 }
 
 func (l *Logger) Debugf(format string, args ...any) *Message {
-	return l.NewMessagef(context.Background(), l.config.Debug(), format, args...)
+	return l.NewMessagef(context.Background(), l.config.DebugLevel(), format, args...)
 }
 
 func (l *Logger) DebugfCtx(ctx context.Context, format string, args ...any) *Message {
-	return l.NewMessagef(ctx, l.config.Debug(), format, args...)
+	return l.NewMessagef(ctx, l.config.DebugLevel(), format, args...)
 }
 
 func (l *Logger) Trace(text string) *Message {
-	return l.NewMessage(context.Background(), l.config.Trace(), text)
+	return l.NewMessage(context.Background(), l.config.TraceLevel(), text)
 }
 
 func (l *Logger) TraceCtx(ctx context.Context, text string) *Message {
-	return l.NewMessage(ctx, l.config.Trace(), text)
+	return l.NewMessage(ctx, l.config.TraceLevel(), text)
 }
 
 func (l *Logger) Tracef(format string, args ...any) *Message {
-	return l.NewMessagef(context.Background(), l.config.Trace(), format, args...)
+	return l.NewMessagef(context.Background(), l.config.TraceLevel(), format, args...)
 }
 
 func (l *Logger) TracefCtx(ctx context.Context, format string, args ...any) *Message {
-	return l.NewMessagef(ctx, l.config.Trace(), format, args...)
+	return l.NewMessagef(ctx, l.config.TraceLevel(), format, args...)
 }
 
 func (l *Logger) NewLevelWriter(level Level) *LevelWriter {
@@ -299,25 +299,25 @@ func (l *Logger) NewLevelWriter(level Level) *LevelWriter {
 }
 
 func (l *Logger) FatalWriter() *LevelWriter {
-	return l.NewLevelWriter(l.config.Fatal())
+	return l.NewLevelWriter(l.config.FatalLevel())
 }
 
 func (l *Logger) ErrorWriter() *LevelWriter {
-	return l.NewLevelWriter(l.config.Error())
+	return l.NewLevelWriter(l.config.ErrorLevel())
 }
 
 func (l *Logger) WarnWriter() *LevelWriter {
-	return l.NewLevelWriter(l.config.Warn())
+	return l.NewLevelWriter(l.config.WarnLevel())
 }
 
 func (l *Logger) InfoWriter() *LevelWriter {
-	return l.NewLevelWriter(l.config.Info())
+	return l.NewLevelWriter(l.config.InfoLevel())
 }
 
 func (l *Logger) DebugWriter() *LevelWriter {
-	return l.NewLevelWriter(l.config.Debug())
+	return l.NewLevelWriter(l.config.DebugLevel())
 }
 
 func (l *Logger) TraceWriter() *LevelWriter {
-	return l.NewLevelWriter(l.config.Trace())
+	return l.NewLevelWriter(l.config.TraceLevel())
 }

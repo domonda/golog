@@ -66,26 +66,26 @@ func (c *DerivedConfig) IsActive(ctx context.Context, level Level) bool {
 	return active
 }
 
-func (c *DerivedConfig) Fatal() Level {
-	return (*c.parent).Fatal()
+func (c *DerivedConfig) FatalLevel() Level {
+	return (*c.parent).FatalLevel()
 }
 
-func (c *DerivedConfig) Error() Level {
-	return (*c.parent).Error()
+func (c *DerivedConfig) ErrorLevel() Level {
+	return (*c.parent).ErrorLevel()
 }
 
-func (c *DerivedConfig) Warn() Level {
-	return (*c.parent).Warn()
+func (c *DerivedConfig) WarnLevel() Level {
+	return (*c.parent).WarnLevel()
 }
 
-func (c *DerivedConfig) Info() Level {
-	return (*c.parent).Info()
+func (c *DerivedConfig) InfoLevel() Level {
+	return (*c.parent).InfoLevel()
 }
 
-func (c *DerivedConfig) Debug() Level {
-	return (*c.parent).Debug()
+func (c *DerivedConfig) DebugLevel() Level {
+	return (*c.parent).DebugLevel()
 }
 
-func (c *DerivedConfig) Trace() Level {
-	return (*c.parent).Trace()
+func (c *DerivedConfig) TraceLevel() Level {
+	return (*c.parent).TraceLevel()
 }

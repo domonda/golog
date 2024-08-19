@@ -20,12 +20,12 @@ func ExampleJSONWriter() {
 	// Use fixed time for reproducable example output
 	at, _ := time.Parse("2006-01-02 15:04:05", "2006-01-02 15:04:05")
 
-	log.NewMessageAt(context.Background(), at, config.Info(), "My log message").
+	log.NewMessageAt(context.Background(), at, config.InfoLevel(), "My log message").
 		Int("int", 66).
 		Str("str", "Hello\tWorld!\n").
 		Log()
 
-	log.NewMessageAt(context.Background(), at, config.Error(), "This is an error").Log()
+	log.NewMessageAt(context.Background(), at, config.ErrorLevel(), "This is an error").Log()
 
 	// Output:
 	// {"time":"2006-01-02 15:04:05","level":"INFO","message":"My log message","int":66,"str":"Hello\tWorld!\n"},

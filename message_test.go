@@ -51,7 +51,7 @@ func TestMessage(t *testing.T) {
 
 	numLines := 10
 	for i := 0; i < numLines; i++ {
-		log.NewMessageAt(context.Background(), at, log.Config().Info(), "My log message").Exec(writeMessage).Log()
+		log.NewMessageAt(context.Background(), at, log.Config().InfoLevel(), "My log message").Exec(writeMessage).Log()
 	}
 
 	checkOutput := func(exptectedTextLine, exptectedJSONLine string) {
@@ -85,7 +85,7 @@ func TestMessage(t *testing.T) {
 		IntPtr("SuperNilInt", nil).
 		SubLogger()
 	for i := 0; i < numLines; i++ {
-		subLog.NewMessageAt(context.Background(), at, log.Config().Info(), "My log message").Exec(writeMessage).Log()
+		subLog.NewMessageAt(context.Background(), at, log.Config().InfoLevel(), "My log message").Exec(writeMessage).Log()
 	}
 
 	checkOutput(exptectedTextMessageSub, exptectedJSONMessageSub)
@@ -104,7 +104,7 @@ func TestMessage(t *testing.T) {
 		IntPtr("SuperNilInt", nil).
 		SubLogger()
 	for i := 0; i < numLines; i++ {
-		subSubLog.NewMessageAt(context.Background(), at, log.Config().Info(), "My log message").Exec(writeMessage).Log()
+		subSubLog.NewMessageAt(context.Background(), at, log.Config().InfoLevel(), "My log message").Exec(writeMessage).Log()
 	}
 
 	checkOutput(exptectedTextMessageSubSub, exptectedJSONMessageSubSub)
@@ -275,7 +275,7 @@ func TestMessage_Any(t *testing.T) {
 
 	textMsg := `2006-01-02 15:04:05 |INFO | Msg`
 
-	log.NewMessageAt(context.Background(), at, log.Config().Info(), "Msg").
+	log.NewMessageAt(context.Background(), at, log.Config().InfoLevel(), "Msg").
 		Any("int", -100).
 		Log()
 	assert.Equal(t, fmt.Sprintf("%s %s\n", textMsg, `int=-100`), textOut.String())
@@ -288,7 +288,7 @@ func TestMessage_Any(t *testing.T) {
 		uuidNull uu.NullableID
 	)
 
-	log.NewMessageAt(context.Background(), at, log.Config().Info(), "Msg").
+	log.NewMessageAt(context.Background(), at, log.Config().InfoLevel(), "Msg").
 		Any("uuid", uuid).
 		Any("uuidNil", uuidNil).
 		Any("uuidNull", uuidNull).
@@ -305,7 +305,7 @@ func TestMessage_SubLoggerContext(t *testing.T) {
 	uuid2 := MustParseUUID("064c6bc6-3ec1-4cda-83e7-67815af25a7f")
 
 	log, textOut, jsonOut := newTestLoggerWithPrefix("pkg")
-	infoLevel := log.Config().Info()
+	infoLevel := log.Config().InfoLevel()
 
 	log, ctx := log.With().
 		UUID("uuid", uuid).
@@ -398,7 +398,7 @@ func TestMessage_Ctx(t *testing.T) {
 	at, _ := time.Parse("2006-01-02 15:04:05", "2006-01-02 15:04:05")
 
 	log, textOut, jsonOut := newTestLoggerWithPrefix("pkg")
-	infoLevel := log.Config().Info()
+	infoLevel := log.Config().InfoLevel()
 
 	ctx := log.With().
 		Int("int", 1).

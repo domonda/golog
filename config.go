@@ -27,12 +27,12 @@ type Config interface {
 	// IsActive implements the LevelDecider interface.
 	// It's valid to pass a nil context.
 	IsActive(ctx context.Context, level Level) bool
-	Fatal() Level
-	Error() Level
-	Warn() Level
-	Info() Level
-	Debug() Level
-	Trace() Level
+	FatalLevel() Level
+	ErrorLevel() Level
+	WarnLevel() Level
+	InfoLevel() Level
+	DebugLevel() Level
+	TraceLevel() Level
 }
 
 func NewConfig(levels *Levels, filter LevelFilter, writers ...Writer) Config {
@@ -74,26 +74,26 @@ func (c *config) IsActive(ctx context.Context, level Level) bool {
 	return c.filter.IsActive(ctx, level)
 }
 
-func (c *config) Fatal() Level {
+func (c *config) FatalLevel() Level {
 	return c.levels.Fatal
 }
 
-func (c *config) Error() Level {
+func (c *config) ErrorLevel() Level {
 	return c.levels.Error
 }
 
-func (c *config) Warn() Level {
+func (c *config) WarnLevel() Level {
 	return c.levels.Warn
 }
 
-func (c *config) Info() Level {
+func (c *config) InfoLevel() Level {
 	return c.levels.Info
 }
 
-func (c *config) Debug() Level {
+func (c *config) DebugLevel() Level {
 	return c.levels.Debug
 }
 
-func (c *config) Trace() Level {
+func (c *config) TraceLevel() Level {
 	return c.levels.Trace
 }
