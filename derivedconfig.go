@@ -47,7 +47,7 @@ func NewDerivedConfigWithAdditionalWriters(parent *Config, writers ...Writer) *D
 	}
 	return &DerivedConfig{
 		parent: parent,
-		writer: combineWriters((*parent).Writer(), writers...),
+		writer: joinWriters((*parent).Writer(), writers...),
 	}
 }
 
@@ -78,7 +78,7 @@ func (c *DerivedConfig) SetAdditionalWriters(writers ...Writer) {
 	if len(writers) == 0 {
 		c.writer = nil
 	} else {
-		c.writer = combineWriters((*c.parent).Writer(), writers...)
+		c.writer = joinWriters((*c.parent).Writer(), writers...)
 	}
 	c.mutex.Unlock()
 }

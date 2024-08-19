@@ -2,6 +2,7 @@ package golog
 
 import (
 	"context"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -10,31 +11,66 @@ import (
 // MultiWriter is a Writer that writes to multiple other Writers
 type MultiWriter []Writer
 
-// combineWriters flattens all passed Writers that are
-// themselves MultiWriters into a single MultiWriter.
-func combineWriters(writer Writer, additionalWriters ...Writer) Writer {
-	if len(additionalWriters) == 0 {
-		return writer
+func joinWriters(a Writer, b ...Writer) Writer {
+	if len(b) == 0 {
+		return uniqueWriters(a, nil)
 	}
-	mw := make(MultiWriter, 0, 1+len(additionalWriters))
-	if writer != nil {
-		if mw2, ok := writer.(MultiWriter); ok {
-			mw = append(mw, mw2...)
-		} else {
-			mw = append(mw, writer)
+	return uniqueWriters(append(MultiWriter{a}, b...), nil)
+}
+
+func uniqueWriters(w Writer, exclude []Writer) Writer {
+	if w == nil || slices.Contains(exclude, w) {
+		return nil
+	}
+	mw, ok := w.(MultiWriter)
+	if !ok {
+		return w
+	}
+	if len(mw) == 0 {
+		return nil
+	}
+	numUnique := 0
+	isFlat := true
+	for i, w := range mw {
+		// Count as unique if the Writer in the MultiWriter is not nil,
+		// unique in the itself MultiWriter and not in the exclude list
+		if w != nil && !slices.Contains(mw[:i], w) && !slices.Contains(exclude, w) {
+			numUnique++
+		}
+		if _, ok = w.(MultiWriter); ok {
+			isFlat = false
 		}
 	}
-	for _, w := range additionalWriters {
-		if w == nil {
+	if numUnique == len(mw) && isFlat {
+		return w
+	}
+	unique := make(MultiWriter, 0, numUnique)
+	for i, w := range mw {
+		if w == nil || slices.Contains(mw[:i], w) || slices.Contains(exclude, w) {
 			continue
 		}
-		if mw2, ok := w.(MultiWriter); ok {
-			mw = append(mw, mw2...)
+		if _, ok = w.(MultiWriter); !ok {
+			unique = append(unique, w)
+		}
+		// w is a MultiWriter, recursively extracte unique Writers
+		uw := uniqueWriters(w, append(exclude, unique...))
+		// uniqueWriters can return nil or a single non MultiWriter Writer
+		if uw == nil {
+			continue
+		}
+		if uwmw, ok := uw.(MultiWriter); ok {
+			unique = append(unique, uwmw...)
 		} else {
-			mw = append(mw, w)
+			unique = append(unique, uw)
 		}
 	}
-	return mw
+	switch len(unique) {
+	case 0:
+		return nil
+	case 1:
+		return unique[0]
+	}
+	return unique
 }
 
 var multiWriterPool sync.Pool

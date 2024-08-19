@@ -42,23 +42,14 @@ func NewConfig(levels *Levels, filter LevelFilter, writers ...Writer) Config {
 	if levels == nil {
 		panic("golog.Config needs Levels")
 	}
-	switch len(writers) {
-	case 0:
+	writer := uniqueWriters(MultiWriter(writers), nil)
+	if writer == nil {
 		panic("golog.Config needs a Writer")
-
-	case 1:
-		return &config{
-			levels: levels,
-			filter: filter,
-			writer: writers[0],
-		}
-
-	default:
-		return &config{
-			levels: levels,
-			filter: filter,
-			writer: MultiWriter(writers),
-		}
+	}
+	return &config{
+		levels: levels,
+		filter: filter,
+		writer: writer,
 	}
 }
 

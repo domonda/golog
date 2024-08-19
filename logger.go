@@ -190,6 +190,10 @@ func (l *Logger) NewMessageAt(ctx context.Context, t time.Time, level Level, tex
 	// meaning they are ignored if attribs
 	// with the same key were already logged
 	AttribsFromContext(ctx).Log(msg)
+	// After the attribs from the logger
+	// and the context have been logged,
+	// further attribs can be logged using
+	// the methods of the returned Message.
 	return msg
 }
 
