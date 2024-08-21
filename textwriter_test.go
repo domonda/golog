@@ -14,8 +14,8 @@ func ExampleTextWriter() {
 		LevelKey:        "level",
 		MessageKey:      "message",
 	}
-	formatter := NewTextWriter(os.Stdout, format, NoColorizer)
-	config := NewConfig(&DefaultLevels, AllLevelsActive, formatter)
+	writerConfig := NewTextWriterConfig(os.Stdout, format, NoColorizer)
+	config := NewConfig(&DefaultLevels, AllLevelsActive, writerConfig)
 	log := NewLogger(config)
 
 	// Use fixed time for reproducable example output

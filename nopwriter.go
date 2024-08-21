@@ -5,43 +5,54 @@ import (
 	"time"
 )
 
-// NopWriter is a Writer that does nothing (no operation)
-const NopWriter nopWriter = 0
+var (
+	_ Writer       = new(NopWriter)
+	_ WriterConfig = new(NopWriterConfig)
+)
 
-type nopWriter int
+type NopWriterConfig string
 
-func (w nopWriter) BeginMessage(_ context.Context, logger *Logger, t time.Time, level Level, text string) Writer {
-	return w
+func (c NopWriterConfig) WriterForNewMessage(context.Context, Level) Writer {
+	if c == "" {
+		return NopWriter("NopWriter")
+	}
+	return NopWriter(c)
 }
 
-func (nopWriter) CommitMessage() {}
+func (c NopWriterConfig) FlushUnderlying() {}
 
-func (nopWriter) FlushUnderlying() {}
+///////////////////////////////////////////////////////////////////////////////
 
-func (nopWriter) String() string {
-	return "NopWriter"
+type NopWriter string
+
+func (NopWriter) BeginMessage(config Config, t time.Time, level Level, prefix, text string) {}
+
+func (NopWriter) CommitMessage() {}
+
+func (w NopWriter) String() string {
+	return string(w)
 }
 
-func (nopWriter) WriteKey(key string) {}
+func (NopWriter) WriteKey(key string) {}
 
-func (nopWriter) WriteSliceKey(key string) {}
+func (NopWriter) WriteSliceKey(key string) {}
 
-func (nopWriter) WriteSliceEnd() {}
+func (NopWriter) WriteSliceEnd() {}
 
-func (nopWriter) WriteNil() {}
+func (NopWriter) WriteNil() {}
 
-func (nopWriter) WriteBool(val bool) {}
+func (NopWriter) WriteBool(val bool) {}
 
-func (nopWriter) WriteInt(val int64) {}
+func (NopWriter) WriteInt(val int64) {}
 
-func (nopWriter) WriteUint(val uint64) {}
+func (NopWriter) WriteUint(val uint64) {}
 
-func (nopWriter) WriteFloat(val float64) {}
+func (NopWriter) WriteFloat(val float64) {}
 
-func (nopWriter) WriteString(val string) {}
+func (NopWriter) WriteString(val string) {}
 
-func (nopWriter) WriteError(val error) {}
+func (NopWriter) WriteError(val error) {}
 
-func (nopWriter) WriteUUID(val [16]byte) {}
+func (NopWriter) WriteUUID(val [16]byte) {}
 
-func (nopWriter) WriteJSON(val []byte) {}
+func (NopWriter) WriteJSON(val []byte) {}

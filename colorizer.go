@@ -20,6 +20,8 @@ type Colorizer interface {
 // NoColorizer is a no-op Colorizer returning all strings unchanged
 const NoColorizer noColorizer = 0
 
+var _ Colorizer = noColorizer(0) // make sure noColorizer implements Colorizer
+
 type noColorizer int // int so it can be used as const
 
 func (noColorizer) ColorizeMsg(str string) string                    { return str }
@@ -35,5 +37,3 @@ func (noColorizer) ColorizeFloat(str string) string                  { return st
 func (noColorizer) ColorizeString(str string) string                 { return str }
 func (noColorizer) ColorizeError(str string) string                  { return str }
 func (noColorizer) ColorizeUUID(str string) string                   { return str }
-
-var _ Colorizer = noColorizer(0) // make sure noColorizer implements Colorizer

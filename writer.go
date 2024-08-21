@@ -1,7 +1,6 @@
 package golog
 
 import (
-	"context"
 	"time"
 )
 
@@ -12,14 +11,16 @@ import (
 // CommitMessage must be called before the Writer
 // can be re-used for a new message.
 type Writer interface {
-	// BeginMessage clones the Writer with its configuration for
-	// writing a new message that must be finished with CommitMessage.
+	// BeginMessage begins writing a new message
+	// that must be finished with CommitMessage.
+	//
 	// This method is only called for log levels that are active at the logger,
 	// so implementations don't have to check the passed logger to decide
 	// if they should log the passed level.
-	// The logger is passed to give access to other data that might be needed
-	// for message formatting like the prefix or level names.
-	BeginMessage(ctx context.Context, logger *Logger, t time.Time, level Level, text string) Writer
+	//
+	// The config is passed to give access to other data that might be needed
+	// for message formatting level names.
+	BeginMessage(config Config, t time.Time, level Level, prefix, text string)
 
 	WriteKey(string)
 	WriteSliceKey(string)
@@ -41,21 +42,6 @@ type Writer interface {
 	// to make the Writer ready for a new message.
 	CommitMessage()
 
-	// FlushUnderlying flushes underlying log writing
-	// streams to make sure all messages have been
-	// saved or transmitted.
-	// This method is intended for special circumstances like
-	// before exiting the application, it's not necessary
-	// to call it for every message in addtion to CommitMessage.
-	FlushUnderlying()
-
 	// String is here only for debugging
 	String() string
-}
-
-func flushUnderlying(writer any) {
-	switch x := writer.(type) {
-	case interface{ Sync() error }:
-		x.Sync() //#nosec G104
-	}
 }

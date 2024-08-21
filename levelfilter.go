@@ -47,7 +47,9 @@ func LevelFilterOutAllOther(level Level) LevelFilter {
 	return filter
 }
 
-func LevelFilterCombine(filters ...LevelFilter) LevelFilter {
+// JoinLevelFilters returns a LevelFilter that filters
+// out all levels that are filtered out by any of the passed filters.
+func JoinLevelFilters(filters ...LevelFilter) LevelFilter {
 	var combined LevelFilter
 	for _, filter := range filters {
 		combined |= filter
@@ -59,7 +61,7 @@ func newLevelFilterOrNil(filters []LevelFilter) *LevelFilter {
 	if len(filters) == 0 {
 		return nil
 	}
-	combined := LevelFilterCombine(filters...)
+	combined := JoinLevelFilters(filters...)
 	return &combined
 }
 
@@ -74,6 +76,11 @@ func (f LevelFilter) IsActive(_ context.Context, level Level) bool {
 	levelBitMask := LevelFilter(1) << levelBitIndex
 	// level is active when bit at levelBitIndex is zero
 	return (f & levelBitMask) == 0
+}
+
+// IsInactive is the inverse of IsActive.
+func (f LevelFilter) IsInactive(_ context.Context, level Level) bool {
+	return !f.IsActive(nil, level)
 }
 
 func (f *LevelFilter) SetActive(level Level, active bool) {

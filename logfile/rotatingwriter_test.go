@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/ungerik/go-fs"
 
 	"github.com/domonda/golog"
@@ -14,6 +15,9 @@ import (
 
 func TestRotatingWriter(t *testing.T) {
 	dir := fs.MustMakeTempDir()
+	t.Cleanup(func() {
+		dir.RemoveRecursive()
+	})
 
 	const jsonRotateSize = 350 // fit two 165 byte lines, but not three
 	jsonWriter, err := NewRotatingWriter(dir.Join("json.log").LocalPath(), 0600, jsonRotateSize)
@@ -28,8 +32,8 @@ func TestRotatingWriter(t *testing.T) {
 	log.Config = golog.NewConfig(
 		log.Levels,
 		golog.AllLevelsActive,
-		golog.NewJSONWriter(jsonWriter, &log.Format),
-		golog.NewTextWriter(textWriter, &log.Format, golog.NoColorizer),
+		golog.NewJSONWriterConfig(jsonWriter, &log.Format),
+		golog.NewTextWriterConfig(textWriter, &log.Format, golog.NoColorizer),
 	)
 
 	numThreads := 8
@@ -58,11 +62,6 @@ func TestRotatingWriter(t *testing.T) {
 	numFilesExpected := numThreads * numThreadMessages / numMessagesPerFile
 
 	files, err := dir.ListDirMax(-1, "json.log*")
-	assert.NoError(t, err)
-	assert.Equal(t, numFilesExpected, len(files), "expected %d files for json.log*, got %d", numFilesExpected, len(files))
-
-	// t.Fatal(dir)
-	if !t.Failed() {
-		dir.RemoveRecursive()
-	}
+	require.NoError(t, err)
+	require.Equal(t, numFilesExpected, len(files), "expected %d files for json.log*, got %d", numFilesExpected, len(files))
 }

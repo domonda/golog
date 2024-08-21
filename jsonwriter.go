@@ -10,55 +10,74 @@ import (
 	"github.com/domonda/go-encjson"
 )
 
-var jsonWriterPool sync.Pool
+var (
+	_ Writer       = new(JSONWriter)
+	_ WriterConfig = new(JSONWriterConfig)
+)
 
-type JSONWriter struct {
-	writer io.Writer
-	format *Format
-	buf    []byte
+type JSONWriterConfig struct {
+	writer     io.Writer
+	format     *Format
+	filter     LevelFilter
+	writerPool sync.Pool
 }
 
-func NewJSONWriter(writer io.Writer, format *Format) *JSONWriter {
-	return &JSONWriter{
+func NewJSONWriterConfig(writer io.Writer, format *Format, filters ...LevelFilter) *JSONWriterConfig {
+	if writer == nil {
+		panic("nil writer")
+	}
+	if format == nil {
+		format = NewDefaultFormat()
+	}
+	return &JSONWriterConfig{
 		writer: writer,
 		format: format,
+		filter: JoinLevelFilters(filters...),
+	}
+}
+
+func (c *JSONWriterConfig) WriterForNewMessage(ctx context.Context, level Level) Writer {
+	if c.filter.IsInactive(ctx, level) {
+		return nil
+	}
+	if w, _ := c.writerPool.Get().(Writer); w != nil {
+		return w
+	}
+	return &JSONWriter{
+		config: c,
 		buf:    make([]byte, 0, 1024),
 	}
 }
 
-func getJSONWriter(writer io.Writer, format *Format) *JSONWriter {
-	if recycled, ok := jsonWriterPool.Get().(*JSONWriter); ok {
-		recycled.writer = writer
-		recycled.format = format
-		return recycled
-	}
-	return NewJSONWriter(writer, format)
+func (c *JSONWriterConfig) FlushUnderlying() {
+	flushUnderlying(c.writer)
 }
 
-func (w *JSONWriter) BeginMessage(_ context.Context, logger *Logger, t time.Time, level Level, text string) Writer {
-	next := getJSONWriter(w.writer, w.format)
-	next.beginWriteMessage(logger, t, level, text)
-	return next
+///////////////////////////////////////////////////////////////////////////////
+
+type JSONWriter struct {
+	config *JSONWriterConfig
+	buf    []byte
 }
 
-func (w *JSONWriter) beginWriteMessage(logger *Logger, t time.Time, level Level, text string) {
+func (w *JSONWriter) BeginMessage(config Config, t time.Time, level Level, prefix, text string) {
 	w.buf = append(w.buf, '{')
 
-	if w.format.TimestampKey != "" {
-		w.buf = encjson.AppendKey(w.buf, w.format.TimestampKey)
-		w.buf = encjson.AppendTime(w.buf, t, w.format.TimestampFormat)
+	if w.config.format.TimestampKey != "" {
+		w.buf = encjson.AppendKey(w.buf, w.config.format.TimestampKey)
+		w.buf = encjson.AppendTime(w.buf, t, w.config.format.TimestampFormat)
 	}
 
-	if w.format.LevelKey != "" {
-		w.buf = encjson.AppendKey(w.buf, w.format.LevelKey)
-		w.buf = encjson.AppendString(w.buf, logger.Config().Levels().Name(level))
+	if w.config.format.LevelKey != "" {
+		w.buf = encjson.AppendKey(w.buf, w.config.format.LevelKey)
+		w.buf = encjson.AppendString(w.buf, config.Levels().Name(level))
 	}
 
-	if w.format.MessageKey != "" && text != "" {
-		if logger.prefix != "" {
-			text = logger.prefix + w.format.PrefixSep + text
+	if w.config.format.MessageKey != "" && text != "" {
+		if prefix != "" {
+			text = prefix + w.config.format.PrefixSep + text
 		}
-		w.buf = encjson.AppendKey(w.buf, w.format.MessageKey)
+		w.buf = encjson.AppendKey(w.buf, w.config.format.MessageKey)
 		w.buf = encjson.AppendString(w.buf, text)
 	}
 }
@@ -66,21 +85,15 @@ func (w *JSONWriter) beginWriteMessage(logger *Logger, t time.Time, level Level,
 func (w *JSONWriter) CommitMessage() {
 	// Flush f.buf
 	if len(w.buf) > 0 {
-		_, err := w.writer.Write(append(w.buf, '}', ',', '\n'))
+		_, err := w.config.writer.Write(append(w.buf, '}', ',', '\n'))
 		if err != nil && ErrorHandler != nil {
 			ErrorHandler(fmt.Errorf("golog.JSONWriter error: %w", err))
 		}
 	}
 
-	// Free
-	w.writer = nil
-	w.format = nil
+	// Reset and return to pool
 	w.buf = w.buf[:0]
-	jsonWriterPool.Put(w)
-}
-
-func (w *JSONWriter) FlushUnderlying() {
-	flushUnderlying(w.writer)
+	w.config.writerPool.Put(w)
 }
 
 func (w *JSONWriter) String() string {

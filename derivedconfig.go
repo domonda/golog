@@ -16,10 +16,10 @@ var _ Config = new(DerivedConfig)
 // if a log message should be written or not. If the DerivedConfig has no filter,
 // the filter of the parent Config will be used.
 type DerivedConfig struct {
-	parent *Config
-	filter *LevelFilter
-	writer Writer
-	mutex  sync.RWMutex
+	parent           *Config
+	filter           *LevelFilter
+	addWriterConfigs []WriterConfig
+	mutex            sync.RWMutex
 }
 
 func NewDerivedConfig(parent *Config) *DerivedConfig {
@@ -41,13 +41,13 @@ func NewDerivedConfigWithFilter(parent *Config, filters ...LevelFilter) *Derived
 	}
 }
 
-func NewDerivedConfigWithAdditionalWriters(parent *Config, writers ...Writer) *DerivedConfig {
+func NewDerivedConfigWithAdditionalWriterConfigs(parent *Config, configs ...WriterConfig) *DerivedConfig {
 	if parent == nil || *parent == nil {
 		panic("golog.DerivedConfig parent must not be nil")
 	}
 	return &DerivedConfig{
-		parent: parent,
-		writer: joinWriters((*parent).Writer(), writers...),
+		parent:           parent,
+		addWriterConfigs: uniqueWriterConfigs(append((*parent).WriterConfigs(), configs...)),
 	}
 }
 
@@ -73,26 +73,26 @@ func (c *DerivedConfig) SetFilter(filters ...LevelFilter) {
 	c.mutex.Unlock()
 }
 
-func (c *DerivedConfig) SetAdditionalWriters(writers ...Writer) {
+func (c *DerivedConfig) SetAdditionalWriterConfigs(configs ...WriterConfig) {
 	c.mutex.Lock()
-	if len(writers) == 0 {
-		c.writer = nil
+	if len(configs) == 0 {
+		c.addWriterConfigs = nil
 	} else {
-		c.writer = joinWriters((*c.parent).Writer(), writers...)
+		c.addWriterConfigs = uniqueWriterConfigs(append((*c.parent).WriterConfigs(), configs...))
 	}
 	c.mutex.Unlock()
 }
 
-func (c *DerivedConfig) Writer() Writer {
+func (c *DerivedConfig) WriterConfigs() []WriterConfig {
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
 
-	if c.writer != nil {
-		// If DerivedConfig has its own writer, use it
-		return c.writer
+	if c.addWriterConfigs != nil {
+		// If DerivedConfig has its own writer configs, use them
+		return c.addWriterConfigs
 	}
-	// Else use the writer of the parent Config
-	return (*c.parent).Writer()
+	// Else use the writer configs of the parent Config
+	return (*c.parent).WriterConfigs()
 }
 
 func (c *DerivedConfig) Levels() *Levels {

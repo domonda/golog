@@ -22,7 +22,13 @@ type recorder struct {
 	values map[string]any
 }
 
-func (w *recorder) BeginMessage(_ context.Context, logger *golog.Logger, t time.Time, level golog.Level, text string) golog.Writer {
+func (w *recorder) WriterForNewMessage(context.Context, golog.Level) golog.Writer {
+	return w
+}
+
+func (w *recorder) FlushUnderlying() {}
+
+func (w *recorder) BeginMessage(config golog.Config, t time.Time, level golog.Level, prefix, text string) {
 	if w.key != "" || w.values != nil {
 		panic("last message not commited")
 	}
@@ -39,8 +45,6 @@ func (w *recorder) BeginMessage(_ context.Context, logger *golog.Logger, t time.
 	} else {
 		fmt.Printf("%s=%s %s=%s %s=%q", slog.TimeKey, t.Format("2006-01-02T15:04:05.000"), slog.LevelKey, slog.Level(level), slog.MessageKey, text)
 	}
-
-	return w
 }
 
 func (w *recorder) CommitMessage() {
@@ -68,8 +72,6 @@ func (w *recorder) CommitMessage() {
 
 	fmt.Println()
 }
-
-func (w *recorder) FlushUnderlying() {}
 
 func (w *recorder) String() string {
 	return fmt.Sprintf("%#v", w.Result)

@@ -26,10 +26,10 @@ func newTestConfig(textOut, jsonOut io.Writer) Config {
 		MessageKey:      "message",
 	}
 
-	textWriter := NewTextWriter(textOut, format, NoColorizer)
-	jsonWriter := NewJSONWriter(jsonOut, format)
+	textWriterConfig := NewTextWriterConfig(textOut, format, NoColorizer)
+	jsonWriterConfig := NewJSONWriterConfig(jsonOut, format)
 
-	return NewConfig(&DefaultLevels, AllLevelsActive, textWriter, jsonWriter)
+	return NewConfig(&DefaultLevels, AllLevelsActive, textWriterConfig, jsonWriterConfig)
 }
 
 func newTestLogger() (log *Logger, textOut, jsonOut *bytes.Buffer) {

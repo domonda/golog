@@ -6,23 +6,22 @@ import (
 	"github.com/domonda/golog"
 )
 
+// Defaults
 var (
+	// Levels are the default log levels.
 	Levels = &golog.DefaultLevels
 
-	Format = golog.Format{
-		TimestampKey:    "time",
-		TimestampFormat: "2006-01-02 15:04:05.000",
-		LevelKey:        "level",
-		PrefixSep:       ": ",
-		MessageKey:      "message",
-	}
+	// Format is the default log message format.
+	Format = *golog.NewDefaultFormat()
 
+	// Colorizer is the default log message colorizer.
 	Colorizer = *NewStyledColorizer()
 
+	// Config is the default log configuration.
 	Config = golog.NewConfig(
 		Levels,
 		Levels.LevelOfNameOrDefault(os.Getenv("LOG_LEVEL"), Levels.Debug).FilterOutBelow(),
-		golog.NewTextWriter(os.Stdout, &Format, &Colorizer),
+		golog.NewTextWriterConfig(os.Stdout, &Format, &Colorizer),
 	)
 
 	// Logger uses a golog.DerivedConfig referencing the

@@ -13,8 +13,8 @@ func ExampleJSONWriter() {
 		LevelKey:        "level",
 		MessageKey:      "message",
 	}
-	formatter := NewJSONWriter(os.Stdout, format)
-	config := NewConfig(&DefaultLevels, AllLevelsActive, formatter)
+	writerConfig := NewJSONWriterConfig(os.Stdout, format)
+	config := NewConfig(&DefaultLevels, AllLevelsActive, writerConfig)
 	log := NewLogger(config)
 
 	// Use fixed time for reproducable example output

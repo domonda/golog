@@ -25,7 +25,7 @@ var _ LevelDecider = Config(nil)
 //
 // See also DerivedConfig.
 type Config interface {
-	Writer() Writer
+	WriterConfigs() []WriterConfig
 	Levels() *Levels
 	// IsActive implements the LevelDecider interface.
 	// It's valid to pass a nil context.
@@ -38,29 +38,29 @@ type Config interface {
 	TraceLevel() Level
 }
 
-func NewConfig(levels *Levels, filter LevelFilter, writers ...Writer) Config {
+func NewConfig(levels *Levels, filter LevelFilter, writers ...WriterConfig) Config {
 	if levels == nil {
 		panic("golog.Config needs Levels")
 	}
-	writer := uniqueWriters(MultiWriter(writers), nil)
-	if writer == nil {
+	writers = uniqueWriterConfigs(writers)
+	if len(writers) == 0 {
 		panic("golog.Config needs a Writer")
 	}
 	return &config{
-		levels: levels,
-		filter: filter,
-		writer: writer,
+		levels:  levels,
+		filter:  filter,
+		writers: writers,
 	}
 }
 
 type config struct {
-	levels *Levels
-	filter LevelFilter
-	writer Writer
+	levels  *Levels
+	filter  LevelFilter
+	writers []WriterConfig
 }
 
-func (c *config) Writer() Writer {
-	return c.writer
+func (c *config) WriterConfigs() []WriterConfig {
+	return c.writers
 }
 
 func (c *config) Levels() *Levels {

@@ -65,7 +65,7 @@ func (l *Logger) With() *Message {
 	// record attribs instead of writing them.
 	// Message.SubLogger() will then create a new
 	// logger with the recorded attribs.
-	return newMessageFromPool(l, l.attribs, nil, LevelInvalid, "")
+	return messageFromPool(l, l.attribs, nil, LevelInvalid, "")
 }
 
 // WithLevelFilter returns a clone of the logger using
@@ -81,12 +81,12 @@ func (l *Logger) WithLevelFilter(filter LevelFilter) *Logger {
 	}
 }
 
-func (l *Logger) WithAdditionalWriters(writers ...Writer) *Logger {
+func (l *Logger) WithAdditionalWriterConfigs(configs ...WriterConfig) *Logger {
 	if l == nil {
 		return nil
 	}
 	return &Logger{
-		config:  NewDerivedConfigWithAdditionalWriters(&l.config, writers...),
+		config:  NewDerivedConfigWithAdditionalWriterConfigs(&l.config, configs...),
 		prefix:  l.prefix,
 		attribs: l.attribs,
 	}
@@ -159,7 +159,9 @@ func (l *Logger) Flush() {
 	if l == nil {
 		return
 	}
-	l.config.Writer().FlushUnderlying()
+	for _, w := range l.config.WriterConfigs() {
+		w.FlushUnderlying()
+	}
 }
 
 // NewMessageAt starts a new message logged with the time t
@@ -172,11 +174,24 @@ func (l *Logger) NewMessageAt(ctx context.Context, t time.Time, level Level, tex
 	if !l.IsActive(ctx, level) {
 		return nil
 	}
-	writer := l.config.Writer().BeginMessage(ctx, l, t, level, text)
+	configs := l.config.WriterConfigs()
+	if c := WriterConfigsFromContext(ctx); len(c) > 0 {
+		configs = uniqueWriterConfigs(append(configs, c...))
+	}
+	writers, _ := writersPool.Get().([]Writer) // Empty slices but with capacity
+	if writers == nil {
+		writers = make([]Writer, 0, len(configs))
+	}
+	for _, config := range configs {
+		if w := config.WriterForNewMessage(ctx, level); w != nil {
+			w.BeginMessage(l.config, t, level, l.prefix, text)
+			writers = append(writers, w)
+		}
+	}
 	// Get new Message without attribs so that the logger
 	// attribs can get logged without detecting that
 	// attribs with their keys are already present
-	msg := newMessageFromPool(l, nil, writer, level, text)
+	msg := messageFromPool(l, nil, writers, level, text)
 	if len(l.attribs) > 0 {
 		for _, attrib := range l.attribs {
 			attrib.Log(msg)

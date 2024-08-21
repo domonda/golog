@@ -14,52 +14,23 @@ import (
 )
 
 var (
-	// UnknownLevel will be used if a golog.Level
-	// can't be mapped to a sentry.LevelError.
-	UnknownLevel = sentry.LevelError
-
-	FlushTimeout time.Duration = 3 * time.Second
-
-	withoutLoggingCtxKey int
+	_ golog.Writer       = new(Writer)
+	_ golog.WriterConfig = new(WriterConfig)
 )
 
-// ContextWithoutLogging returns a new context with
-// Sentry logging disabled for all levels.
-func ContextWithoutLogging(parent context.Context) context.Context {
-	if IsContextWithoutLogging(parent) {
-		return parent
-	}
-	return context.WithValue(parent, &withoutLoggingCtxKey, struct{}{})
+type WriterConfig struct {
+	hub        *sentry.Hub
+	format     *golog.Format
+	filter     golog.LevelFilter
+	valsAsMsg  bool
+	extra      map[string]any
+	writerPool sync.Pool
 }
 
-// IsContextWithoutLogging returns true if the passed
-// context was returned from ContextWithoutLogging,
-// which means Sentry logging disabled for all levels.
-func IsContextWithoutLogging(ctx context.Context) bool {
-	return ctx != nil && ctx.Value(&withoutLoggingCtxKey) != nil
-}
-
-// Writer implements interface golog.Writer
-var _ golog.Writer = new(Writer)
-
-type Writer struct {
-	hub       *sentry.Hub
-	format    *golog.Format
-	filter    golog.LevelFilter
-	timestamp time.Time
-	level     sentry.Level
-	message   strings.Builder
-	valsAsMsg bool
-	extra     map[string]any
-	values    map[string]any
-	key       string
-	slice     []any
-}
-
-// NewWriter returns a new Writer for a sentry.Hub.
+// NewWriterConfig returns a new WriterConfig for a sentry.Hub.
 // Any values passed as extra will be added to every log messsage.
-func NewWriter(hub *sentry.Hub, format *golog.Format, filter golog.LevelFilter, valsAsMsg bool, extra map[string]any) *Writer {
-	return &Writer{
+func NewWriterConfig(hub *sentry.Hub, format *golog.Format, filter golog.LevelFilter, valsAsMsg bool, extra map[string]any) *WriterConfig {
+	return &WriterConfig{
 		hub:       hub,
 		format:    format,
 		filter:    filter,
@@ -68,19 +39,36 @@ func NewWriter(hub *sentry.Hub, format *golog.Format, filter golog.LevelFilter, 
 	}
 }
 
-func (w *Writer) BeginMessage(ctx context.Context, logger *golog.Logger, t time.Time, level golog.Level, text string) golog.Writer {
-	if !w.filter.IsActive(ctx, level) || IsContextWithoutLogging(ctx) {
-		return golog.NopWriter
+func (c *WriterConfig) WriterForNewMessage(ctx context.Context, level golog.Level) golog.Writer {
+	if c.filter.IsInactive(ctx, level) || IsContextWithoutLogging(ctx) {
+		return nil
 	}
-	next := NewWriter(w.hub, w.format, w.filter, w.valsAsMsg, w.extra) // Clone hub too?
-	next.beginWriteMessage(logger, t, level, text)
-	return next
+	if w, _ := c.writerPool.Get().(golog.Writer); w != nil {
+		return w
+	}
+	return &Writer{config: c}
 }
 
-func (w *Writer) beginWriteMessage(logger *golog.Logger, t time.Time, level golog.Level, text string) {
+func (c *WriterConfig) FlushUnderlying() {
+	c.hub.Flush(FlushTimeout)
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
+type Writer struct {
+	config    *WriterConfig
+	timestamp time.Time
+	level     sentry.Level
+	message   strings.Builder
+	values    map[string]any
+	key       string
+	slice     []any
+}
+
+func (w *Writer) BeginMessage(config golog.Config, t time.Time, level golog.Level, prefix, text string) {
 	w.timestamp = t
 
-	levels := logger.Config().Levels()
+	levels := config.Levels()
 	switch level {
 	case levels.Fatal:
 		w.level = sentry.LevelFatal
@@ -98,9 +86,9 @@ func (w *Writer) beginWriteMessage(logger *golog.Logger, t time.Time, level golo
 		w.level = UnknownLevel
 	}
 
-	if prefix := logger.Prefix(); prefix != "" {
+	if prefix != "" {
 		w.message.WriteString(prefix)
-		w.message.WriteString(w.format.PrefixSep)
+		w.message.WriteString(w.config.format.PrefixSep)
 	}
 	w.message.WriteString(text)
 }
@@ -113,13 +101,13 @@ func (w *Writer) CommitMessage() {
 		event.Level = w.level
 		event.Message = w.message.String()
 		event.Fingerprint = []string{event.Message}
-		for key, val := range w.extra {
+		for key, val := range w.config.extra {
 			event.Extra[key] = val
 		}
 		for key, val := range w.values {
 			event.Extra[key] = val
 		}
-		if w.hub.Client().Options().AttachStacktrace {
+		if w.config.hub.Client().Options().AttachStacktrace {
 			stackTrace := sentry.NewStacktrace()
 			stackTrace.Frames = filterFrames(stackTrace.Frames)
 			event.Threads = []sentry.Thread{{
@@ -127,21 +115,17 @@ func (w *Writer) CommitMessage() {
 				Current:    true,
 			}}
 		}
-		w.hub.CaptureEvent(event)
+		w.config.hub.CaptureEvent(event)
 	}
 
-	// Free pointers
+	// Reset and return to pool
 	w.message.Reset()
 	if w.values != nil {
 		valueMapPool.Put(w.values)
 		w.values = nil
 	}
 	w.slice = nil
-	w.hub = nil
-}
-
-func (w *Writer) FlushUnderlying() {
-	w.hub.Flush(FlushTimeout)
+	w.config.writerPool.Put(w)
 }
 
 func filterFrames(frames []sentry.Frame) []sentry.Frame {
@@ -161,7 +145,7 @@ func (w *Writer) String() string {
 func (w *Writer) WriteKey(key string) {
 	w.key = key
 
-	if w.valsAsMsg {
+	if w.config.valsAsMsg {
 		fmt.Fprintf(&w.message, " %s=", key)
 	}
 }
@@ -170,7 +154,7 @@ func (w *Writer) WriteSliceKey(key string) {
 	w.key = key
 	w.slice = make([]any, 0)
 
-	if w.valsAsMsg {
+	if w.config.valsAsMsg {
 		fmt.Fprintf(&w.message, " %s=[", key)
 	}
 }
@@ -179,7 +163,7 @@ func (w *Writer) WriteSliceEnd() {
 	w.writeFinalVal(w.slice)
 	w.slice = nil
 
-	if w.valsAsMsg {
+	if w.config.valsAsMsg {
 		w.message.WriteByte(']')
 	}
 }
@@ -227,7 +211,7 @@ func (w *Writer) writeVal(val any) {
 		w.writeFinalVal(val)
 	}
 
-	if w.valsAsMsg {
+	if w.config.valsAsMsg {
 		if len(w.slice) > 1 {
 			w.message.WriteByte(',')
 		}
