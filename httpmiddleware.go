@@ -170,6 +170,7 @@ func HTTPMiddlewareRespondPlaintextCtxLogsIfNotOK(wrapped http.Handler, filter .
 			if strings.HasPrefix(ct, "text/") || strings.HasPrefix(ct, "application/json") || strings.HasPrefix(ct, "application/xml") {
 				response.Write([]byte("\n\n"))
 				response.Write(responseRecorder.Body.Bytes())
+				return
 			}
 		}
 
