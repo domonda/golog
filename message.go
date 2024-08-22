@@ -148,6 +148,11 @@ func (m *Message) Error(key string, val error) *Message {
 	return m
 }
 
+// Errs is a shortcut for Errors("errors", vals)
+func (m *Message) Errs(vals []error) *Message {
+	return m.Errors("errors", vals)
+}
+
 func (m *Message) Errors(key string, vals []error) *Message {
 	if m == nil || m.attribs.Has(key) {
 		return m
