@@ -47,8 +47,15 @@ func messageFromPool(logger *Logger, attribs Attribs, writers []Writer, level Le
 	}
 }
 
+// IsActive returns true if the message is not nil.
 func (m *Message) IsActive() bool {
 	return m != nil
+}
+
+// IsAttribRecorder returns true if the Message was created by Logger.With()
+// for recording attribs instead of immediately logging them.
+func (m *Message) IsAttribRecorder() bool {
+	return m != nil && len(m.writers) == 0
 }
 
 // SubLogger returns a new sub-logger with recorded per message attribs.
@@ -56,7 +63,7 @@ func (m *Message) SubLogger() *Logger {
 	if m == nil {
 		return nil
 	}
-	if len(m.writers) > 0 {
+	if !m.IsAttribRecorder() {
 		// Message was not created by Logger.With() for recording attribs
 		return m.logger
 	}
@@ -64,20 +71,22 @@ func (m *Message) SubLogger() *Logger {
 }
 
 // SubLoggerContext returns a new sub-logger with recorded per message attribs
-// in addition to any attribs from the passed ctx,
+// in addition to any attribs from the passed ctx
 // and a context with those attribs added to it.
-func (m *Message) SubLoggerContext(ctx context.Context) (subLogger *Logger, subContext context.Context) {
+func (m *Message) SubLoggerContext(ctx context.Context) (*Logger, context.Context) {
 	if m == nil {
 		return nil, ctx
 	}
-	if len(m.writers) > 0 {
-		// Message was not created by Logger.With() for recording attribs
-		return m.logger, m.attribs.AddToContext(ctx)
+	logger := m.logger.WithAdditionalWriterConfigs(
+		WriterConfigsFromContext(ctx)...,
+	)
+	if m.IsAttribRecorder() {
+		// Message was created by Logger.With()
+		// for recording attribs so use those recorded attribs
+		attribs := m.attribs.AppendUnique(AttribsFromContext(ctx)...)
+		logger = logger.WithAttribs(attribs...)
 	}
-	attribs := m.attribs.AppendUnique(AttribsFromContext(ctx)...)
-	subLogger = m.logger.WithAttribs(attribs...)
-	subContext = m.attribs.AddToContext(ctx)
-	return subLogger, subContext
+	return logger, m.attribs.AddToContext(ctx)
 }
 
 // SubContext returns a new context with recorded per message attribs
@@ -125,7 +134,7 @@ func (m *Message) Error(key string, val error) *Message {
 	if m == nil || m.attribs.Has(key) {
 		return m
 	}
-	if len(m.writers) == 0 {
+	if m.IsAttribRecorder() {
 		m.attribs = append(m.attribs, Error{Key: key, Val: val})
 		return m
 	}
@@ -143,7 +152,7 @@ func (m *Message) Errors(key string, vals []error) *Message {
 	if m == nil || m.attribs.Has(key) {
 		return m
 	}
-	if len(m.writers) == 0 {
+	if m.IsAttribRecorder() {
 		m.attribs = append(m.attribs, Errors{Key: key, Vals: vals})
 		return m
 	}
@@ -176,7 +185,7 @@ func (m *Message) Any(key string, val any) *Message {
 	if m == nil || m.attribs.Has(key) {
 		return m
 	}
-	if len(m.writers) == 0 {
+	if m.IsAttribRecorder() {
 		m.attribs = append(m.attribs, Any{Key: key, Val: val})
 		return m
 	}
@@ -386,7 +395,7 @@ func (m *Message) Print(key string, vals ...any) *Message {
 	if m == nil || m.attribs.Has(key) {
 		return m
 	}
-	if len(m.writers) == 0 {
+	if m.IsAttribRecorder() {
 		if len(vals) == 1 {
 			m.attribs = append(m.attribs, String{Key: key, Val: fmt.Sprint(vals...)})
 		} else {
@@ -419,7 +428,7 @@ func (m *Message) Nil(key string) *Message {
 	if m == nil || m.attribs.Has(key) {
 		return m
 	}
-	if len(m.writers) == 0 {
+	if m.IsAttribRecorder() {
 		m.attribs = append(m.attribs, Nil{Key: key})
 		return m
 	}
@@ -434,7 +443,7 @@ func (m *Message) Bool(key string, val bool) *Message {
 	if m == nil || m.attribs.Has(key) {
 		return m
 	}
-	if len(m.writers) == 0 {
+	if m.IsAttribRecorder() {
 		m.attribs = append(m.attribs, Bool{Key: key, Val: val})
 		return m
 	}
@@ -456,7 +465,7 @@ func (m *Message) Bools(key string, vals []bool) *Message {
 	if m == nil || m.attribs.Has(key) {
 		return m
 	}
-	if len(m.writers) == 0 {
+	if m.IsAttribRecorder() {
 		valsCpy := append([]bool(nil), vals...)
 		m.attribs = append(m.attribs, Bools{Key: key, Vals: valsCpy})
 		return m
@@ -475,7 +484,7 @@ func (m *Message) Int(key string, val int) *Message {
 	if m == nil || m.attribs.Has(key) {
 		return m
 	}
-	if len(m.writers) == 0 {
+	if m.IsAttribRecorder() {
 		m.attribs = append(m.attribs, Int{Key: key, Val: int64(val)})
 		return m
 	}
@@ -497,7 +506,7 @@ func (m *Message) Ints(key string, vals []int) *Message {
 	if m == nil || m.attribs.Has(key) {
 		return m
 	}
-	if len(m.writers) == 0 {
+	if m.IsAttribRecorder() {
 		valsCpy := make([]int64, len(vals))
 		for i, val := range vals {
 			valsCpy[i] = int64(val)
@@ -519,7 +528,7 @@ func (m *Message) Int8(key string, val int8) *Message {
 	if m == nil || m.attribs.Has(key) {
 		return m
 	}
-	if len(m.writers) == 0 {
+	if m.IsAttribRecorder() {
 		m.attribs = append(m.attribs, Int{Key: key, Val: int64(val)})
 		return m
 	}
@@ -541,7 +550,7 @@ func (m *Message) Int8s(key string, vals []int8) *Message {
 	if m == nil || m.attribs.Has(key) {
 		return m
 	}
-	if len(m.writers) == 0 {
+	if m.IsAttribRecorder() {
 		valsCpy := make([]int64, len(vals))
 		for i, val := range vals {
 			valsCpy[i] = int64(val)
@@ -563,7 +572,7 @@ func (m *Message) Int16(key string, val int16) *Message {
 	if m == nil || m.attribs.Has(key) {
 		return m
 	}
-	if len(m.writers) == 0 {
+	if m.IsAttribRecorder() {
 		m.attribs = append(m.attribs, Int{Key: key, Val: int64(val)})
 		return m
 	}
@@ -585,7 +594,7 @@ func (m *Message) Int16s(key string, vals []int16) *Message {
 	if m == nil || m.attribs.Has(key) {
 		return m
 	}
-	if len(m.writers) == 0 {
+	if m.IsAttribRecorder() {
 		valsCpy := make([]int64, len(vals))
 		for i, val := range vals {
 			valsCpy[i] = int64(val)
@@ -607,7 +616,7 @@ func (m *Message) Int32(key string, val int32) *Message {
 	if m == nil || m.attribs.Has(key) {
 		return m
 	}
-	if len(m.writers) == 0 {
+	if m.IsAttribRecorder() {
 		m.attribs = append(m.attribs, Int{Key: key, Val: int64(val)})
 		return m
 	}
@@ -629,7 +638,7 @@ func (m *Message) Int32s(key string, vals []int32) *Message {
 	if m == nil || m.attribs.Has(key) {
 		return m
 	}
-	if len(m.writers) == 0 {
+	if m.IsAttribRecorder() {
 		valsCpy := make([]int64, len(vals))
 		for i, val := range vals {
 			valsCpy[i] = int64(val)
@@ -651,7 +660,7 @@ func (m *Message) Int64(key string, val int64) *Message {
 	if m == nil || m.attribs.Has(key) {
 		return m
 	}
-	if len(m.writers) == 0 {
+	if m.IsAttribRecorder() {
 		m.attribs = append(m.attribs, Int{Key: key, Val: val})
 		return m
 	}
@@ -673,7 +682,7 @@ func (m *Message) Int64s(key string, vals []int64) *Message {
 	if m == nil || m.attribs.Has(key) {
 		return m
 	}
-	if len(m.writers) == 0 {
+	if m.IsAttribRecorder() {
 		valsCpy := append([]int64(nil), vals...)
 		m.attribs = append(m.attribs, Ints{Key: key, Vals: valsCpy})
 		return m
@@ -692,7 +701,7 @@ func (m *Message) Uint(key string, val uint) *Message {
 	if m == nil || m.attribs.Has(key) {
 		return m
 	}
-	if len(m.writers) == 0 {
+	if m.IsAttribRecorder() {
 		m.attribs = append(m.attribs, Uint{Key: key, Val: uint64(val)})
 		return m
 	}
@@ -714,7 +723,7 @@ func (m *Message) Uints(key string, vals []uint) *Message {
 	if m == nil || m.attribs.Has(key) {
 		return m
 	}
-	if len(m.writers) == 0 {
+	if m.IsAttribRecorder() {
 		valsCpy := make([]uint64, len(vals))
 		for i, val := range vals {
 			valsCpy[i] = uint64(val)
@@ -736,7 +745,7 @@ func (m *Message) Uint8(key string, val uint8) *Message {
 	if m == nil || m.attribs.Has(key) {
 		return m
 	}
-	if len(m.writers) == 0 {
+	if m.IsAttribRecorder() {
 		m.attribs = append(m.attribs, Uint{Key: key, Val: uint64(val)})
 		return m
 	}
@@ -758,7 +767,7 @@ func (m *Message) Uint8s(key string, vals []uint8) *Message {
 	if m == nil || m.attribs.Has(key) {
 		return m
 	}
-	if len(m.writers) == 0 {
+	if m.IsAttribRecorder() {
 		valsCpy := make([]uint64, len(vals))
 		for i, val := range vals {
 			valsCpy[i] = uint64(val)
@@ -780,7 +789,7 @@ func (m *Message) Uint16(key string, val uint16) *Message {
 	if m == nil || m.attribs.Has(key) {
 		return m
 	}
-	if len(m.writers) == 0 {
+	if m.IsAttribRecorder() {
 		m.attribs = append(m.attribs, Uint{Key: key, Val: uint64(val)})
 		return m
 	}
@@ -802,7 +811,7 @@ func (m *Message) Uint16s(key string, vals []uint16) *Message {
 	if m == nil || m.attribs.Has(key) {
 		return m
 	}
-	if len(m.writers) == 0 {
+	if m.IsAttribRecorder() {
 		valsCpy := make([]uint64, len(vals))
 		for i, val := range vals {
 			valsCpy[i] = uint64(val)
@@ -824,7 +833,7 @@ func (m *Message) Uint32(key string, val uint32) *Message {
 	if m == nil || m.attribs.Has(key) {
 		return m
 	}
-	if len(m.writers) == 0 {
+	if m.IsAttribRecorder() {
 		m.attribs = append(m.attribs, Uint{Key: key, Val: uint64(val)})
 		return m
 	}
@@ -846,7 +855,7 @@ func (m *Message) Uint32s(key string, vals []uint32) *Message {
 	if m == nil || m.attribs.Has(key) {
 		return m
 	}
-	if len(m.writers) == 0 {
+	if m.IsAttribRecorder() {
 		valsCpy := make([]uint64, len(vals))
 		for i, val := range vals {
 			valsCpy[i] = uint64(val)
@@ -868,7 +877,7 @@ func (m *Message) Uint64(key string, val uint64) *Message {
 	if m == nil || m.attribs.Has(key) {
 		return m
 	}
-	if len(m.writers) == 0 {
+	if m.IsAttribRecorder() {
 		m.attribs = append(m.attribs, Uint{Key: key, Val: val})
 		return m
 	}
@@ -890,7 +899,7 @@ func (m *Message) Uint64s(key string, vals []uint64) *Message {
 	if m == nil || m.attribs.Has(key) {
 		return m
 	}
-	if len(m.writers) == 0 {
+	if m.IsAttribRecorder() {
 		valsCpy := append([]uint64(nil), vals...)
 		m.attribs = append(m.attribs, Uints{Key: key, Vals: valsCpy})
 		return m
@@ -909,7 +918,7 @@ func (m *Message) Float32(key string, val float32) *Message {
 	if m == nil || m.attribs.Has(key) {
 		return m
 	}
-	if len(m.writers) == 0 {
+	if m.IsAttribRecorder() {
 		m.attribs = append(m.attribs, Float{Key: key, Val: float64(val)})
 		return m
 	}
@@ -931,7 +940,7 @@ func (m *Message) Float32s(key string, vals []float32) *Message {
 	if m == nil || m.attribs.Has(key) {
 		return m
 	}
-	if len(m.writers) == 0 {
+	if m.IsAttribRecorder() {
 		valsCpy := make([]float64, len(vals))
 		for i, val := range vals {
 			valsCpy[i] = float64(val)
@@ -954,7 +963,7 @@ func (m *Message) Float(key string, val float64) *Message {
 	if m == nil || m.attribs.Has(key) {
 		return m
 	}
-	if len(m.writers) == 0 {
+	if m.IsAttribRecorder() {
 		m.attribs = append(m.attribs, Float{Key: key, Val: val})
 		return m
 	}
@@ -976,7 +985,7 @@ func (m *Message) Floats(key string, vals []float64) *Message {
 	if m == nil || m.attribs.Has(key) {
 		return m
 	}
-	if len(m.writers) == 0 {
+	if m.IsAttribRecorder() {
 		valsCpy := append([]float64(nil), vals...)
 		m.attribs = append(m.attribs, Floats{Key: key, Vals: valsCpy})
 		return m
@@ -995,7 +1004,7 @@ func (m *Message) Str(key, val string) *Message {
 	if m == nil || m.attribs.Has(key) {
 		return m
 	}
-	if len(m.writers) == 0 {
+	if m.IsAttribRecorder() {
 		m.attribs = append(m.attribs, String{Key: key, Val: val})
 		return m
 	}
@@ -1017,7 +1026,7 @@ func (m *Message) Strs(key string, vals []string) *Message {
 	if m == nil || m.attribs.Has(key) {
 		return m
 	}
-	if len(m.writers) == 0 {
+	if m.IsAttribRecorder() {
 		valsCpy := append([]string(nil), vals...)
 		m.attribs = append(m.attribs, Strings{Key: key, Vals: valsCpy})
 		return m
@@ -1074,7 +1083,7 @@ func (m *Message) UUID(key string, val [16]byte) *Message {
 	if m == nil || m.attribs.Has(key) {
 		return m
 	}
-	if len(m.writers) == 0 {
+	if m.IsAttribRecorder() {
 		m.attribs = append(m.attribs, UUID{Key: key, Val: val})
 		return m
 	}
@@ -1107,7 +1116,7 @@ func (m *Message) UUIDs(key string, vals [][16]byte) *Message {
 	if m == nil || m.attribs.Has(key) {
 		return m
 	}
-	if len(m.writers) == 0 {
+	if m.IsAttribRecorder() {
 		valsCpy := append([][16]byte(nil), vals...)
 		m.attribs = append(m.attribs, UUIDs{Key: key, Vals: valsCpy})
 		return m
@@ -1136,7 +1145,7 @@ func (m *Message) JSON(key string, val []byte) *Message {
 	}
 	valCpy := bytes.NewBuffer(make([]byte, 0, len(val)))
 	err := json.Compact(valCpy, val)
-	if len(m.writers) == 0 {
+	if m.IsAttribRecorder() {
 		if err == nil {
 			m.attribs = append(m.attribs, JSON{Key: key, Val: valCpy.Bytes()})
 		} else {
@@ -1164,7 +1173,7 @@ func (m *Message) AsJSON(key string, val any) *Message {
 	if err != nil {
 		return m.Error(key, fmt.Errorf("can't log %T AsJSON because of: %w", val, err))
 	}
-	if len(m.writers) == 0 {
+	if m.IsAttribRecorder() {
 		m.attribs = append(m.attribs, JSON{Key: key, Val: jsonVal})
 		return m
 	}

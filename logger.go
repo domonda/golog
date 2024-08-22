@@ -82,8 +82,8 @@ func (l *Logger) WithLevelFilter(filter LevelFilter) *Logger {
 }
 
 func (l *Logger) WithAdditionalWriterConfigs(configs ...WriterConfig) *Logger {
-	if l == nil {
-		return nil
+	if l == nil || len(configs) == 0 {
+		return l
 	}
 	return &Logger{
 		config:  NewDerivedConfigWithAdditionalWriterConfigs(&l.config, configs...),

@@ -24,13 +24,21 @@ type WriterConfig interface {
 
 var writerConfigsCtxKey int
 
+// ContextWithAdditionalWriterConfigs returns a context
+// with the passed configs uniquely added to the existing ones
+// so that each WriterConfig is only added once to the context.
 func ContextWithAdditionalWriterConfigs(ctx context.Context, configs ...WriterConfig) context.Context {
+	if len(configs) == 0 {
+		return ctx
+	}
 	if c := WriterConfigsFromContext(ctx); len(c) > 0 {
 		configs = append(c, configs...)
 	}
 	return context.WithValue(ctx, &writerConfigsCtxKey, uniqueWriterConfigs(configs))
 }
 
+// WriterConfigsFromContext retrieves writer configs from the context
+// that have been added with ContextWithAdditionalWriterConfigs.
 func WriterConfigsFromContext(ctx context.Context) []WriterConfig {
 	if configs, ok := ctx.Value(&writerConfigsCtxKey).([]WriterConfig); ok {
 		return configs
