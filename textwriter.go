@@ -91,12 +91,14 @@ func (w *TextWriter) BeginMessage(config Config, t time.Time, level Level, prefi
 	w.buf = append(w.buf, str...)
 	w.buf = append(w.buf, '|')
 
+	if text == "" {
+		return
+	}
 	// Write message
-	if text != "" {
-		if prefix != "" {
-			text = prefix + w.config.format.PrefixSep + text
-		}
-		w.buf = append(w.buf, ' ')
+	w.buf = append(w.buf, ' ')
+	if prefix != "" {
+		w.buf = fmt.Appendf(w.buf, w.config.format.PrefixFmt, prefix, text)
+	} else {
 		w.buf = append(w.buf, w.config.colorizer.ColorizeMsg(text)...)
 	}
 }

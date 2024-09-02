@@ -22,7 +22,7 @@ func newTestConfig(textOut, jsonOut io.Writer) Config {
 		TimestampFormat: "2006-01-02 15:04:05",
 		TimestampKey:    "time",
 		LevelKey:        "level",
-		PrefixSep:       ": ",
+		PrefixFmt:       "%s: %s",
 		MessageKey:      "message",
 	}
 

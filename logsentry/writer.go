@@ -87,10 +87,10 @@ func (w *Writer) BeginMessage(config golog.Config, t time.Time, level golog.Leve
 	}
 
 	if prefix != "" {
-		w.message.WriteString(prefix)
-		w.message.WriteString(w.config.format.PrefixSep)
+		fmt.Fprintf(&w.message, w.config.format.PrefixFmt, prefix, text)
+	} else {
+		w.message.WriteString(text)
 	}
-	w.message.WriteString(text)
 }
 
 func (w *Writer) CommitMessage() {

@@ -75,7 +75,7 @@ func (w *JSONWriter) BeginMessage(config Config, t time.Time, level Level, prefi
 
 	if w.config.format.MessageKey != "" && text != "" {
 		if prefix != "" {
-			text = prefix + w.config.format.PrefixSep + text
+			text = fmt.Sprintf(w.config.format.PrefixFmt, prefix, text)
 		}
 		w.buf = encjson.AppendKey(w.buf, w.config.format.MessageKey)
 		w.buf = encjson.AppendString(w.buf, text)
