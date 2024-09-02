@@ -1,14 +1,14 @@
 module github.com/domonda/golog
 
-go 1.22
+go 1.23
 
 require (
 	github.com/domonda/go-encjson v0.0.0-20210830085227-1beee57a72d8
-	github.com/domonda/go-types v0.0.0-20240807125919-3d418e4a028b
+	github.com/domonda/go-types v0.0.0-20240822142828-3b45a403e1e2
 	github.com/fatih/color v1.17.0
 	github.com/muesli/termenv v0.15.2
 	github.com/stretchr/testify v1.9.0
-	github.com/ungerik/go-fs v0.0.0-20240702143946-3ecb6733945d
+	github.com/ungerik/go-fs v0.0.0-20240829170221-72a8ff83f83f
 )
 
 require (
