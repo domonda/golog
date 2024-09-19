@@ -4,11 +4,11 @@ go 1.23
 
 require (
 	github.com/domonda/go-encjson v0.0.0-20210830085227-1beee57a72d8
-	github.com/domonda/go-types v0.0.0-20240822142828-3b45a403e1e2
+	github.com/domonda/go-types v0.0.0-20240919084910-749fbba77700
 	github.com/fatih/color v1.17.0
 	github.com/muesli/termenv v0.15.2
 	github.com/stretchr/testify v1.9.0
-	github.com/ungerik/go-fs v0.0.0-20240829170221-72a8ff83f83f
+	github.com/ungerik/go-fs v0.0.0-20240919065241-437d7c2c9f63
 )
 
 require (
@@ -24,7 +24,7 @@ require (
 	github.com/mattn/go-runewidth v0.0.16 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
-	golang.org/x/sys v0.24.0 // indirect
+	golang.org/x/sys v0.25.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
