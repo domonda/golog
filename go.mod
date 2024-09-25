@@ -4,11 +4,11 @@ go 1.23
 
 require (
 	github.com/domonda/go-encjson v0.0.0-20210830085227-1beee57a72d8
-	github.com/domonda/go-types v0.0.0-20240919084910-749fbba77700
+	github.com/domonda/go-types v0.0.0-20240924082825-270782de7296
 	github.com/fatih/color v1.17.0
 	github.com/muesli/termenv v0.15.2
 	github.com/stretchr/testify v1.9.0
-	github.com/ungerik/go-fs v0.0.0-20240919065241-437d7c2c9f63
+	github.com/ungerik/go-fs v0.0.0-20240919125757-1b6f933a416d
 )
 
 require (

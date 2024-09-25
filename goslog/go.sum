@@ -9,8 +9,8 @@ github.com/domonda/go-errs v0.0.0-20240702051036-0e696c849b5f h1:9CZgqCVP/7eixUj
 github.com/domonda/go-errs v0.0.0-20240702051036-0e696c849b5f/go.mod h1:qLWt1z3aIg12+Dbxu9bMydFOHEi92vWE7vAHcHLd8n8=
 github.com/domonda/go-pretty v0.0.0-20240110134850-17385799142f h1:5eA74m451PqlqCXyJzWXp95Quj4PZ6Lm/ndKBuiNhe4=
 github.com/domonda/go-pretty v0.0.0-20240110134850-17385799142f/go.mod h1:3QkM8UJdyJMeKZiIo7hYzSkQBpRS3k0gOHw4ysyEIB4=
-github.com/domonda/go-types v0.0.0-20240822142828-3b45a403e1e2 h1:HsNNMCF7BKLy6Y7ECvg6pA2PwBwNhh8z5IykgWoqlcI=
-github.com/domonda/go-types v0.0.0-20240822142828-3b45a403e1e2/go.mod h1:Voo8dh8EeexiIXpvvmFM3WPyXtiukUjtwLpgOr9rKNM=
+github.com/domonda/go-types v0.0.0-20240924082825-270782de7296 h1:9NOpTrmdnxFMdZft6idPmaqcIyxbKZYl7Ija7bFaric=
+github.com/domonda/go-types v0.0.0-20240924082825-270782de7296/go.mod h1:QfZG5NrNWDrwcqOp3ZlNh2XaLjZI1ncNpGPAa9MIUUE=
 github.com/kr/pretty v0.3.1 h1:flRD4NNwYAUpkphVc1HcthR4KEIFJ65n8Mw5qdRn3LE=
 github.com/kr/pretty v0.3.1/go.mod h1:hoEshYVHaxMs3cyo3Yncou5ZscifuDolrwPKZanG3xk=
 github.com/kr/text v0.2.0 h1:5Nx0Ya0ZqY2ygV366QzturHI13Jq95ApcVaJBhpS+AY=
@@ -34,8 +34,8 @@ github.com/rogpeppe/go-internal v1.9.0/go.mod h1:WtVeX8xhTBvf0smdhujwtBcq4Qrzq/f
 github.com/stretchr/testify v1.9.0 h1:HtqpIVDClZ4nwg75+f6Lvsy/wHu+3BoSGCbBAcpTsTg=
 github.com/stretchr/testify v1.9.0/go.mod h1:r2ic/lqez/lEtzL7wO/rwa5dbSLXVDPFyf8C91i36aY=
 golang.org/x/sys v0.6.0/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
-golang.org/x/sys v0.24.0 h1:Twjiwq9dn6R1fQcyiK+wQyHWfaz/BJB+YIpzU/Cv3Xg=
-golang.org/x/sys v0.24.0/go.mod h1:/VUhepiaJMQUp4+oa/7Zr1D23ma6VTLIYjOOTFZPUcA=
+golang.org/x/sys v0.25.0 h1:r+8e+loiHxRqhXVl6ML1nO3l1+oFoWbnlu2Ehimmi34=
+golang.org/x/sys v0.25.0/go.mod h1:/VUhepiaJMQUp4+oa/7Zr1D23ma6VTLIYjOOTFZPUcA=
 gopkg.in/check.v1 v0.0.0-20161208181325-20d25e280405/go.mod h1:Co6ibVJAznAaIkqp8huTwlJQCZ016jof/cbN4VW5Yz0=
 gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c h1:Hei/4ADfdWqJk1ZMxUNpqntNwaWcugrBjAiHlqqRiVk=
 gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c/go.mod h1:JHkPIbrfpd72SG/EVd6muEfDQjcINNoR0C8j2r3qZ4Q=
