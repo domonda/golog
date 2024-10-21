@@ -235,12 +235,12 @@ func (m *Message) writeAny(w Writer, val reflect.Value, nestedSlice bool) {
 	}
 
 	// Deref pointers
-	valChanged := false
+	dereferenced := false
 	for val.Kind() == reflect.Pointer && !val.IsNil() {
 		val = val.Elem()
-		valChanged = true
+		dereferenced = true
 	}
-	if valChanged {
+	if dereferenced {
 		// Try if dereferenced val implements a loggable interface or is nil
 		written := m.tryWriteInterface(w, val)
 		if written {
@@ -249,6 +249,10 @@ func (m *Message) writeAny(w Writer, val reflect.Value, nestedSlice bool) {
 	}
 
 	switch val.Kind() {
+	case reflect.Pointer:
+		// A non-nil pointer would have been dereferenced above
+		w.WriteNil()
+
 	case reflect.Bool:
 		w.WriteBool(val.Bool())
 
@@ -292,6 +296,7 @@ func (m *Message) writeAny(w Writer, val reflect.Value, nestedSlice bool) {
 				)
 			}
 		}
+
 	case reflect.Slice:
 		if nestedSlice {
 			// Don't go further into a slice of slices
