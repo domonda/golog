@@ -26,7 +26,7 @@ func filePathPrefix() string {
 }
 
 func callstack(skip int) string {
-	skip = max(2+skip, 0) // Prefer robustness in logging over panics
+	skip = max(2+skip, 0) // Prefer robustness in logging over negative index panics
 	stack := make([]uintptr, 32)
 	n := runtime.Callers(skip, stack)
 	stack = stack[:n]
@@ -47,4 +47,15 @@ func callstack(skip int) string {
 		)
 	}
 	return b.String()
+}
+
+// CallingFunction returns the name of the function that called it.
+func CallingFunction() string {
+	stack := make([]uintptr, 1)
+	n := runtime.Callers(2, stack)
+	if n == 0 {
+		// Should never happen, but better safe than sory because of a panic
+		return "UNKNOWN"
+	}
+	return runtime.FuncForPC(stack[0]).Name()
 }
