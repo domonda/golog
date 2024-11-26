@@ -85,7 +85,7 @@ func (w *JSONWriter) BeginMessage(config Config, t time.Time, level Level, prefi
 func (w *JSONWriter) CommitMessage() {
 	// Flush f.buf
 	if len(w.buf) > 0 {
-		_, err := w.config.writer.Write(append(w.buf, '}', ',', '\n'))
+		_, err := w.config.writer.Write(append(w.buf, '}', '\n'))
 		if err != nil && ErrorHandler != nil {
 			ErrorHandler(fmt.Errorf("golog.JSONWriter error: %w", err))
 		}
