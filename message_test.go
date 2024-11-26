@@ -265,7 +265,7 @@ const (
 		`"UUIDs":["fab60526-bf52-4ec2-9db3-f5860250de5c","78adb219-460c-41e9-ac39-12d4d0420aa0"],` +
 		`"JSON":[{"a":1,"b":[2,3],"c":null,"d":{"x":1.5}},null],` +
 		`"InvalidJSON":"\"a\":1"` +
-		"},"
+		"}"
 )
 
 func TestMessage_Any(t *testing.T) {
@@ -315,7 +315,7 @@ func TestMessage_SubLoggerContext(t *testing.T) {
 		Log()
 
 	textMsg := `2006-01-02 15:04:05 |INFO | pkg: Msg uuid=a547276f-b02b-4e7d-b67e-c6deb07567da` + "\n"
-	jsonMsg := `{"time":"2006-01-02 15:04:05","level":"INFO","message":"pkg: Msg","uuid":"a547276f-b02b-4e7d-b67e-c6deb07567da"},` + "\n"
+	jsonMsg := `{"time":"2006-01-02 15:04:05","level":"INFO","message":"pkg: Msg","uuid":"a547276f-b02b-4e7d-b67e-c6deb07567da"}` + "\n"
 
 	assert.Equal(t, textMsg, textOut.String())
 	assert.Equal(t, jsonMsg, jsonOut.String())
@@ -353,7 +353,7 @@ func TestMessage_SubLoggerContext(t *testing.T) {
 			Log()
 
 		textMsg := `2006-01-02 15:04:05 |INFO | pkg: Msg uuid=a547276f-b02b-4e7d-b67e-c6deb07567da` + "\n"
-		jsonMsg := `{"time":"2006-01-02 15:04:05","level":"INFO","message":"pkg: Msg","uuid":"a547276f-b02b-4e7d-b67e-c6deb07567da"},` + "\n"
+		jsonMsg := `{"time":"2006-01-02 15:04:05","level":"INFO","message":"pkg: Msg","uuid":"a547276f-b02b-4e7d-b67e-c6deb07567da"}` + "\n"
 
 		assert.Equal(t, textMsg, textOut.String())
 		assert.Equal(t, jsonMsg, jsonOut.String())
@@ -409,7 +409,7 @@ func TestMessage_Ctx(t *testing.T) {
 		Log()
 
 	textMsg := `2006-01-02 15:04:05 |INFO | pkg: Msg int=1` + "\n"
-	jsonMsg := `{"time":"2006-01-02 15:04:05","level":"INFO","message":"pkg: Msg","int":1},` + "\n"
+	jsonMsg := `{"time":"2006-01-02 15:04:05","level":"INFO","message":"pkg: Msg","int":1}` + "\n"
 
 	assert.Equal(t, textMsg, textOut.String())
 	assert.Equal(t, jsonMsg, jsonOut.String())
@@ -422,7 +422,7 @@ func TestMessage_Ctx(t *testing.T) {
 		Log()
 
 	textMsg = `2006-01-02 15:04:05 |INFO | pkg: Msg int=1 int=2` + "\n"
-	jsonMsg = `{"time":"2006-01-02 15:04:05","level":"INFO","message":"pkg: Msg","int":1,"int":2},` + "\n"
+	jsonMsg = `{"time":"2006-01-02 15:04:05","level":"INFO","message":"pkg: Msg","int":1,"int":2}` + "\n"
 
 	assert.Equal(t, textMsg, textOut.String())
 	assert.Equal(t, jsonMsg, jsonOut.String())
@@ -439,7 +439,7 @@ func TestMessage_Ctx(t *testing.T) {
 		Log()
 
 	textMsg = `2006-01-02 15:04:05 |INFO | pkg: Msg int=3 int=4` + "\n"
-	jsonMsg = `{"time":"2006-01-02 15:04:05","level":"INFO","message":"pkg: Msg","int":3,"int":4},` + "\n"
+	jsonMsg = `{"time":"2006-01-02 15:04:05","level":"INFO","message":"pkg: Msg","int":3,"int":4}` + "\n"
 
 	assert.Equal(t, textMsg, textOut.String())
 	assert.Equal(t, jsonMsg, jsonOut.String())

@@ -28,6 +28,6 @@ func ExampleJSONWriter() {
 	log.NewMessageAt(context.Background(), at, config.ErrorLevel(), "This is an error").Log()
 
 	// Output:
-	// {"time":"2006-01-02 15:04:05","level":"INFO","message":"My log message","int":66,"str":"Hello\tWorld!\n"},
-	// {"time":"2006-01-02 15:04:05","level":"ERROR","message":"This is an error"},
+	// {"time":"2006-01-02 15:04:05","level":"INFO","message":"My log message","int":66,"str":"Hello\tWorld!\n"}
+	// {"time":"2006-01-02 15:04:05","level":"ERROR","message":"This is an error"}
 }
