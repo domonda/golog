@@ -1076,15 +1076,48 @@ func (m *Message) TimePtr(key string, val *time.Time) *Message {
 	return m.Time(key, *val)
 }
 
+// Duration logs the passed duration as string
+// using the time.Duration.String method
+// representing the duration in the form "72h3m0.5s".
+// Leading zero units are omitted. As a special case, durations less than one
+// second format use a smaller unit (milli-, micro-, or nanoseconds) to ensure
+// that the leading digit is non-zero. The zero duration formats as 0s.
 func (m *Message) Duration(key string, val time.Duration) *Message {
 	return m.Str(key, val.String())
 }
 
+// DurationPtr logs the passed non-nil duration as string
+// using the time.Duration.String method
+// representing the duration in the form "72h3m0.5s".
+// Leading zero units are omitted. As a special case, durations less than one
+// second format use a smaller unit (milli-, micro-, or nanoseconds) to ensure
+// that the leading digit is non-zero. The zero duration formats as 0s.
+// A nil duration is logged as nil.
 func (m *Message) DurationPtr(key string, val *time.Duration) *Message {
 	if val == nil {
 		return m.Nil(key)
 	}
 	return m.Duration(key, *val)
+}
+
+// Millis logs the passed duration as millisecond integer.
+func (m *Message) Millis(key string, val time.Duration) *Message {
+	return m.Int64(key, val.Milliseconds())
+}
+
+// MillisSince logs the elapsed time since t as millisecond integer.
+func (m *Message) MillisSince(key string, t time.Time) *Message {
+	return m.Int64(key, time.Since(t).Microseconds())
+}
+
+// Micros logs the passed duration as microsecond integer.
+func (m *Message) Micros(key string, val time.Duration) *Message {
+	return m.Int64(key, val.Microseconds())
+}
+
+// MicrosSince logs the elapsed time since t as millisecond integer.
+func (m *Message) MicrosSince(key string, t time.Time) *Message {
+	return m.Int64(key, time.Since(t).Microseconds())
 }
 
 // UUID logs a UUID or nil in case of a "Nil UUID" containing only zero bytes.
