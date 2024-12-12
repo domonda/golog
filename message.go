@@ -1107,7 +1107,7 @@ func (m *Message) Millis(key string, val time.Duration) *Message {
 
 // MillisSince logs the elapsed time since t as millisecond integer.
 func (m *Message) MillisSince(key string, t time.Time) *Message {
-	return m.Int64(key, time.Since(t).Microseconds())
+	return m.Int64(key, time.Since(t).Milliseconds())
 }
 
 // Micros logs the passed duration as microsecond integer.
