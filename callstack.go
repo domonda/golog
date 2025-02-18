@@ -49,7 +49,8 @@ func callstack(skip int) string {
 	return b.String()
 }
 
-// CallingFunction returns the name of the function that called it.
+// CallingFunction returns the fully qualified name
+// including the package import path of the calling function.
 func CallingFunction() string {
 	stack := make([]uintptr, 1)
 	n := runtime.Callers(2, stack)
@@ -58,4 +59,17 @@ func CallingFunction() string {
 		return "UNKNOWN"
 	}
 	return runtime.FuncForPC(stack[0]).Name()
+}
+
+// CallingFunctionName returns the name of the calling function
+// without the package name prefix.
+func CallingFunctionName() string {
+	stack := make([]uintptr, 1)
+	n := runtime.Callers(2, stack)
+	if n == 0 {
+		// Should never happen, but better safe than sory because of a panic
+		return "UNKNOWN"
+	}
+	name := runtime.FuncForPC(stack[0]).Name()
+	return name[strings.LastIndex(name, ".")+1:]
 }

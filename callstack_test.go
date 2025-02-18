@@ -8,3 +8,10 @@ func TestCallingFunction(t *testing.T) {
 		t.Errorf("CallingFunction() should return the name of the calling function, but got %q", f)
 	}
 }
+
+func TestCallingFunctionName(t *testing.T) {
+	name := CallingFunctionName()
+	if name != "TestCallingFunctionName" {
+		t.Errorf("CallingFunctionName() should return the name of the calling function, but got %q", name)
+	}
+}
