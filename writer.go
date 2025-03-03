@@ -20,7 +20,7 @@ type Writer interface {
 	//
 	// The config is passed to give access to other data that might be needed
 	// for message formatting level names.
-	BeginMessage(config Config, t time.Time, level Level, prefix, text string)
+	BeginMessage(config Config, timestamp time.Time, level Level, prefix, text string)
 
 	WriteKey(string)
 	WriteSliceKey(string)

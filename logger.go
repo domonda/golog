@@ -164,8 +164,8 @@ func (l *Logger) Flush() {
 	}
 }
 
-// NewMessageAt starts a new message logged with the time t
-func (l *Logger) NewMessageAt(ctx context.Context, t time.Time, level Level, text string) *Message {
+// NewMessageAt starts a new message logged with the given timestamp
+func (l *Logger) NewMessageAt(ctx context.Context, timestamp time.Time, level Level, text string) *Message {
 	// Logging should always err on the side of robustness
 	// so accept nil to prevent panics.
 	if ctx == nil {
@@ -184,7 +184,7 @@ func (l *Logger) NewMessageAt(ctx context.Context, t time.Time, level Level, tex
 	}
 	for _, config := range configs {
 		if w := config.WriterForNewMessage(ctx, level); w != nil {
-			w.BeginMessage(l.config, t, level, l.prefix, text)
+			w.BeginMessage(l.config, timestamp, level, l.prefix, text)
 			writers = append(writers, w)
 		}
 	}
@@ -248,6 +248,10 @@ func (l *Logger) Error(text string) *Message {
 	return l.NewMessage(context.Background(), l.config.ErrorLevel(), text)
 }
 
+func (l *Logger) ErrorAt(timestamp time.Time, text string) *Message {
+	return l.NewMessageAt(context.Background(), timestamp, l.config.ErrorLevel(), text)
+}
+
 func (l *Logger) ErrorCtx(ctx context.Context, text string) *Message {
 	return l.NewMessage(ctx, l.config.ErrorLevel(), text)
 }
@@ -266,6 +270,10 @@ func (l *Logger) Warn(text string) *Message {
 	return l.NewMessage(context.Background(), l.config.WarnLevel(), text)
 }
 
+func (l *Logger) WarnAt(timestamp time.Time, text string) *Message {
+	return l.NewMessageAt(context.Background(), timestamp, l.config.WarnLevel(), text)
+}
+
 func (l *Logger) WarnCtx(ctx context.Context, text string) *Message {
 	return l.NewMessage(ctx, l.config.WarnLevel(), text)
 }
@@ -280,6 +288,10 @@ func (l *Logger) WarnfCtx(ctx context.Context, format string, args ...any) *Mess
 
 func (l *Logger) Info(text string) *Message {
 	return l.NewMessage(context.Background(), l.config.InfoLevel(), text)
+}
+
+func (l *Logger) InfoAt(timestamp time.Time, text string) *Message {
+	return l.NewMessageAt(context.Background(), timestamp, l.config.InfoLevel(), text)
 }
 
 func (l *Logger) InfoCtx(ctx context.Context, text string) *Message {
@@ -298,6 +310,10 @@ func (l *Logger) Debug(text string) *Message {
 	return l.NewMessage(context.Background(), l.config.DebugLevel(), text)
 }
 
+func (l *Logger) DebugAt(timestamp time.Time, text string) *Message {
+	return l.NewMessageAt(context.Background(), timestamp, l.config.DebugLevel(), text)
+}
+
 func (l *Logger) DebugCtx(ctx context.Context, text string) *Message {
 	return l.NewMessage(ctx, l.config.DebugLevel(), text)
 }
@@ -312,6 +328,10 @@ func (l *Logger) DebugfCtx(ctx context.Context, format string, args ...any) *Mes
 
 func (l *Logger) Trace(text string) *Message {
 	return l.NewMessage(context.Background(), l.config.TraceLevel(), text)
+}
+
+func (l *Logger) TraceAt(timestamp time.Time, text string) *Message {
+	return l.NewMessageAt(context.Background(), timestamp, l.config.TraceLevel(), text)
 }
 
 func (l *Logger) TraceCtx(ctx context.Context, text string) *Message {

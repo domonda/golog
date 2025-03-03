@@ -75,9 +75,9 @@ func Flush() {
 	Logger.Flush()
 }
 
-// NewMessageAt starts a new message logged with the time t
-func NewMessageAt(ctx context.Context, t time.Time, level golog.Level, text string) *golog.Message {
-	return Logger.NewMessageAt(ctx, t, level, text)
+// NewMessageAt starts a new message logged with the given timestamp
+func NewMessageAt(ctx context.Context, timestamp time.Time, level golog.Level, text string) *golog.Message {
+	return Logger.NewMessageAt(ctx, timestamp, level, text)
 }
 
 // NewMessage starts a new message

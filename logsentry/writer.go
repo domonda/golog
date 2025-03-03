@@ -65,8 +65,8 @@ type Writer struct {
 	slice     []any
 }
 
-func (w *Writer) BeginMessage(config golog.Config, t time.Time, level golog.Level, prefix, text string) {
-	w.timestamp = t
+func (w *Writer) BeginMessage(config golog.Config, timestamp time.Time, level golog.Level, prefix, text string) {
+	w.timestamp = timestamp
 
 	levels := config.Levels()
 	switch level {

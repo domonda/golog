@@ -25,7 +25,7 @@ func (c NopWriterConfig) FlushUnderlying() {}
 
 type NopWriter string
 
-func (NopWriter) BeginMessage(config Config, t time.Time, level Level, prefix, text string) {}
+func (NopWriter) BeginMessage(config Config, timestamp time.Time, level Level, prefix, text string) {}
 
 func (NopWriter) CommitMessage() {}
 

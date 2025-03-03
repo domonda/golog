@@ -75,10 +75,10 @@ type TextWriter struct {
 	buf       []byte
 }
 
-func (w *TextWriter) BeginMessage(config Config, t time.Time, level Level, prefix, text string) {
+func (w *TextWriter) BeginMessage(config Config, timestamp time.Time, level Level, prefix, text string) {
 	// Write timestamp
-	timestamp := t.Format(w.config.format.TimestampFormat)
-	w.buf = append(w.buf, w.config.colorizer.ColorizeTimestamp(timestamp)...)
+	timestampStr := timestamp.Format(w.config.format.TimestampFormat)
+	w.buf = append(w.buf, w.config.colorizer.ColorizeTimestamp(timestampStr)...)
 	w.buf = append(w.buf, ' ')
 
 	// Write level

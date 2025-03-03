@@ -28,7 +28,7 @@ func (w *recorder) WriterForNewMessage(context.Context, golog.Level) golog.Write
 
 func (w *recorder) FlushUnderlying() {}
 
-func (w *recorder) BeginMessage(config golog.Config, t time.Time, level golog.Level, prefix, text string) {
+func (w *recorder) BeginMessage(config golog.Config, timestamp time.Time, level golog.Level, prefix, text string) {
 	if w.key != "" || w.values != nil {
 		panic("last message not commited")
 	}
@@ -36,14 +36,14 @@ func (w *recorder) BeginMessage(config golog.Config, t time.Time, level golog.Le
 		slog.LevelKey:   slog.Level(level),
 		slog.MessageKey: text,
 	}
-	if !t.IsZero() {
-		w.values[slog.TimeKey] = t
+	if !timestamp.IsZero() {
+		w.values[slog.TimeKey] = timestamp
 	}
 
-	if t.IsZero() {
+	if timestamp.IsZero() {
 		fmt.Printf("%s=%s %s=%q", slog.LevelKey, slog.Level(level), slog.MessageKey, text)
 	} else {
-		fmt.Printf("%s=%s %s=%s %s=%q", slog.TimeKey, t.Format("2006-01-02T15:04:05.000"), slog.LevelKey, slog.Level(level), slog.MessageKey, text)
+		fmt.Printf("%s=%s %s=%s %s=%q", slog.TimeKey, timestamp.Format("2006-01-02T15:04:05.000"), slog.LevelKey, slog.Level(level), slog.MessageKey, text)
 	}
 }
 
@@ -147,10 +147,6 @@ func (w *recorder) writeVal(val any) {
 	w.values[w.key] = val
 
 	fmt.Printf(" %s=%#v", w.key, val)
-}
-
-func canSplitGroupKey(key string) bool {
-	return strings.ContainsRune(key, '.')
 }
 
 func splitGroupKeyVal(key string, val any) (rootKey string, rootVal any) {

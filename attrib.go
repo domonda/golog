@@ -24,25 +24,38 @@ type Attrib interface {
 	GetValString() string
 }
 
+type SliceAttrib interface {
+	Attrib
+
+	Len() int
+}
+
 // Attrib implementations
 var (
-	_ Attrib = Nil{}
-	_ Attrib = Any{}
-	_ Attrib = Bool{}
-	_ Attrib = Bools{}
-	_ Attrib = Int{}
-	_ Attrib = Ints{}
-	_ Attrib = Uint{}
-	_ Attrib = Uints{}
-	_ Attrib = Float{}
-	_ Attrib = Floats{}
-	_ Attrib = String{}
-	_ Attrib = Strings{}
-	_ Attrib = Error{}
-	_ Attrib = Errors{}
-	_ Attrib = UUID{}
-	_ Attrib = UUIDs{}
-	_ Attrib = JSON{}
+	_ Attrib      = Nil{}
+	_ Attrib      = Any{}
+	_ Attrib      = Bool{}
+	_ Attrib      = Bools{}
+	_ SliceAttrib = Bools{}
+	_ Attrib      = Int{}
+	_ Attrib      = Ints{}
+	_ SliceAttrib = Ints{}
+	_ Attrib      = Uint{}
+	_ Attrib      = Uints{}
+	_ SliceAttrib = Uints{}
+	_ Attrib      = Float{}
+	_ Attrib      = Floats{}
+	_ SliceAttrib = Floats{}
+	_ Attrib      = String{}
+	_ Attrib      = Strings{}
+	_ SliceAttrib = Strings{}
+	_ Attrib      = Error{}
+	_ Attrib      = Errors{}
+	_ SliceAttrib = Errors{}
+	_ Attrib      = UUID{}
+	_ Attrib      = UUIDs{}
+	_ SliceAttrib = UUIDs{}
+	_ Attrib      = JSON{}
 )
 
 // Nil
@@ -118,6 +131,8 @@ func (a Bools) String() string {
 	return fmt.Sprintf("Bools{%q: %s}", a.Key, a.GetValString())
 }
 
+func (a Bools) Len() int { return len(a.Vals) }
+
 // Int
 
 type Int struct {
@@ -153,6 +168,8 @@ func (a Ints) Log(m *Message) {
 func (a Ints) String() string {
 	return fmt.Sprintf("Ints{%q: %s}", a.Key, a.GetValString())
 }
+
+func (a Ints) Len() int { return len(a.Vals) }
 
 // Uint
 
@@ -190,6 +207,8 @@ func (a Uints) String() string {
 	return fmt.Sprintf("Uints{%q: %s}", a.Key, a.GetValString())
 }
 
+func (a Uints) Len() int { return len(a.Vals) }
+
 // Float
 
 type Float struct {
@@ -226,6 +245,8 @@ func (a Floats) String() string {
 	return fmt.Sprintf("Floats{%q: %s}", a.Key, a.GetValString())
 }
 
+func (a Floats) Len() int { return len(a.Vals) }
+
 // String
 
 type String struct {
@@ -261,6 +282,8 @@ func (a Strings) Log(m *Message) {
 func (a Strings) String() string {
 	return fmt.Sprintf("Strings{%q: %s}", a.Key, a.GetValString())
 }
+
+func (a Strings) Len() int { return len(a.Vals) }
 
 // Error
 
@@ -309,6 +332,8 @@ func (a Errors) String() string {
 	return fmt.Sprintf("Errors{%q: %q}", a.Key, a.GetValString())
 }
 
+func (a Errors) Len() int { return len(a.Vals) }
+
 // UUID
 
 type UUID struct {
@@ -356,6 +381,8 @@ func (a UUIDs) Log(m *Message) {
 func (a UUIDs) String() string {
 	return fmt.Sprintf("UUIDs{%q: %s}", a.Key, a.GetValString())
 }
+
+func (a UUIDs) Len() int { return len(a.Vals) }
 
 // JSON
 

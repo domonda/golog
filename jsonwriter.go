@@ -60,12 +60,12 @@ type JSONWriter struct {
 	buf    []byte
 }
 
-func (w *JSONWriter) BeginMessage(config Config, t time.Time, level Level, prefix, text string) {
+func (w *JSONWriter) BeginMessage(config Config, timestamp time.Time, level Level, prefix, text string) {
 	w.buf = append(w.buf, '{')
 
 	if w.config.format.TimestampKey != "" {
 		w.buf = encjson.AppendKey(w.buf, w.config.format.TimestampKey)
-		w.buf = encjson.AppendTime(w.buf, t, w.config.format.TimestampFormat)
+		w.buf = encjson.AppendTime(w.buf, timestamp, w.config.format.TimestampFormat)
 	}
 
 	if w.config.format.LevelKey != "" {
