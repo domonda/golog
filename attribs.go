@@ -3,6 +3,8 @@ package golog
 import (
 	"context"
 	"net/http"
+
+	"github.com/domonda/go-encjson"
 )
 
 var (
@@ -171,4 +173,24 @@ func (a Attribs) AppendUnique(b ...Attrib) Attribs {
 		return a
 	}
 	return result
+}
+
+// AppendJSON appends the attribs as a JSON object to the buffer.
+// The JSON null value is appended for empty Attribs.
+func (a Attribs) AppendJSON(buf []byte) []byte {
+	if len(a) == 0 {
+		return append(buf, "null"...)
+	}
+	buf = encjson.AppendObjectStart(buf)
+	for _, attrib := range a {
+		buf = attrib.AppendJSON(buf)
+	}
+	return encjson.AppendObjectEnd(buf)
+}
+
+// MarshalJSON implements encoding/json.Marshaler
+// by returning a JSON object with the attribs as key-value pairs.
+// The JSON null value is returned for empty Attribs.
+func (a Attribs) MarshalJSON() ([]byte, error) {
+	return a.AppendJSON(nil), nil
 }

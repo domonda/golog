@@ -5,6 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
+
+	"github.com/domonda/go-encjson"
 )
 
 // Attrib extends the Loggable interface and allows
@@ -22,6 +25,10 @@ type Attrib interface {
 	// GetValString returns the attribute value
 	// formatted as string
 	GetValString() string
+
+	// AppendJSON appends the attribute key and value
+	// to the buffer in JSON format
+	AppendJSON(buf []byte) []byte
 }
 
 type SliceAttrib interface {
@@ -72,6 +79,10 @@ func (a Nil) Log(m *Message) {
 	m.Nil(a.Key)
 }
 
+func (a Nil) AppendJSON(buf []byte) []byte {
+	return encjson.AppendNull(encjson.AppendKey(buf, a.Key))
+}
+
 func (a Nil) String() string {
 	return fmt.Sprintf("Nil{%s}", a.Key)
 }
@@ -89,6 +100,59 @@ func (a Any) GetValString() string { return fmt.Sprintf("%#v", a.Val) }
 
 func (a Any) Log(m *Message) {
 	m.Any(a.Key, a.Val)
+}
+
+func (a Any) AppendJSON(buf []byte) []byte {
+	buf = encjson.AppendKey(buf, a.Key)
+	switch v := a.Val.(type) {
+	case nil:
+		return encjson.AppendNull(buf)
+	case bool:
+		return encjson.AppendBool(buf, v)
+	case int:
+		return encjson.AppendInt(buf, int64(v))
+	case int8:
+		return encjson.AppendInt(buf, int64(v))
+	case int16:
+		return encjson.AppendInt(buf, int64(v))
+	case int32:
+		return encjson.AppendInt(buf, int64(v))
+	case int64:
+		return encjson.AppendInt(buf, v)
+	case uint:
+		return encjson.AppendUint(buf, uint64(v))
+	case uint8:
+		return encjson.AppendUint(buf, uint64(v))
+	case uint16:
+		return encjson.AppendUint(buf, uint64(v))
+	case uint32:
+		return encjson.AppendUint(buf, uint64(v))
+	case uint64:
+		return encjson.AppendUint(buf, v)
+	case float32:
+		return encjson.AppendFloat(buf, float64(v))
+	case float64:
+		return encjson.AppendFloat(buf, v)
+	case string:
+		return encjson.AppendString(buf, v)
+	case []byte:
+		return encjson.AppendStringBytes(buf, v)
+	case time.Time:
+		return encjson.AppendTime(buf, v, time.RFC3339)
+	case [16]byte:
+		return encjson.AppendUUID(buf, v)
+	case json.RawMessage:
+		buf = append(buf, v...)
+	default:
+		// Slower escape hatch for all other types
+		j, err := json.Marshal(v)
+		if err == nil {
+			buf = append(buf, j...)
+		} else {
+			buf = encjson.AppendString(buf, err.Error())
+		}
+	}
+	return buf
 }
 
 func (a Any) String() string {
@@ -110,6 +174,10 @@ func (a Bool) Log(m *Message) {
 	m.Bool(a.Key, a.Val)
 }
 
+func (a Bool) AppendJSON(buf []byte) []byte {
+	return encjson.AppendBool(encjson.AppendKey(buf, a.Key), a.Val)
+}
+
 func (a Bool) String() string {
 	return fmt.Sprintf("Bool{%q: %s}", a.Key, a.GetValString())
 }
@@ -125,6 +193,14 @@ func (a Bools) GetValString() string { return fmt.Sprintf("%#v", a.Vals) }
 
 func (a Bools) Log(m *Message) {
 	m.Bools(a.Key, a.Vals)
+}
+
+func (a Bools) AppendJSON(buf []byte) []byte {
+	buf = encjson.AppendArrayStart(encjson.AppendKey(buf, a.Key))
+	for _, val := range a.Vals {
+		buf = encjson.AppendBool(buf, val)
+	}
+	return encjson.AppendArrayEnd(buf)
 }
 
 func (a Bools) String() string {
@@ -148,6 +224,10 @@ func (a Int) Log(m *Message) {
 	m.Int64(a.Key, a.Val)
 }
 
+func (a Int) AppendJSON(buf []byte) []byte {
+	return encjson.AppendInt(encjson.AppendKey(buf, a.Key), a.Val)
+}
+
 func (a Int) String() string {
 	return fmt.Sprintf("Int{%q: %s}", a.Key, a.GetValString())
 }
@@ -163,6 +243,14 @@ func (a Ints) GetValString() string { return fmt.Sprintf("%#v", a.Vals) }
 
 func (a Ints) Log(m *Message) {
 	m.Int64s(a.Key, a.Vals)
+}
+
+func (a Ints) AppendJSON(buf []byte) []byte {
+	buf = encjson.AppendArrayStart(encjson.AppendKey(buf, a.Key))
+	for _, val := range a.Vals {
+		buf = encjson.AppendInt(buf, val)
+	}
+	return encjson.AppendArrayEnd(buf)
 }
 
 func (a Ints) String() string {
@@ -186,6 +274,10 @@ func (a Uint) Log(m *Message) {
 	m.Uint64(a.Key, a.Val)
 }
 
+func (a Uint) AppendJSON(buf []byte) []byte {
+	return encjson.AppendUint(encjson.AppendKey(buf, a.Key), a.Val)
+}
+
 func (a Uint) String() string {
 	return fmt.Sprintf("Uint{%q: %s}", a.Key, a.GetValString())
 }
@@ -201,6 +293,14 @@ func (a Uints) GetValString() string { return fmt.Sprintf("%#v", a.Vals) }
 
 func (a Uints) Log(m *Message) {
 	m.Uint64s(a.Key, a.Vals)
+}
+
+func (a Uints) AppendJSON(buf []byte) []byte {
+	buf = encjson.AppendArrayStart(encjson.AppendKey(buf, a.Key))
+	for _, val := range a.Vals {
+		buf = encjson.AppendUint(buf, val)
+	}
+	return encjson.AppendArrayEnd(buf)
 }
 
 func (a Uints) String() string {
@@ -224,6 +324,10 @@ func (a Float) Log(m *Message) {
 	m.Float(a.Key, a.Val)
 }
 
+func (a Float) AppendJSON(buf []byte) []byte {
+	return encjson.AppendFloat(encjson.AppendKey(buf, a.Key), a.Val)
+}
+
 func (a Float) String() string {
 	return fmt.Sprintf("Float{%q: %s}", a.Key, a.GetValString())
 }
@@ -239,6 +343,14 @@ func (a Floats) GetValString() string { return fmt.Sprintf("%#v", a.Vals) }
 
 func (a Floats) Log(m *Message) {
 	m.Floats(a.Key, a.Vals)
+}
+
+func (a Floats) AppendJSON(buf []byte) []byte {
+	buf = encjson.AppendArrayStart(encjson.AppendKey(buf, a.Key))
+	for _, val := range a.Vals {
+		buf = encjson.AppendFloat(buf, val)
+	}
+	return encjson.AppendArrayEnd(buf)
 }
 
 func (a Floats) String() string {
@@ -262,6 +374,10 @@ func (a String) Log(m *Message) {
 	m.Str(a.Key, a.Val)
 }
 
+func (a String) AppendJSON(buf []byte) []byte {
+	return encjson.AppendString(encjson.AppendKey(buf, a.Key), a.Val)
+}
+
 func (a String) String() string {
 	return fmt.Sprintf("String{%q: %q}", a.Key, a.Val)
 }
@@ -277,6 +393,14 @@ func (a Strings) GetValString() string { return fmt.Sprintf("%#v", a.Vals) }
 
 func (a Strings) Log(m *Message) {
 	m.Strs(a.Key, a.Vals)
+}
+
+func (a Strings) AppendJSON(buf []byte) []byte {
+	buf = encjson.AppendArrayStart(encjson.AppendKey(buf, a.Key))
+	for _, val := range a.Vals {
+		buf = encjson.AppendString(buf, val)
+	}
+	return encjson.AppendArrayEnd(buf)
 }
 
 func (a Strings) String() string {
@@ -305,6 +429,14 @@ func (a Error) Log(m *Message) {
 	m.Error(a.Key, a.Val)
 }
 
+func (a Error) AppendJSON(buf []byte) []byte {
+	buf = encjson.AppendKey(buf, a.Key)
+	if a.Val == nil {
+		return encjson.AppendNull(buf)
+	}
+	return encjson.AppendString(buf, a.Val.Error())
+}
+
 func (a Error) String() string {
 	return fmt.Sprintf("Error{%q: %q}", a.Key, a.GetValString())
 }
@@ -328,6 +460,18 @@ func (a Errors) Log(m *Message) {
 	m.Errors(a.Key, a.Vals)
 }
 
+func (a Errors) AppendJSON(buf []byte) []byte {
+	buf = encjson.AppendArrayStart(encjson.AppendKey(buf, a.Key))
+	for _, val := range a.Vals {
+		if val == nil {
+			buf = encjson.AppendNull(buf)
+		} else {
+			buf = encjson.AppendString(buf, val.Error())
+		}
+	}
+	return encjson.AppendArrayEnd(buf)
+}
+
 func (a Errors) String() string {
 	return fmt.Sprintf("Errors{%q: %q}", a.Key, a.GetValString())
 }
@@ -347,6 +491,10 @@ func (a UUID) GetValString() string { return FormatUUID(a.Val) }
 
 func (a UUID) Log(m *Message) {
 	m.UUID(a.Key, a.Val)
+}
+
+func (a UUID) AppendJSON(buf []byte) []byte {
+	return encjson.AppendUUID(encjson.AppendKey(buf, a.Key), a.Val)
 }
 
 func (a UUID) String() string {
@@ -378,6 +526,14 @@ func (a UUIDs) Log(m *Message) {
 	m.UUIDs(a.Key, a.Vals)
 }
 
+func (a UUIDs) AppendJSON(buf []byte) []byte {
+	buf = encjson.AppendArrayStart(encjson.AppendKey(buf, a.Key))
+	for _, val := range a.Vals {
+		buf = encjson.AppendUUID(buf, val)
+	}
+	return encjson.AppendArrayEnd(buf)
+}
+
 func (a UUIDs) String() string {
 	return fmt.Sprintf("UUIDs{%q: %s}", a.Key, a.GetValString())
 }
@@ -397,6 +553,10 @@ func (a JSON) GetValString() string { return string(a.Val) }
 
 func (a JSON) Log(m *Message) {
 	m.JSON(a.Key, a.Val)
+}
+
+func (a JSON) AppendJSON(buf []byte) []byte {
+	return append(encjson.AppendKey(buf, a.Key), a.Val...)
 }
 
 func (a JSON) String() string {
