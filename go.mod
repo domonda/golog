@@ -4,11 +4,11 @@ go 1.24
 
 require (
 	github.com/domonda/go-encjson v0.0.0-20210830085227-1beee57a72d8
-	github.com/domonda/go-types v0.0.0-20250225133122-0516d5b855ff
+	github.com/domonda/go-types v0.0.0-20250313122023-de29c9c824fc
 	github.com/fatih/color v1.18.0
 	github.com/muesli/termenv v0.16.0
 	github.com/stretchr/testify v1.10.0
-	github.com/ungerik/go-fs v0.0.0-20250123134246-3ac71b34b8e3
+	github.com/ungerik/go-fs v0.0.0-20250310161700-3b05d22755dd
 )
 
 require (
@@ -23,7 +23,7 @@ require (
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
-	golang.org/x/sys v0.30.0 // indirect
+	golang.org/x/sys v0.31.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
