@@ -289,7 +289,7 @@ func (m *Message) writeAny(w Writer, val reflect.Value, nestedSlice bool) {
 			// Don't go further into a slice of slices
 			w.WriteString(fmt.Sprint(val))
 		} else {
-			for i := 0; i < val.Len(); i++ {
+			for i := range val.Len() {
 				m.writeAny(w,
 					val.Index(i),
 					true, // nestedSlice
@@ -302,7 +302,7 @@ func (m *Message) writeAny(w Writer, val reflect.Value, nestedSlice bool) {
 			// Don't go further into a slice of slices
 			w.WriteString(fmt.Sprint(val))
 		} else {
-			for i := 0; i < val.Len(); i++ {
+			for i := range val.Len() {
 				m.writeAny(w,
 					val.Index(i),
 					true, // nestedSlice

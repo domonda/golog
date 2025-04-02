@@ -13,7 +13,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/domonda/go-types/uu"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -96,7 +95,7 @@ func TestMessage(t *testing.T) {
 	jsonOut.Reset()
 
 	subLog = log.With().
-		UUID("RequestID", uu.IDFrom("62d38a15-8fc2-4520-b768-9d5d08d2c498")).
+		UUID("RequestID", MustParseUUID("62d38a15-8fc2-4520-b768-9d5d08d2c498")).
 		SubLogger()
 	subSubLog := subLog.With().
 		Str("SuperStr", "SuperStr").
@@ -115,10 +114,10 @@ func TestMessage(t *testing.T) {
 }
 
 func writeMessage(message *Message) {
-	uuid := uu.IDFrom("b14882b9-bfdd-45a4-9c84-1d717211c050")
+	uuid := MustParseUUID("b14882b9-bfdd-45a4-9c84-1d717211c050")
 	uuids := [][16]byte{
-		uu.IDFrom("fab60526-bf52-4ec2-9db3-f5860250de5c"),
-		uu.IDFrom("78adb219-460c-41e9-ac39-12d4d0420aa0"),
+		MustParseUUID("fab60526-bf52-4ec2-9db3-f5860250de5c"),
+		MustParseUUID("78adb219-460c-41e9-ac39-12d4d0420aa0"),
 	}
 
 	message.
@@ -283,17 +282,15 @@ func TestMessage_Any(t *testing.T) {
 	jsonOut.Reset()
 
 	var (
-		uuid     uu.ID = uu.IDFrom("b14882b9-bfdd-45a4-9c84-1d717211c050")
-		uuidNil  [16]byte
-		uuidNull uu.NullableID
+		uuid    = MustParseUUID("b14882b9-bfdd-45a4-9c84-1d717211c050")
+		uuidNil [16]byte
 	)
 
 	log.NewMessageAt(context.Background(), at, log.Config().InfoLevel(), "Msg").
 		Any("uuid", uuid).
 		Any("uuidNil", uuidNil).
-		Any("uuidNull", uuidNull).
 		Log()
-	assert.Equal(t, fmt.Sprintf("%s %s\n", textMsg, `uuid=b14882b9-bfdd-45a4-9c84-1d717211c050 uuidNil=nil uuidNull=nil`), textOut.String())
+	assert.Equal(t, fmt.Sprintf("%s %s\n", textMsg, `uuid=b14882b9-bfdd-45a4-9c84-1d717211c050 uuidNil=nil`), textOut.String())
 	textOut.Reset()
 	jsonOut.Reset()
 }

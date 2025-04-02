@@ -147,7 +147,8 @@ func (w *JSONWriter) WriteUUID(val [16]byte) {
 
 func (w *JSONWriter) WriteJSON(val []byte) {
 	if len(val) == 0 {
-		val = []byte("null")
+		w.buf = encjson.AppendNull(w.buf)
+	} else {
+		w.buf = encjson.AppendJSON(w.buf, val)
 	}
-	w.buf = append(w.buf, val...)
 }

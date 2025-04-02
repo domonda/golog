@@ -1,14 +1,12 @@
 package main
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"os"
 
 	color "github.com/fatih/color"
 
-	"github.com/domonda/go-types/uu"
 	"github.com/domonda/golog"
 	"github.com/domonda/golog/log"
 )
@@ -53,9 +51,17 @@ func printMessages(colorizer golog.Colorizer) {
 		golog.NewTextWriterConfig(os.Stdout, &log.Format, colorizer),
 	)
 
-	ctx := context.TODO() // Config UUID series
+	uuid := golog.MustParseUUID("5b494124-c5c8-4eb0-89c8-b5f486bf23f4")
 
-	log.Fatal("Message").Int("int", 123456).Float("float", 1233456789.99).Bool("t", true).Bool("f", false).UUID("UUID", uu.NewID(ctx)).Err(errors.New("an error")).Str("afterError", "blah").Log()
+	log.Fatal("Message").
+		Int("int", 123456).
+		Float("float", 1233456789.99).
+		Bool("t", true).
+		Bool("f", false).
+		UUID("UUID", uuid).
+		Err(errors.New("an error")).
+		Str("afterError", "blah").
+		Log()
 	log.Error("Message").Str("String", "Hello World!").Nil("SomethingNil").Log()
 	log.Warn("Message").Log()
 	log.Info("Message").Log()
