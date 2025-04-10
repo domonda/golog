@@ -1,6 +1,9 @@
 package golog
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 // LevelDecider is implemented to decide
 // if a Level is active together with a given context.
@@ -56,4 +59,30 @@ type BoolLevelDecider bool
 // independent of the arguments.
 func (b BoolLevelDecider) IsActive(context.Context, Level) bool {
 	return bool(b)
+}
+
+var timestampCtxKey int
+
+// ContextWithTimestamp returns a new context with the passed timestamp
+// added to the parent.
+// Logger methods with a context will use the timestamp from the context
+// instead of the current time.
+func ContextWithTimestamp(parent context.Context, timestamp time.Time) context.Context {
+	return context.WithValue(parent, &timestampCtxKey, timestamp)
+}
+
+// TimestampFromContext returns the timestamp from the passed context
+// or a zero time if no timestamp was set.
+func TimestampFromContext(ctx context.Context) time.Time {
+	timestamp, _ := ctx.Value(&timestampCtxKey).(time.Time)
+	return timestamp
+}
+
+// Timestamp returns the timestamp from the passed context
+// or the current time if no timestamp was set.
+func Timestamp(ctx context.Context) time.Time {
+	if timestamp, ok := ctx.Value(&timestampCtxKey).(time.Time); ok {
+		return timestamp
+	}
+	return time.Now()
 }

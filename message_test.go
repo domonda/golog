@@ -44,13 +44,14 @@ func newTestLoggerWithPrefix(prefix string) (log *Logger, textOut, jsonOut *byte
 }
 
 func TestMessage(t *testing.T) {
-	at, _ := time.Parse("2006-01-02 15:04:05", "2006-01-02 15:04:05")
+	timestamp, _ := time.Parse("2006-01-02 15:04:05", "2006-01-02 15:04:05")
+	ctx := ContextWithTimestamp(context.Background(), timestamp)
 
 	log, textOut, jsonOut := newTestLogger()
 
 	numLines := 10
-	for i := 0; i < numLines; i++ {
-		log.NewMessageAt(context.Background(), at, log.Config().InfoLevel(), "My log message").Exec(writeMessage).Log()
+	for range numLines {
+		log.NewMessage(ctx, log.Config().InfoLevel(), "My log message").Exec(writeMessage).Log()
 	}
 
 	checkOutput := func(exptectedTextLine, exptectedJSONLine string) {
@@ -83,8 +84,8 @@ func TestMessage(t *testing.T) {
 		Strs("SuperStrs", []string{"A", "B", "C"}).
 		IntPtr("SuperNilInt", nil).
 		SubLogger()
-	for i := 0; i < numLines; i++ {
-		subLog.NewMessageAt(context.Background(), at, log.Config().InfoLevel(), "My log message").Exec(writeMessage).Log()
+	for range numLines {
+		subLog.NewMessage(ctx, log.Config().InfoLevel(), "My log message").Exec(writeMessage).Log()
 	}
 
 	checkOutput(exptectedTextMessageSub, exptectedJSONMessageSub)
@@ -102,8 +103,8 @@ func TestMessage(t *testing.T) {
 		Strs("SuperStrs", []string{"A", "B", "C"}).
 		IntPtr("SuperNilInt", nil).
 		SubLogger()
-	for i := 0; i < numLines; i++ {
-		subSubLog.NewMessageAt(context.Background(), at, log.Config().InfoLevel(), "My log message").Exec(writeMessage).Log()
+	for range numLines {
+		subSubLog.NewMessage(ctx, log.Config().InfoLevel(), "My log message").Exec(writeMessage).Log()
 	}
 
 	checkOutput(exptectedTextMessageSubSub, exptectedJSONMessageSubSub)
@@ -268,13 +269,14 @@ const (
 )
 
 func TestMessage_Any(t *testing.T) {
-	at, _ := time.Parse("2006-01-02 15:04:05", "2006-01-02 15:04:05")
+	timestamp, _ := time.Parse("2006-01-02 15:04:05", "2006-01-02 15:04:05")
+	ctx := ContextWithTimestamp(context.Background(), timestamp)
 
 	log, textOut, jsonOut := newTestLogger()
 
 	textMsg := `2006-01-02 15:04:05 |INFO | Msg`
 
-	log.NewMessageAt(context.Background(), at, log.Config().InfoLevel(), "Msg").
+	log.NewMessage(ctx, log.Config().InfoLevel(), "Msg").
 		Any("int", -100).
 		Log()
 	assert.Equal(t, fmt.Sprintf("%s %s\n", textMsg, `int=-100`), textOut.String())
@@ -286,7 +288,7 @@ func TestMessage_Any(t *testing.T) {
 		uuidNil [16]byte
 	)
 
-	log.NewMessageAt(context.Background(), at, log.Config().InfoLevel(), "Msg").
+	log.NewMessage(ctx, log.Config().InfoLevel(), "Msg").
 		Any("uuid", uuid).
 		Any("uuidNil", uuidNil).
 		Log()
@@ -296,7 +298,8 @@ func TestMessage_Any(t *testing.T) {
 }
 
 func TestMessage_SubLoggerContext(t *testing.T) {
-	at, _ := time.Parse("2006-01-02 15:04:05", "2006-01-02 15:04:05")
+	timestamp, _ := time.Parse("2006-01-02 15:04:05", "2006-01-02 15:04:05")
+	ctx := ContextWithTimestamp(context.Background(), timestamp)
 
 	uuid := MustParseUUID("a547276f-b02b-4e7d-b67e-c6deb07567da")
 	uuid2 := MustParseUUID("064c6bc6-3ec1-4cda-83e7-67815af25a7f")
@@ -304,10 +307,10 @@ func TestMessage_SubLoggerContext(t *testing.T) {
 	log, textOut, jsonOut := newTestLoggerWithPrefix("pkg")
 	infoLevel := log.Config().InfoLevel()
 
-	log, ctx := log.With().
+	log, ctx = log.With().
 		UUID("uuid", uuid).
-		SubLoggerContext(context.Background())
-	log.NewMessageAt(context.Background(), at, infoLevel, "Msg").
+		SubLoggerContext(ctx)
+	log.NewMessage(ctx, infoLevel, "Msg").
 		UUID("uuid", uuid2). // Will be ignored because a "uuid" value is already in the sub-logger
 		Log()
 
@@ -319,7 +322,7 @@ func TestMessage_SubLoggerContext(t *testing.T) {
 	textOut.Reset()
 	jsonOut.Reset()
 
-	log.NewMessageAt(context.Background(), at, infoLevel, "Msg").
+	log.NewMessage(ctx, infoLevel, "Msg").
 		Ctx(ctx).            // Same as above but with ctx that also holds the values in addition to sub-logger
 		UUID("uuid", uuid2). // Will be ignored because a "uuid" value is already in the sub-logger
 		Log()
@@ -329,7 +332,7 @@ func TestMessage_SubLoggerContext(t *testing.T) {
 	textOut.Reset()
 	jsonOut.Reset()
 
-	log.NewMessageAt(context.Background(), at, infoLevel, "Msg").
+	log.NewMessage(ctx, infoLevel, "Msg").
 		Ctx(context.Background()). // Same as above but with empty context
 		UUID("uuid", uuid2).       // Will be ignored because a "uuid" value is already in the sub-logger
 		Log()
@@ -345,7 +348,7 @@ func TestMessage_SubLoggerContext(t *testing.T) {
 		log, ctx := log.With().
 			UUID("uuid", uuid3). // Does still not overwrite with uuid3
 			SubLoggerContext(ctx)
-		log.NewMessageAt(context.Background(), at, infoLevel, "Msg").
+		log.NewMessage(ctx, infoLevel, "Msg").
 			UUID("uuid", uuid2). // Will be ignored because a "uuid" value is already in the sub-logger
 			Log()
 
@@ -357,7 +360,7 @@ func TestMessage_SubLoggerContext(t *testing.T) {
 		textOut.Reset()
 		jsonOut.Reset()
 
-		log.NewMessageAt(context.Background(), at, infoLevel, "Msg").
+		log.NewMessage(ctx, infoLevel, "Msg").
 			Ctx(ctx).            // Same as above but with ctx that also holds the values in addition to sub-logger
 			UUID("uuid", uuid2). // Will be ignored because a "uuid" value is already in the sub-logger
 			Log()
@@ -392,7 +395,7 @@ func TestMessage_SubContext(t *testing.T) {
 }
 
 func TestMessage_Ctx(t *testing.T) {
-	at, _ := time.Parse("2006-01-02 15:04:05", "2006-01-02 15:04:05")
+	timestamp, _ := time.Parse("2006-01-02 15:04:05", "2006-01-02 15:04:05")
 
 	log, textOut, jsonOut := newTestLoggerWithPrefix("pkg")
 	infoLevel := log.Config().InfoLevel()
@@ -401,7 +404,7 @@ func TestMessage_Ctx(t *testing.T) {
 		Int("int", 1).
 		SubContext(context.Background())
 
-	log.NewMessageAt(context.Background(), at, infoLevel, "Msg").
+	log.NewMessageAt(context.Background(), timestamp, infoLevel, "Msg").
 		Ctx(ctx). // Logs int=1
 		Log()
 
@@ -413,7 +416,7 @@ func TestMessage_Ctx(t *testing.T) {
 	textOut.Reset()
 	jsonOut.Reset()
 
-	log.NewMessageAt(context.Background(), at, infoLevel, "Msg").
+	log.NewMessageAt(context.Background(), timestamp, infoLevel, "Msg").
 		Ctx(ctx).      // Logs int=1
 		Int("int", 2). // Logs int=2 because the previous write of int=1 is not checked
 		Log()
@@ -430,7 +433,7 @@ func TestMessage_Ctx(t *testing.T) {
 		Int("int", 3). // Overwrites int value in ctx
 		SubContext(ctx)
 
-	log.NewMessageAt(context.Background(), at, infoLevel, "Msg").
+	log.NewMessageAt(context.Background(), timestamp, infoLevel, "Msg").
 		Ctx(ctx).      // Logs int=3
 		Int("int", 4). // Logs int=4 because the previous write of int=3 is not checked
 		Log()
@@ -460,7 +463,7 @@ func TestMessage_Ctx(t *testing.T) {
 // 	config := NewConfig(&DefaultLevels, AllLevelsActive, textWriter)
 // 	log := NewLogger(config)
 
-// 	log.NewMessageAt(context.Background(), at, log.Config().Info(), "CallStack Example").
+// 	log.NewMessage(ctx, log.Config().Info(), "CallStack Example").
 // 		CallStack("stack").
 // 		Log()
 

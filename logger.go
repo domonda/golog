@@ -214,12 +214,12 @@ func (l *Logger) NewMessageAt(ctx context.Context, timestamp time.Time, level Le
 
 // NewMessage starts a new message
 func (l *Logger) NewMessage(ctx context.Context, level Level, text string) *Message {
-	return l.NewMessageAt(ctx, time.Now(), level, text)
+	return l.NewMessageAt(ctx, Timestamp(ctx), level, text)
 }
 
 // NewMessagef starts a new message formatted using fmt.Sprintf
 func (l *Logger) NewMessagef(ctx context.Context, level Level, format string, args ...any) *Message {
-	return l.NewMessageAt(ctx, time.Now(), level, fmt.Sprintf(format, args...))
+	return l.NewMessageAt(ctx, Timestamp(ctx), level, fmt.Sprintf(format, args...))
 }
 
 // FatalAndPanic is a shortcut for Fatal(fmt.Sprint(p)).LogAndPanic()
