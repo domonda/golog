@@ -10,34 +10,43 @@ import (
 )
 
 // HTTPMiddlewareHandler returns a HTTP middleware handler that passes through a UUID requestID.
-// The requestID will be added as UUID golog.Attrib to the http.Request before calling the next handler.
+//
+// The requestID will be added as UUID [golog.Attrib] to the [http.Request] before calling the next handler.
 // If available the X-Request-ID or X-Correlation-ID HTTP request header will be used as requestID.
 // It has to be a valid UUID in the format "994d5800-afca-401f-9c2f-d9e3e106e9ef".
 // If the request has no requestID, then a random v4 UUID will be used.
-// The requestID will also be set at the http.ResponseWriter as X-Request-ID header
+// The requestID will also be set at the [http.ResponseWriter] as X-Request-ID header
 // before calling the next handler, which has a chance to change it.
+//
 // If onlyHeaders are passed then only those headers are logged if available,
-// or pass golog.HTTPNoHeaders to disable header logging.
+// or pass [golog.HTTPNoHeaders] to disable header logging.
+//
 // To disable logging of the request at all and just pass through
-// the requestID pass golog.LevelInvalid as log level.
-// See also HTTPMiddlewareFunc.
+// the requestID pass [golog.LevelInvalid] as log level.
+//
+// See also [HTTPMiddlewareFunc].
 func HTTPMiddlewareHandler(next http.Handler, level golog.Level, message string, onlyHeaders ...string) http.Handler {
 	return golog.HTTPMiddlewareHandler(next, Logger, level, message, onlyHeaders...)
 }
 
 // HTTPMiddlewareFunc returns a HTTP middleware function that passes through a UUID requestID.
-// The requestID will be added as UUID golog.Attrib to the http.Request before calling the next handler.
+//
+// The requestID will be added as UUID [golog.Attrib] to the [http.Request] before calling the next handler.
 // If available the X-Request-ID or X-Correlation-ID HTTP request header will be used as requestID.
 // It has to be a valid UUID in the format "994d5800-afca-401f-9c2f-d9e3e106e9ef".
 // If the request has no requestID, then a random v4 UUID will be used.
-// The requestID will also be set at the http.ResponseWriter as X-Request-ID header
+// The requestID will also be set at the [http.ResponseWriter] as X-Request-ID header
 // before calling the next handler, which has a chance to change it.
+//
 // If onlyHeaders are passed then only those headers are logged if available,
-// or pass golog.HTTPNoHeaders to disable header logging.
+// or pass [golog.HTTPNoHeaders] to disable header logging.
+//
 // To disable logging of the request at all and just pass through
-// the requestID pass golog.LevelInvalid as log level.
-// Compatible with github.com/gorilla/mux.MiddlewareFunc.
-// See also HTTPMiddlewareHandler.
+// the requestID pass [golog.LevelInvalid] as log level.
+//
+// Compatible with github.com/gorilla/mux.MiddlewareFunc
+//
+// See also [HTTPMiddlewareHandler].
 func HTTPMiddlewareFunc(level golog.Level, message string, onlyHeaders ...string) func(next http.Handler) http.Handler {
 	return golog.HTTPMiddlewareFunc(Logger, level, message, onlyHeaders...)
 }
@@ -85,15 +94,19 @@ func NewMessage(ctx context.Context, level golog.Level, text string) *golog.Mess
 	return Logger.NewMessage(ctx, level, text)
 }
 
-// NewMessagef starts a new message formatted using fmt.Sprintf
+// NewMessagef starts a new message formatted using `fmt.Sprintf`
 func NewMessagef(ctx context.Context, level golog.Level, format string, args ...any) *golog.Message {
 	return Logger.NewMessagef(ctx, level, format, args...)
 }
 
-// FatalAndPanic is a shortcut for Fatal(fmt.Sprint(p)).LogAndPanic()
+// FatalAndPanic is a shortcut for `Fatal(fmt.Sprint(p)).LogAndPanic()`
 func FatalAndPanic(p any) {
-	Logger.Fatal(fmt.Sprint(p)).Log()
-	panic(p)
+	Fatal(fmt.Sprint(p)).LogAndPanic()
+}
+
+// FatalfAndPanic is a shortcut for `Fatalf(format, args...).LogAndPanic()`
+func FatalfAndPanic(format string, args ...any) {
+	Fatalf(format, args...).LogAndPanic()
 }
 
 func Fatal(text string) *golog.Message {
