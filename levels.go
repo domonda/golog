@@ -67,12 +67,12 @@ func (l *Levels) TraceName() string {
 	return l.Name(l.Trace)
 }
 
-// LevelOfName returns the level with a give name.
+// LevelOfName returns the [Level] with a give name.
 // If name is formatted as an integer and within [LevelMin..LevelMax]
-// then a Level with that integer value will be returned.
+// then a level with that integer value will be returned.
 // This is the inverse operation to what Levels.Name(unnamedLevel) returns.
 // If there is no level with name or valid integer value
-// then LevelInvalid will be returned.
+// then [LevelInvalid] will be returned.
 func (l *Levels) LevelOfName(name string) Level {
 	for level, levelName := range l.Names {
 		if name == levelName {
@@ -85,7 +85,7 @@ func (l *Levels) LevelOfName(name string) Level {
 	return LevelInvalid
 }
 
-// LevelOfNameOrDefault returns the level with a given name,
+// LevelOfNameOrDefault returns the [Level] with a given name,
 // or defaultLevel if the name is not in Levels.Names.
 func (l *Levels) LevelOfNameOrDefault(name string, defaultLevel Level) Level {
 	for level, levelName := range l.Names {

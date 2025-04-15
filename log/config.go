@@ -24,9 +24,9 @@ var (
 		golog.NewTextWriterConfig(os.Stdout, &Format, &Colorizer),
 	)
 
-	// Logger uses a golog.DerivedConfig referencing the
-	// exported package variable Config.
-	// This way Config can be changed after initialization of Logger
-	// without the need to create and set a new golog.Logger.
+	// Logger uses a [golog.DerivedConfig] referencing the
+	// exported package variable [Config].
+	// This way [Config] can be changed after initialization of [Logger]
+	// without the need to create and set a new [golog.Logger].
 	Logger = golog.NewLogger(golog.NewDerivedConfig(&Config))
 )
