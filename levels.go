@@ -1,6 +1,10 @@
 package golog
 
-import "strconv"
+import (
+	"maps"
+	"slices"
+	"strconv"
+)
 
 var DefaultLevels = Levels{
 	Trace: -20,
@@ -65,6 +69,15 @@ func (l *Levels) DebugName() string {
 
 func (l *Levels) TraceName() string {
 	return l.Name(l.Trace)
+}
+
+// NamesSorted returns the names of the levels sorted by level value.
+func (l *Levels) NamesSorted() []string {
+	names := make([]string, len(l.Names))
+	for i, level := range slices.Sorted(maps.Keys(l.Names)) {
+		names[i] = l.Names[level]
+	}
+	return names
 }
 
 // LevelOfName returns the [Level] with a give name.
