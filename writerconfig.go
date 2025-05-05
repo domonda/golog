@@ -2,7 +2,10 @@ package golog
 
 import (
 	"context"
+	"os"
 	"slices"
+
+	"github.com/mattn/go-isatty"
 )
 
 // WriterConfig is a factory or pool for Writers
@@ -75,4 +78,23 @@ func flushUnderlying(writer any) {
 	case interface{ Sync() error }:
 		_ = x.Sync()
 	}
+}
+
+// IsTerminal returns true if the current process is attached to a terminal.
+func IsTerminal() bool {
+	return isatty.IsTerminal(os.Stdout.Fd())
+}
+
+// DecideWriterConfigForTerminal returns terminalWriter
+// if the current process is attached to a terminal,
+// otherwise it returns nonTerminalWriter.
+//
+// This is useful for example to use a colored writer
+// for terminals and a non-colored one for other outputs
+// like log files.
+func DecideWriterConfigForTerminal(terminalWriter WriterConfig, nonTerminalWriter WriterConfig) WriterConfig {
+	if IsTerminal() {
+		return terminalWriter
+	}
+	return nonTerminalWriter
 }

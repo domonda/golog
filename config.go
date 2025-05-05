@@ -1,6 +1,8 @@
 package golog
 
-import "context"
+import (
+	"context"
+)
 
 // FilterHTTPHeaders holds names of HTTP headers
 // that should not be logged for requests.
