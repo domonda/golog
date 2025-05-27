@@ -1,13 +1,13 @@
 module github.com/domonda/golog
 
-go 1.24
+go 1.23
 
 require (
 	github.com/domonda/go-encjson v0.0.0-20250402115751-77a50fd88c01
 	github.com/mattn/go-isatty v0.0.20
 	github.com/muesli/termenv v0.16.0
 	github.com/stretchr/testify v1.10.0
-	github.com/ungerik/go-fs v0.0.0-20250410112719-c5187364824d
+	github.com/ungerik/go-fs v0.0.0-20250527162931-1691110c1708
 )
 
 require (
