@@ -41,13 +41,18 @@ func NewDerivedConfigWithFilter(parent *Config, filters ...LevelFilter) *Derived
 	}
 }
 
-func NewDerivedConfigWithAdditionalWriterConfigs(parent *Config, configs ...WriterConfig) *DerivedConfig {
+func ConfigWithAdditionalWriterConfigs(parent *Config, configs ...WriterConfig) Config {
 	if parent == nil || *parent == nil {
 		panic("golog.DerivedConfig parent must not be nil")
 	}
+	configs, changed := uniqueNonNilWriterConfigs(append((*parent).WriterConfigs(), configs...))
+	if !changed {
+		// No change, so return the parent config
+		return *parent
+	}
 	return &DerivedConfig{
 		parent:           parent,
-		addWriterConfigs: uniqueWriterConfigs(append((*parent).WriterConfigs(), configs...)),
+		addWriterConfigs: configs,
 	}
 }
 
@@ -78,7 +83,7 @@ func (c *DerivedConfig) SetAdditionalWriterConfigs(configs ...WriterConfig) {
 	if len(configs) == 0 {
 		c.addWriterConfigs = nil
 	} else {
-		c.addWriterConfigs = uniqueWriterConfigs(append((*c.parent).WriterConfigs(), configs...))
+		c.addWriterConfigs, _ = uniqueNonNilWriterConfigs(append((*c.parent).WriterConfigs(), configs...))
 	}
 	c.mutex.Unlock()
 }

@@ -8,8 +8,8 @@ import (
 	"reflect"
 )
 
-// NewUUID returns a new version 4 UUID
-func NewUUID() [16]byte {
+// UUIDv4 returns a new version 4 UUID
+func UUIDv4() [16]byte {
 	var id [16]byte
 	_, err := rand.Read(id[:])
 	if err != nil {

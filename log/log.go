@@ -52,7 +52,7 @@ func HTTPMiddlewareFunc(level golog.Level, message string, onlyHeaders ...string
 }
 
 func WithValues(values ...golog.Attrib) *golog.Logger {
-	return Logger.WithAttribs(values...)
+	return Logger.WithClonedAttribs(values...)
 }
 
 func WithLevelFilter(filter golog.LevelFilter) *golog.Logger {

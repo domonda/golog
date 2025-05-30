@@ -44,11 +44,24 @@ func NewLoggerWithPrefix(config Config, prefix string, perMessageAttribs ...Attr
 	}
 }
 
+// Clone returns a clone of the logger.
+// The clone will have the same config, prefix, and cloned attribs.
+func (l *Logger) Clone() *Logger {
+	if l == nil {
+		return nil
+	}
+	return &Logger{
+		config:  l.config,
+		prefix:  l.prefix,
+		attribs: l.attribs.Clone(),
+	}
+}
+
 // WithCtx returns a new sub Logger with the Attribs from
 // the context add to if as per message values.
 // Returns the logger unchanged if there were no Attribs added to the context.
 func (l *Logger) WithCtx(ctx context.Context) *Logger {
-	return l.WithAttribs(AttribsFromContext(ctx)...)
+	return l.WithClonedAttribs(AttribsFromContext(ctx)...)
 }
 
 // With returns a new Message that can be used to record
@@ -65,7 +78,9 @@ func (l *Logger) With() *Message {
 	// record attribs instead of writing them.
 	// Message.SubLogger() will then create a new
 	// logger with the recorded attribs.
-	return messageFromPool(l, l.attribs, nil, LevelInvalid, "")
+	// The new message takes ownership of the
+	// cloned logger attribs.
+	return newMessage(l, l.attribs.Clone(), nil, LevelInvalid, "")
 }
 
 // WithLevelFilter returns a clone of the logger using
@@ -77,7 +92,7 @@ func (l *Logger) WithLevelFilter(filter LevelFilter) *Logger {
 	return &Logger{
 		config:  NewDerivedConfigWithFilter(&l.config, filter),
 		prefix:  l.prefix,
-		attribs: l.attribs,
+		attribs: l.attribs.Clone(),
 	}
 }
 
@@ -86,9 +101,9 @@ func (l *Logger) WithAdditionalWriterConfigs(configs ...WriterConfig) *Logger {
 		return l
 	}
 	return &Logger{
-		config:  NewDerivedConfigWithAdditionalWriterConfigs(&l.config, configs...),
+		config:  ConfigWithAdditionalWriterConfigs(&l.config, configs...),
 		prefix:  l.prefix,
-		attribs: l.attribs,
+		attribs: l.attribs.Clone(),
 	}
 }
 
@@ -111,17 +126,27 @@ func (l *Logger) Attribs() Attribs {
 	return l.attribs
 }
 
-// WithAttribs returns a new Logger with the passed
-// perMessageAttribs merged with the existing perMessageAttribs.
-// See Logger.Attribs and MergeAttribs
-func (l *Logger) WithAttribs(perMessageAttribs ...Attrib) *Logger {
+// RemoveAttribs removes all attribs from the logger.
+func (l *Logger) RemoveAttribs() {
+	if l == nil {
+		return
+	}
+	l.attribs.Free()
+	l.attribs = nil
+}
+
+// WithClonedAttribs returns a new Logger clones of the passed
+// perMessageAttribs merged with the existing Logger attribs
+// using the keys of the existing attribs to identify identical
+// attribs in the passed attribs.
+func (l *Logger) WithClonedAttribs(perMessageAttribs ...Attrib) *Logger {
 	if l == nil || len(perMessageAttribs) == 0 {
 		return l
 	}
 	return &Logger{
 		config:  l.config,
 		prefix:  l.prefix,
-		attribs: l.attribs.AppendUnique(perMessageAttribs...),
+		attribs: l.attribs.CloneAndAppendNonExistingCloned(perMessageAttribs),
 	}
 }
 
@@ -176,22 +201,22 @@ func (l *Logger) NewMessageAt(ctx context.Context, timestamp time.Time, level Le
 	}
 	configs := l.config.WriterConfigs()
 	if c := WriterConfigsFromContext(ctx); len(c) > 0 {
-		configs = uniqueWriterConfigs(append(configs, c...))
+		configs, _ = uniqueNonNilWriterConfigs(append(configs, c...))
 	}
-	writers, _ := writersPool.Get().([]Writer) // Empty slices but with capacity
-	if writers == nil {
-		writers = make([]Writer, 0, len(configs))
-	}
-	for _, config := range configs {
-		if w := config.WriterForNewMessage(ctx, level); w != nil {
-			w.BeginMessage(l.config, timestamp, level, l.prefix, text)
-			writers = append(writers, w)
+	var writers []Writer
+	if len(configs) > 0 {
+		writers = writersPool.GetOrMake(0, len(configs))
+		for _, config := range configs {
+			if w := config.WriterForNewMessage(ctx, level); w != nil {
+				w.BeginMessage(l.config, timestamp, level, l.prefix, text)
+				writers = append(writers, w)
+			}
 		}
 	}
 	// Get new Message without attribs so that the logger
 	// attribs can get logged without detecting that
 	// attribs with their keys are already present
-	msg := messageFromPool(l, nil, writers, level, text)
+	msg := newMessage(l, nil, writers, level, text)
 	if len(l.attribs) > 0 {
 		for _, attrib := range l.attribs {
 			attrib.Log(msg)
@@ -199,7 +224,7 @@ func (l *Logger) NewMessageAt(ctx context.Context, timestamp time.Time, level Le
 		// After logger attribs have been written
 		// set them at the message to prevent
 		// writing more attribs with the same keys
-		msg.attribs = l.attribs
+		msg.attribs = l.attribs.Clone()
 	}
 	// Context attribs are logged after logger attribs
 	// meaning they are ignored if attribs

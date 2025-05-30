@@ -16,19 +16,25 @@ type Attrib interface {
 	Loggable
 	fmt.Stringer
 
-	// GetKey returns the attribute key
-	GetKey() string
+	// Key returns the attribute key
+	Key() string
 
-	// GetVal returns the attribute value
-	GetVal() any
+	// Value returns the attribute value
+	Value() any
 
-	// GetValString returns the attribute value
+	// ValueString returns the attribute value
 	// formatted as string
-	GetValString() string
+	ValueString() string
 
 	// AppendJSON appends the attribute key and value
 	// to the buffer in JSON format
 	AppendJSON(buf []byte) []byte
+
+	// Clone returns a copy of the attribute
+	Clone() Attrib
+
+	// Free returns the attribute to the pool
+	Free()
 }
 
 type SliceAttrib interface {
@@ -39,72 +45,96 @@ type SliceAttrib interface {
 
 // Attrib implementations
 var (
-	_ Attrib      = Nil{}
-	_ Attrib      = Any{}
-	_ Attrib      = Bool{}
-	_ Attrib      = Bools{}
-	_ SliceAttrib = Bools{}
-	_ Attrib      = Int{}
-	_ Attrib      = Ints{}
-	_ SliceAttrib = Ints{}
-	_ Attrib      = Uint{}
-	_ Attrib      = Uints{}
-	_ SliceAttrib = Uints{}
-	_ Attrib      = Float{}
-	_ Attrib      = Floats{}
-	_ SliceAttrib = Floats{}
-	_ Attrib      = String{}
-	_ Attrib      = Strings{}
-	_ SliceAttrib = Strings{}
-	_ Attrib      = Error{}
-	_ Attrib      = Errors{}
-	_ SliceAttrib = Errors{}
-	_ Attrib      = UUID{}
-	_ Attrib      = UUIDs{}
-	_ SliceAttrib = UUIDs{}
-	_ Attrib      = JSON{}
+	_ Attrib      = &Nil{}
+	_ Attrib      = &Any{}
+	_ Attrib      = &Bool{}
+	_ SliceAttrib = &Bools{}
+	_ Attrib      = &Int{}
+	_ SliceAttrib = &Ints{}
+	_ Attrib      = &Uint{}
+	_ SliceAttrib = &Uints{}
+	_ Attrib      = &Float{}
+	_ SliceAttrib = &Floats{}
+	_ Attrib      = &String{}
+	_ SliceAttrib = &Strings{}
+	_ Attrib      = &Error{}
+	_ SliceAttrib = &Errors{}
+	_ Attrib      = &UUID{}
+	_ SliceAttrib = &UUIDs{}
+	_ Attrib      = &JSON{}
 )
 
 // Nil
 
 type Nil struct {
-	Key string
+	key string
 }
 
-func (a Nil) GetKey() string       { return a.Key }
-func (a Nil) GetVal() any          { return nil }
-func (a Nil) GetValString() string { return "<nil>" }
-
-func (a Nil) Log(m *Message) {
-	m.Nil(a.Key)
+func NewNil(key string) *Nil {
+	a := nilPool.GetOrNew()
+	a.key = key
+	return a
 }
 
-func (a Nil) AppendJSON(buf []byte) []byte {
-	return encjson.AppendNull(encjson.AppendKey(buf, a.Key))
+func (a *Nil) Clone() Attrib {
+	return NewNil(a.key)
 }
 
-func (a Nil) String() string {
-	return fmt.Sprintf("Nil{%s}", a.Key)
+func (a *Nil) Free() {
+	nilPool.ClearAndPutBack(a)
+}
+
+func (a *Nil) Key() string         { return a.key }
+func (a *Nil) Value() any          { return nil }
+func (a *Nil) ValueString() string { return "<nil>" }
+
+func (a *Nil) Log(m *Message) {
+	m.Nil(a.key)
+}
+
+func (a *Nil) AppendJSON(buf []byte) []byte {
+	return encjson.AppendNull(encjson.AppendKey(buf, a.key))
+}
+
+func (a *Nil) String() string {
+	return fmt.Sprintf("Nil{%s}", a.key)
 }
 
 // Any
 
 type Any struct {
-	Key string
-	Val any
+	key string
+	val any
 }
 
-func (a Any) GetKey() string       { return a.Key }
-func (a Any) GetVal() any          { return a.Val }
-func (a Any) GetValString() string { return fmt.Sprintf("%#v", a.Val) }
+func NewAny(key string, val any) *Any {
+	a := anyPool.GetOrNew()
+	a.key = key
+	a.val = val
+	return a
+}
 
-func (a Any) Log(m *Message) {
-	m.Any(a.Key, a.Val)
+func (a *Any) Clone() Attrib {
+	return NewAny(a.key, a.val)
+}
+
+func (a *Any) Free() {
+	anyPool.ClearAndPutBack(a)
+}
+
+func (a *Any) Key() string { return a.key }
+func (a *Any) Value() any  { return a.val }
+func (a *Any) ValueString() string {
+	return fmt.Sprintf("%#v", a.val)
+}
+
+func (a *Any) Log(m *Message) {
+	m.Any(a.key, a.val)
 }
 
 func (a Any) AppendJSON(buf []byte) []byte {
-	buf = encjson.AppendKey(buf, a.Key)
-	switch v := a.Val.(type) {
+	buf = encjson.AppendKey(buf, a.key)
+	switch v := a.val.(type) {
 	case nil:
 		return encjson.AppendNull(buf)
 	case bool:
@@ -155,314 +185,503 @@ func (a Any) AppendJSON(buf []byte) []byte {
 	return buf
 }
 
-func (a Any) String() string {
-	return fmt.Sprintf("Any{%q: %s}", a.Key, a.GetValString())
+func (a *Any) String() string {
+	return fmt.Sprintf("Any{%q: %s}", a.key, a.ValueString())
 }
 
 // Bool
 
 type Bool struct {
-	Key string
-	Val bool
+	key string
+	val bool
 }
 
-func (a Bool) GetKey() string       { return a.Key }
-func (a Bool) GetVal() any          { return a.Val }
-func (a Bool) GetValString() string { return fmt.Sprintf("%#v", a.Val) }
-
-func (a Bool) Log(m *Message) {
-	m.Bool(a.Key, a.Val)
+func NewBool(key string, val bool) *Bool {
+	a := boolPool.GetOrNew()
+	a.key = key
+	a.val = val
+	return a
 }
 
-func (a Bool) AppendJSON(buf []byte) []byte {
-	return encjson.AppendBool(encjson.AppendKey(buf, a.Key), a.Val)
+func (a *Bool) Clone() Attrib {
+	return NewBool(a.key, a.val)
 }
 
-func (a Bool) String() string {
-	return fmt.Sprintf("Bool{%q: %s}", a.Key, a.GetValString())
+func (a *Bool) Free() {
+	boolPool.ClearAndPutBack(a)
+}
+
+func (a Bool) Key() string         { return a.key }
+func (a Bool) Value() any          { return a.val }
+func (a Bool) ValueString() string { return fmt.Sprintf("%#v", a.val) }
+func (a *Bool) ValueBool() bool    { return a.val }
+
+func (a *Bool) Log(m *Message) {
+	m.Bool(a.key, a.val)
+}
+
+func (a *Bool) AppendJSON(buf []byte) []byte {
+	return encjson.AppendBool(encjson.AppendKey(buf, a.key), a.val)
+}
+
+func (a *Bool) String() string {
+	return fmt.Sprintf("Bool{%q: %s}", a.key, a.ValueString())
 }
 
 type Bools struct {
-	Key  string
-	Vals []bool
+	key  string
+	vals []bool
 }
 
-func (a Bools) GetKey() string       { return a.Key }
-func (a Bools) GetVal() any          { return a.Vals }
-func (a Bools) GetValString() string { return fmt.Sprintf("%#v", a.Vals) }
-
-func (a Bools) Log(m *Message) {
-	m.Bools(a.Key, a.Vals)
+func NewBools(key string, vals []bool) *Bools {
+	a := boolsPool.GetOrNew()
+	a.key = key
+	a.vals = vals
+	return a
 }
 
-func (a Bools) AppendJSON(buf []byte) []byte {
-	buf = encjson.AppendArrayStart(encjson.AppendKey(buf, a.Key))
-	for _, val := range a.Vals {
+func (a *Bools) Clone() Attrib {
+	return NewBools(a.key, a.vals)
+}
+
+func (a *Bools) Free() {
+	boolsPool.ClearAndPutBack(a)
+}
+
+func (a *Bools) Key() string         { return a.key }
+func (a *Bools) Value() any          { return a.vals }
+func (a *Bools) ValueString() string { return fmt.Sprintf("%#v", a.vals) }
+func (a *Bools) ValueBools() []bool  { return a.vals }
+
+func (a *Bools) Log(m *Message) {
+	m.Bools(a.key, a.vals)
+}
+
+func (a *Bools) AppendJSON(buf []byte) []byte {
+	buf = encjson.AppendArrayStart(encjson.AppendKey(buf, a.key))
+	for _, val := range a.vals {
 		buf = encjson.AppendBool(buf, val)
 	}
 	return encjson.AppendArrayEnd(buf)
 }
 
-func (a Bools) String() string {
-	return fmt.Sprintf("Bools{%q: %s}", a.Key, a.GetValString())
+func (a *Bools) String() string {
+	return fmt.Sprintf("Bools{%q: %s}", a.key, a.ValueString())
 }
 
-func (a Bools) Len() int { return len(a.Vals) }
+func (a *Bools) Len() int { return len(a.vals) }
 
 // Int
 
 type Int struct {
-	Key string
-	Val int64
+	key string
+	val int64
 }
 
-func (a Int) GetKey() string       { return a.Key }
-func (a Int) GetVal() any          { return a.Val }
-func (a Int) GetValString() string { return fmt.Sprintf("%#v", a.Val) }
-
-func (a Int) Log(m *Message) {
-	m.Int64(a.Key, a.Val)
+func NewInt(key string, val int64) *Int {
+	a := intPool.GetOrNew()
+	a.key = key
+	a.val = val
+	return a
 }
 
-func (a Int) AppendJSON(buf []byte) []byte {
-	return encjson.AppendInt(encjson.AppendKey(buf, a.Key), a.Val)
+func (a *Int) Clone() Attrib {
+	return NewInt(a.key, a.val)
 }
 
-func (a Int) String() string {
-	return fmt.Sprintf("Int{%q: %s}", a.Key, a.GetValString())
+func (a *Int) Free() {
+	intPool.ClearAndPutBack(a)
+}
+
+func (a *Int) Key() string         { return a.key }
+func (a *Int) Value() any          { return a.val }
+func (a *Int) ValueString() string { return fmt.Sprintf("%#v", a.val) }
+func (a *Int) ValueInt() int64     { return a.val }
+
+func (a *Int) Log(m *Message) {
+	m.Int64(a.key, a.val)
+}
+
+func (a *Int) AppendJSON(buf []byte) []byte {
+	return encjson.AppendInt(encjson.AppendKey(buf, a.key), a.val)
+}
+
+func (a *Int) String() string {
+	return fmt.Sprintf("Int{%q: %s}", a.key, a.ValueString())
 }
 
 type Ints struct {
-	Key  string
-	Vals []int64
+	key  string
+	vals []int64
 }
 
-func (a Ints) GetKey() string       { return a.Key }
-func (a Ints) GetVal() any          { return a.Vals }
-func (a Ints) GetValString() string { return fmt.Sprintf("%#v", a.Vals) }
-
-func (a Ints) Log(m *Message) {
-	m.Int64s(a.Key, a.Vals)
+func NewInts(key string, vals []int64) *Ints {
+	a := intsPool.GetOrNew()
+	a.key = key
+	a.vals = vals
+	return a
 }
 
-func (a Ints) AppendJSON(buf []byte) []byte {
-	buf = encjson.AppendArrayStart(encjson.AppendKey(buf, a.Key))
-	for _, val := range a.Vals {
+func (a *Ints) Clone() Attrib {
+	return NewInts(a.key, a.vals)
+}
+
+func (a *Ints) Free() {
+	intsPool.ClearAndPutBack(a)
+}
+
+func (a *Ints) Key() string         { return a.key }
+func (a *Ints) Value() any          { return a.vals }
+func (a *Ints) ValueString() string { return fmt.Sprintf("%#v", a.vals) }
+func (a *Ints) ValueInts() []int64  { return a.vals }
+
+func (a *Ints) Log(m *Message) {
+	m.Int64s(a.key, a.vals)
+}
+
+func (a *Ints) AppendJSON(buf []byte) []byte {
+	buf = encjson.AppendArrayStart(encjson.AppendKey(buf, a.key))
+	for _, val := range a.vals {
 		buf = encjson.AppendInt(buf, val)
 	}
 	return encjson.AppendArrayEnd(buf)
 }
 
-func (a Ints) String() string {
-	return fmt.Sprintf("Ints{%q: %s}", a.Key, a.GetValString())
+func (a *Ints) String() string {
+	return fmt.Sprintf("Ints{%q: %s}", a.key, a.ValueString())
 }
 
-func (a Ints) Len() int { return len(a.Vals) }
+func (a *Ints) Len() int { return len(a.vals) }
 
 // Uint
 
 type Uint struct {
-	Key string
-	Val uint64
+	key string
+	val uint64
 }
 
-func (a Uint) GetKey() string       { return a.Key }
-func (a Uint) GetVal() any          { return a.Val }
-func (a Uint) GetValString() string { return fmt.Sprintf("%#v", a.Val) }
-
-func (a Uint) Log(m *Message) {
-	m.Uint64(a.Key, a.Val)
+func NewUint(key string, val uint64) *Uint {
+	a := uintPool.GetOrNew()
+	a.key = key
+	a.val = val
+	return a
 }
 
-func (a Uint) AppendJSON(buf []byte) []byte {
-	return encjson.AppendUint(encjson.AppendKey(buf, a.Key), a.Val)
+func (a *Uint) Clone() Attrib {
+	return NewUint(a.key, a.val)
 }
 
-func (a Uint) String() string {
-	return fmt.Sprintf("Uint{%q: %s}", a.Key, a.GetValString())
+func (a *Uint) Free() {
+	uintPool.ClearAndPutBack(a)
+}
+
+func (a *Uint) Key() string         { return a.key }
+func (a *Uint) Value() any          { return a.val }
+func (a *Uint) ValueString() string { return fmt.Sprintf("%#v", a.val) }
+func (a *Uint) ValueUint() uint64   { return a.val }
+
+func (a *Uint) Log(m *Message) {
+	m.Uint64(a.key, a.val)
+}
+
+func (a *Uint) AppendJSON(buf []byte) []byte {
+	return encjson.AppendUint(encjson.AppendKey(buf, a.key), a.val)
+}
+
+func (a *Uint) String() string {
+	return fmt.Sprintf("Uint{%q: %s}", a.key, a.ValueString())
 }
 
 type Uints struct {
-	Key  string
-	Vals []uint64
+	key  string
+	vals []uint64
 }
 
-func (a Uints) GetKey() string       { return a.Key }
-func (a Uints) GetVal() any          { return a.Vals }
-func (a Uints) GetValString() string { return fmt.Sprintf("%#v", a.Vals) }
-
-func (a Uints) Log(m *Message) {
-	m.Uint64s(a.Key, a.Vals)
+func NewUints(key string, vals []uint64) *Uints {
+	a := uintsPool.GetOrNew()
+	a.key = key
+	a.vals = vals
+	return a
 }
 
-func (a Uints) AppendJSON(buf []byte) []byte {
-	buf = encjson.AppendArrayStart(encjson.AppendKey(buf, a.Key))
-	for _, val := range a.Vals {
+func (a *Uints) Clone() Attrib {
+	return NewUints(a.key, a.vals)
+}
+
+func (a *Uints) Free() {
+	uintsPool.ClearAndPutBack(a)
+}
+
+func (a *Uints) Key() string          { return a.key }
+func (a *Uints) Value() any           { return a.vals }
+func (a *Uints) ValueString() string  { return fmt.Sprintf("%#v", a.vals) }
+func (a *Uints) ValueUints() []uint64 { return a.vals }
+
+func (a *Uints) Log(m *Message) {
+	m.Uint64s(a.key, a.vals)
+}
+
+func (a *Uints) AppendJSON(buf []byte) []byte {
+	buf = encjson.AppendArrayStart(encjson.AppendKey(buf, a.key))
+	for _, val := range a.vals {
 		buf = encjson.AppendUint(buf, val)
 	}
 	return encjson.AppendArrayEnd(buf)
 }
 
-func (a Uints) String() string {
-	return fmt.Sprintf("Uints{%q: %s}", a.Key, a.GetValString())
+func (a *Uints) String() string {
+	return fmt.Sprintf("Uints{%q: %s}", a.key, a.ValueString())
 }
 
-func (a Uints) Len() int { return len(a.Vals) }
+func (a *Uints) Len() int { return len(a.vals) }
 
 // Float
 
 type Float struct {
-	Key string
-	Val float64
+	key string
+	val float64
 }
 
-func (a Float) GetKey() string       { return a.Key }
-func (a Float) GetVal() any          { return a.Val }
-func (a Float) GetValString() string { return fmt.Sprintf("%#v", a.Val) }
-
-func (a Float) Log(m *Message) {
-	m.Float(a.Key, a.Val)
+func NewFloat(key string, val float64) *Float {
+	a := floatPool.GetOrNew()
+	a.key = key
+	a.val = val
+	return a
 }
 
-func (a Float) AppendJSON(buf []byte) []byte {
-	return encjson.AppendFloat(encjson.AppendKey(buf, a.Key), a.Val)
+func (a *Float) Clone() Attrib {
+	return NewFloat(a.key, a.val)
 }
 
-func (a Float) String() string {
-	return fmt.Sprintf("Float{%q: %s}", a.Key, a.GetValString())
+func (a *Float) Free() {
+	floatPool.ClearAndPutBack(a)
+}
+
+func (a *Float) Key() string         { return a.key }
+func (a *Float) Value() any          { return a.val }
+func (a *Float) ValueString() string { return fmt.Sprintf("%#v", a.val) }
+func (a *Float) ValueFloat() float64 { return a.val }
+
+func (a *Float) Log(m *Message) {
+	m.Float(a.key, a.val)
+}
+
+func (a *Float) AppendJSON(buf []byte) []byte {
+	return encjson.AppendFloat(encjson.AppendKey(buf, a.key), a.val)
+}
+
+func (a *Float) String() string {
+	return fmt.Sprintf("Float{%q: %s}", a.key, a.ValueString())
 }
 
 type Floats struct {
-	Key  string
-	Vals []float64
+	key  string
+	vals []float64
 }
 
-func (a Floats) GetKey() string       { return a.Key }
-func (a Floats) GetVal() any          { return a.Vals }
-func (a Floats) GetValString() string { return fmt.Sprintf("%#v", a.Vals) }
-
-func (a Floats) Log(m *Message) {
-	m.Floats(a.Key, a.Vals)
+func NewFloats(key string, vals []float64) *Floats {
+	a := floatsPool.GetOrNew()
+	a.key = key
+	a.vals = vals
+	return a
 }
 
-func (a Floats) AppendJSON(buf []byte) []byte {
-	buf = encjson.AppendArrayStart(encjson.AppendKey(buf, a.Key))
-	for _, val := range a.Vals {
+func (a *Floats) Clone() Attrib {
+	return NewFloats(a.key, a.vals)
+}
+
+func (a *Floats) Free() {
+	floatsPool.ClearAndPutBack(a)
+}
+
+func (a *Floats) Key() string            { return a.key }
+func (a *Floats) Value() any             { return a.vals }
+func (a *Floats) ValueString() string    { return fmt.Sprintf("%#v", a.vals) }
+func (a *Floats) ValueFloats() []float64 { return a.vals }
+
+func (a *Floats) Log(m *Message) {
+	m.Floats(a.key, a.vals)
+}
+
+func (a *Floats) AppendJSON(buf []byte) []byte {
+	buf = encjson.AppendArrayStart(encjson.AppendKey(buf, a.key))
+	for _, val := range a.vals {
 		buf = encjson.AppendFloat(buf, val)
 	}
 	return encjson.AppendArrayEnd(buf)
 }
 
-func (a Floats) String() string {
-	return fmt.Sprintf("Floats{%q: %s}", a.Key, a.GetValString())
+func (a *Floats) String() string {
+	return fmt.Sprintf("Floats{%q: %s}", a.key, a.ValueString())
 }
 
-func (a Floats) Len() int { return len(a.Vals) }
+func (a *Floats) Len() int { return len(a.vals) }
 
 // String
 
 type String struct {
-	Key string
-	Val string
+	key string
+	val string
 }
 
-func (a String) GetKey() string       { return a.Key }
-func (a String) GetVal() any          { return a.Val }
-func (a String) GetValString() string { return a.Val }
-
-func (a String) Log(m *Message) {
-	m.Str(a.Key, a.Val)
+func NewString(key string, val string) *String {
+	a := stringPool.GetOrNew()
+	a.key = key
+	a.val = val
+	return a
 }
 
-func (a String) AppendJSON(buf []byte) []byte {
-	return encjson.AppendString(encjson.AppendKey(buf, a.Key), a.Val)
+func (a *String) Clone() Attrib {
+	return NewString(a.key, a.val)
 }
 
-func (a String) String() string {
-	return fmt.Sprintf("String{%q: %q}", a.Key, a.Val)
+func (a *String) Free() {
+	stringPool.ClearAndPutBack(a)
+}
+
+func (a *String) Key() string         { return a.key }
+func (a *String) Value() any          { return a.val }
+func (a *String) ValueString() string { return a.val }
+
+func (a *String) Log(m *Message) {
+	m.Str(a.key, a.val)
+}
+
+func (a *String) AppendJSON(buf []byte) []byte {
+	return encjson.AppendString(encjson.AppendKey(buf, a.key), a.val)
+}
+
+func (a *String) String() string {
+	return fmt.Sprintf("String{%q: %q}", a.key, a.val)
 }
 
 type Strings struct {
-	Key  string
-	Vals []string
+	key  string
+	vals []string
 }
 
-func (a Strings) GetKey() string       { return a.Key }
-func (a Strings) GetVal() any          { return a.Vals }
-func (a Strings) GetValString() string { return fmt.Sprintf("%#v", a.Vals) }
-
-func (a Strings) Log(m *Message) {
-	m.Strs(a.Key, a.Vals)
+func NewStrings(key string, vals []string) *Strings {
+	a := stringsPool.GetOrNew()
+	a.key = key
+	a.vals = vals
+	return a
 }
 
-func (a Strings) AppendJSON(buf []byte) []byte {
-	buf = encjson.AppendArrayStart(encjson.AppendKey(buf, a.Key))
-	for _, val := range a.Vals {
+func (a *Strings) Clone() Attrib {
+	return NewStrings(a.key, a.vals)
+}
+
+func (a *Strings) Free() {
+	stringsPool.ClearAndPutBack(a)
+}
+
+func (a *Strings) Key() string            { return a.key }
+func (a *Strings) Value() any             { return a.vals }
+func (a *Strings) ValueString() string    { return fmt.Sprintf("%#v", a.vals) }
+func (a *Strings) ValueStrings() []string { return a.vals }
+
+func (a *Strings) Log(m *Message) {
+	m.Strs(a.key, a.vals)
+}
+
+func (a *Strings) AppendJSON(buf []byte) []byte {
+	buf = encjson.AppendArrayStart(encjson.AppendKey(buf, a.key))
+	for _, val := range a.vals {
 		buf = encjson.AppendString(buf, val)
 	}
 	return encjson.AppendArrayEnd(buf)
 }
 
-func (a Strings) String() string {
-	return fmt.Sprintf("Strings{%q: %s}", a.Key, a.GetValString())
+func (a *Strings) String() string {
+	return fmt.Sprintf("Strings{%q: %s}", a.key, a.ValueString())
 }
 
-func (a Strings) Len() int { return len(a.Vals) }
+func (a *Strings) Len() int { return len(a.vals) }
 
 // Error
 
 type Error struct {
-	Key string
-	Val error
+	key string
+	val error
 }
 
-func (a Error) GetKey() string { return a.Key }
-func (a Error) GetVal() any    { return a.Val }
-func (a Error) GetValString() string {
-	if a.Val == nil {
+func NewError(key string, val error) *Error {
+	a := errorPool.GetOrNew()
+	a.key = key
+	a.val = val
+	return a
+}
+
+func (a *Error) Clone() Attrib {
+	return NewError(a.key, a.val)
+}
+
+func (a *Error) Free() {
+	errorPool.ClearAndPutBack(a)
+}
+
+func (a *Error) Key() string { return a.key }
+func (a *Error) Value() any  { return a.val }
+func (a *Error) ValueString() string {
+	if a.val == nil {
 		return "<nil>"
 	}
-	return a.Val.Error()
+	return a.val.Error()
 }
 
-func (a Error) Log(m *Message) {
-	m.Error(a.Key, a.Val)
+func (a *Error) Log(m *Message) {
+	m.Error(a.key, a.val)
 }
 
-func (a Error) AppendJSON(buf []byte) []byte {
-	buf = encjson.AppendKey(buf, a.Key)
-	if a.Val == nil {
+func (a *Error) AppendJSON(buf []byte) []byte {
+	buf = encjson.AppendKey(buf, a.key)
+	if a.val == nil {
 		return encjson.AppendNull(buf)
 	}
-	return encjson.AppendString(buf, a.Val.Error())
+	return encjson.AppendString(buf, a.val.Error())
 }
 
-func (a Error) String() string {
-	return fmt.Sprintf("Error{%q: %q}", a.Key, a.GetValString())
+func (a *Error) String() string {
+	return fmt.Sprintf("Error{%q: %q}", a.key, a.ValueString())
 }
 
 type Errors struct {
-	Key  string
-	Vals []error
+	key  string
+	vals []error
 }
 
-func (a Errors) GetKey() string { return a.Key }
-func (a Errors) GetVal() any    { return a.Vals }
+func NewErrors(key string, vals []error) *Errors {
+	a := errorsPool.GetOrNew()
+	a.key = key
+	a.vals = vals
+	return a
+}
 
-func (a Errors) GetValString() string {
-	if len(a.Vals) == 0 {
+func (a *Errors) Clone() Attrib {
+	return NewErrors(a.key, a.vals)
+}
+
+func (a *Errors) Free() {
+	errorsPool.ClearAndPutBack(a)
+}
+
+func (a *Errors) Key() string { return a.key }
+func (a *Errors) Value() any  { return a.vals }
+
+func (a *Errors) ValueString() string {
+	if len(a.vals) == 0 {
 		return "<nil>"
 	}
-	return errors.Join(a.Vals...).Error()
+	return errors.Join(a.vals...).Error()
 }
 
-func (a Errors) Log(m *Message) {
-	m.Errors(a.Key, a.Vals)
+func (a *Errors) Log(m *Message) {
+	m.Errors(a.key, a.vals)
 }
 
-func (a Errors) AppendJSON(buf []byte) []byte {
-	buf = encjson.AppendArrayStart(encjson.AppendKey(buf, a.Key))
-	for _, val := range a.Vals {
+func (a *Errors) AppendJSON(buf []byte) []byte {
+	buf = encjson.AppendArrayStart(encjson.AppendKey(buf, a.key))
+	for _, val := range a.vals {
 		if val == nil {
 			buf = encjson.AppendNull(buf)
 		} else {
@@ -472,110 +691,143 @@ func (a Errors) AppendJSON(buf []byte) []byte {
 	return encjson.AppendArrayEnd(buf)
 }
 
-func (a Errors) String() string {
-	return fmt.Sprintf("Errors{%q: %q}", a.Key, a.GetValString())
+func (a *Errors) String() string {
+	return fmt.Sprintf("Errors{%q: %q}", a.key, a.ValueString())
 }
 
-func (a Errors) Len() int { return len(a.Vals) }
+func (a *Errors) Len() int { return len(a.vals) }
 
 // UUID
 
 type UUID struct {
-	Key string
-	Val [16]byte
+	key string
+	val [16]byte
 }
 
-func (a UUID) GetKey() string       { return a.Key }
-func (a UUID) GetVal() any          { return a.Val }
-func (a UUID) GetValString() string { return FormatUUID(a.Val) }
-
-func (a UUID) Log(m *Message) {
-	m.UUID(a.Key, a.Val)
+// NewUUID creates a new UUID attribute with the passed key and value.
+//
+// See UUIDv4 for creating a new random UUID value.
+func NewUUID(key string, val [16]byte) *UUID {
+	a := uuidPool.GetOrNew()
+	a.key = key
+	a.val = val
+	return a
 }
 
-func (a UUID) AppendJSON(buf []byte) []byte {
-	return encjson.AppendUUID(encjson.AppendKey(buf, a.Key), a.Val)
+func (a *UUID) Clone() Attrib {
+	return NewUUID(a.key, a.val)
 }
 
-func (a UUID) String() string {
-	return fmt.Sprintf("UUID{%q: %s}", a.Key, a.GetValString())
+func (a *UUID) Free() {
+	uuidPool.ClearAndPutBack(a)
+}
+
+func (a *UUID) Key() string         { return a.key }
+func (a *UUID) Value() any          { return a.val }
+func (a *UUID) ValueString() string { return FormatUUID(a.val) }
+func (a *UUID) ValueUUID() [16]byte { return a.val }
+
+func (a *UUID) Log(m *Message) {
+	m.UUID(a.key, a.val)
+}
+
+func (a *UUID) AppendJSON(buf []byte) []byte {
+	return encjson.AppendUUID(encjson.AppendKey(buf, a.key), a.val)
+}
+
+func (a *UUID) String() string {
+	return fmt.Sprintf("UUID{%q: %s}", a.key, a.ValueString())
 }
 
 type UUIDs struct {
-	Key  string
-	Vals [][16]byte
+	key  string
+	vals [][16]byte
 }
 
-func (a UUIDs) GetKey() string { return a.Key }
-func (a UUIDs) GetVal() any    { return a.Vals }
+func NewUUIDs(key string, vals [][16]byte) *UUIDs {
+	a := uuidsPool.GetOrNew()
+	a.key = key
+	a.vals = vals
+	return a
+}
 
-func (a UUIDs) GetValString() string {
+func (a *UUIDs) Clone() Attrib {
+	return NewUUIDs(a.key, a.vals)
+}
+
+func (a *UUIDs) Free() {
+	uuidsPool.ClearAndPutBack(a)
+}
+
+func (a *UUIDs) Key() string { return a.key }
+func (a *UUIDs) Value() any  { return a.vals }
+func (a *UUIDs) ValueString() string {
 	var b strings.Builder
 	b.WriteByte('[')
-	for i := range a.Vals {
+	for i := range a.vals {
 		if i > 0 {
 			b.WriteString(", ")
 		}
-		b.WriteString(FormatUUID(a.Vals[i]))
+		b.WriteString(FormatUUID(a.vals[i]))
 	}
 	b.WriteByte(']')
 	return b.String()
 }
+func (a *UUIDs) ValueUUIDs() [][16]byte { return a.vals }
 
-func (a UUIDs) Log(m *Message) {
-	m.UUIDs(a.Key, a.Vals)
+func (a *UUIDs) Log(m *Message) {
+	m.UUIDs(a.key, a.vals)
 }
 
-func (a UUIDs) AppendJSON(buf []byte) []byte {
-	buf = encjson.AppendArrayStart(encjson.AppendKey(buf, a.Key))
-	for _, val := range a.Vals {
+func (a *UUIDs) AppendJSON(buf []byte) []byte {
+	buf = encjson.AppendArrayStart(encjson.AppendKey(buf, a.key))
+	for _, val := range a.vals {
 		buf = encjson.AppendUUID(buf, val)
 	}
 	return encjson.AppendArrayEnd(buf)
 }
 
-func (a UUIDs) String() string {
-	return fmt.Sprintf("UUIDs{%q: %s}", a.Key, a.GetValString())
+func (a *UUIDs) String() string {
+	return fmt.Sprintf("UUIDs{%q: %s}", a.key, a.ValueString())
 }
 
-func (a UUIDs) Len() int { return len(a.Vals) }
+func (a *UUIDs) Len() int { return len(a.vals) }
 
 // JSON
 
 type JSON struct {
-	Key string
-	Val json.RawMessage
+	key string
+	val json.RawMessage
 }
 
-func (a JSON) GetKey() string       { return a.Key }
-func (a JSON) GetVal() any          { return a.Val }
-func (a JSON) GetValString() string { return string(a.Val) }
-
-func (a JSON) Log(m *Message) {
-	m.JSON(a.Key, a.Val)
+func NewJSON(key string, val json.RawMessage) *JSON {
+	a := jsonPool.GetOrNew()
+	a.key = key
+	a.val = val
+	return a
 }
 
-func (a JSON) AppendJSON(buf []byte) []byte {
-	return append(encjson.AppendKey(buf, a.Key), a.Val...)
+func (a *JSON) Clone() Attrib {
+	return NewJSON(a.key, a.val)
 }
 
-func (a JSON) String() string {
-	return fmt.Sprintf("JSON{%q: %s}", a.Key, a.GetValString())
+func (a *JSON) Free() {
+	jsonPool.ClearAndPutBack(a)
 }
 
-// // Bytes
+func (a *JSON) Key() string                { return a.key }
+func (a *JSON) Value() any                 { return a.val }
+func (a *JSON) ValueString() string        { return string(a.val) }
+func (a *JSON) ValueJSON() json.RawMessage { return a.val }
 
-// type Bytes struct {
-// 	Key string
-// 	Val []byte
-// }
+func (a *JSON) Log(m *Message) {
+	m.JSON(a.key, a.val)
+}
 
-// func (a Bytes) GetKey() string { return a.Key }
+func (a *JSON) AppendJSON(buf []byte) []byte {
+	return append(encjson.AppendKey(buf, a.key), a.val...)
+}
 
-// func (a Bytes) Log(m *Message) {
-// 	m.Bytes(a.Key, a.Val)
-// }
-
-// func (a Bytes) String() string {
-// 	return fmt.Sprintf("Bytes{%q: %x}", a.Key, a.Val)
-// }
+func (a *JSON) String() string {
+	return fmt.Sprintf("JSON{%q: %s}", a.key, a.ValueString())
+}

@@ -21,6 +21,55 @@ var (
 // the attributes in the slice in the given order.
 type Attribs []Attrib
 
+var (
+	attribsCtxKey int
+)
+
+func (a *Attribs) Add(attrib Attrib) {
+	if a == nil || attrib == nil {
+		return // Be conservative and don't panic
+	}
+	if *a == nil {
+		*a = attribsPool.GetOrMake(1, 1)
+		(*a)[0] = attrib
+		return
+	}
+	newLen := len(*a) + 1
+	if newLen <= cap(*a) {
+		*a = append(*a, attrib)
+		return
+	}
+	added := attribsPool.GetOrMake(newLen, newLen)
+	copy(added, *a)
+	attribsPool.ClearAndPutBack(*a)
+	added[newLen-1] = attrib
+	*a = added
+}
+
+// Clone returns a new Attribs slice with the same attributes.
+// The attributes are cloned by calling the Clone method of each attribute.
+func (a Attribs) Clone() Attribs {
+	if a == nil {
+		return nil
+	}
+	c := attribsPool.GetOrMake(len(a), len(a))
+	for i, attrib := range a {
+		c[i] = attrib.Clone()
+	}
+	return c
+}
+
+// Free returns the Attribs to the pool.
+func (a Attribs) Free() {
+	if a == nil {
+		return
+	}
+	for i := range a {
+		a[i].Free()
+	}
+	attribsPool.ClearAndPutBack(a[:0])
+}
+
 // Log implements the Loggable interface by logging
 // the attributes in the slice in the given order.
 func (a Attribs) Log(m *Message) {
@@ -33,7 +82,7 @@ func (a Attribs) Log(m *Message) {
 // or nil if not Attrib was found.
 func (a Attribs) Get(key string) Attrib {
 	for _, attrib := range a {
-		if attrib.GetKey() == key {
+		if attrib.Key() == key {
 			return attrib
 		}
 	}
@@ -43,7 +92,7 @@ func (a Attribs) Get(key string) Attrib {
 // Has indicates if the Attribs contain an Attrib with the passed key
 func (a Attribs) Has(key string) bool {
 	for _, attrib := range a {
-		if attrib.GetKey() == key {
+		if attrib.Key() == key {
 			return true
 		}
 	}
@@ -54,23 +103,6 @@ func (a Attribs) Has(key string) bool {
 func (a Attribs) Len() int {
 	return len(a)
 }
-
-/*
-// ReplaceOrAppend replaces the first value in the slice with the same key
-// than the passed value, or else appends the passed value to the slice.
-func (v *Attribs) ReplaceOrAppend(value Attrib) {
-	name := value.Name()
-	for i, existing := range *v {
-		if existing.Name() == name {
-			(*v)[i] = value
-			return
-		}
-	}
-	*v = append(*v, value)
-}
-*/
-
-var attribsCtxKey int
 
 // AttribsFromContext returns the Attribs that were added
 // to a context or nil.
@@ -114,7 +146,7 @@ func (a Attribs) AddToContext(ctx context.Context) context.Context {
 	if len(a) == 0 {
 		return ctx
 	}
-	mergedAttribs := a.AppendUnique(AttribsFromContext(ctx)...)
+	mergedAttribs := a.CloneAndAppendNonExistingCloned(AttribsFromContext(ctx))
 	return context.WithValue(ctx, &attribsCtxKey, mergedAttribs)
 }
 
@@ -129,48 +161,25 @@ func (a Attribs) AddToRequest(request *http.Request) *http.Request {
 	return request.WithContext(ctx)
 }
 
-// AppendUnique merges a and b so that keys are unique
-// using attribs from a in case of identical keyed attribs in b.
+// CloneAndAppendNonExistingCloned clones a and appends clones of
+// attribs from b that are not already present in a
+// identified by their key.
 //
-// The slices left and right will never be modified,
-// in case of a merge the result is always a new slice.
-func (a Attribs) AppendUnique(b ...Attrib) Attribs {
-	// Remove nil interfaces. They should not happen but robustness of logging is important!
-	for i := len(a) - 1; i >= 0; i-- {
-		if a[i] == nil {
-			a = append(a[:i], a[i+1:]...)
-		}
+// The result is a new slice and the slices a and b
+// are not modified.
+func (a Attribs) CloneAndAppendNonExistingCloned(b Attribs) Attribs {
+	if len(a) == 0 {
+		return b.Clone()
 	}
-	for i := len(b) - 1; i >= 0; i-- {
-		if b[i] == nil {
-			b = append(b[:i], b[i+1:]...)
-		}
+	if len(b) == 0 {
+		return a.Clone()
 	}
-
-	// No merge cases
-	switch {
-	case len(a) == 0:
-		return b
-	case len(b) == 0:
-		return a
-	}
-
-	var result Attribs
+	result := attribsPool.GetOrMake(len(a), len(a)+len(b))
+	copy(result, a)
 	for _, bAttrib := range b {
-		if a.Has(bAttrib.GetKey()) {
-			// Ignore bAttrib value because the value from a is preferred
-			continue
+		if !a.Has(bAttrib.Key()) {
+			result = append(result, bAttrib.Clone())
 		}
-		if result == nil {
-			// Allocate new slice for merged result
-			result = append(result, a...)
-		}
-		result = append(result, bAttrib)
-	}
-	if result == nil {
-		// All keys of b were present in a
-		// so result is identical to a
-		return a
 	}
 	return result
 }

@@ -3,7 +3,6 @@ package golog
 import (
 	"context"
 	"strings"
-	"sync"
 	"time"
 )
 
@@ -19,9 +18,8 @@ var (
 type MessageCallback func(timestamp time.Time, level Level, prefix, text string, attribs Attribs)
 
 type CallbackWriterConfig struct {
-	filter     LevelFilter
-	callback   MessageCallback
-	writerPool sync.Pool
+	filter   LevelFilter
+	callback MessageCallback
 }
 
 func NewCallbackWriterConfig(callback MessageCallback, filters ...LevelFilter) *CallbackWriterConfig {
@@ -38,10 +36,9 @@ func (c *CallbackWriterConfig) WriterForNewMessage(ctx context.Context, level Le
 	if c.filter.IsInactive(ctx, level) {
 		return nil
 	}
-	if w, _ := c.writerPool.Get().(Writer); w != nil {
-		return w
-	}
-	return &CallbackWriter{config: c}
+	w := callbackWriterPool.GetOrNew()
+	w.config = c
+	return w
 }
 
 func (c *CallbackWriterConfig) FlushUnderlying() {}
@@ -71,21 +68,8 @@ func (w *CallbackWriter) BeginMessage(config Config, timestamp time.Time, level 
 
 func (w *CallbackWriter) CommitMessage() {
 	defer func() {
-		// Recover from any panic in callback
-		recover()
-
-		// Reset and return to pool
-		w.levels = nil
-		w.timestamp = time.Time{}
-		w.level = 0
-		w.prefix = ""
-		w.text = ""
-		w.attribs = w.attribs[:0]
-		w.key = ""
-		w.isSlice = false
-		w.sliceAttrib = nil
-
-		w.config.writerPool.Put(w)
+		recover() // Recover from any panic in w.config.callback
+		callbackWriterPool.ClearAndPutBack(w)
 	}()
 
 	w.config.callback(w.timestamp, w.level, w.prefix, w.text, w.attribs)
@@ -104,9 +88,9 @@ func (w *CallbackWriter) String() string {
 	b.WriteString(w.text)
 	for _, attrib := range w.attribs {
 		b.WriteString(" ")
-		b.WriteString(attrib.GetKey())
+		b.WriteString(attrib.Key())
 		b.WriteString("=")
-		b.WriteString(attrib.GetValString())
+		b.WriteString(attrib.ValueString())
 	}
 	return b.String()
 }
@@ -127,69 +111,90 @@ func (w *CallbackWriter) WriteSliceEnd() {
 }
 
 func (w *CallbackWriter) WriteNil() {
-	w.attribs = append(w.attribs, Nil{Key: w.key})
+	w.attribs = append(w.attribs, NewNil(w.key))
 }
 
 func (w *CallbackWriter) WriteBool(val bool) {
 	if w.isSlice {
-		a, _ := w.sliceAttrib.(Bools)
-		w.sliceAttrib = Bools{Key: w.key, Vals: append(a.Vals, val)}
+		a, _ := w.sliceAttrib.(*Bools)
+		if a == nil {
+			w.sliceAttrib = NewBools(w.key, nil)
+		}
+		a.vals = append(a.vals, val)
 	} else {
-		w.attribs = append(w.attribs, Bool{Key: w.key, Val: val})
+		w.attribs = append(w.attribs, NewBool(w.key, val))
 	}
 }
 
 func (w *CallbackWriter) WriteInt(val int64) {
 	if w.isSlice {
-		a, _ := w.sliceAttrib.(Ints)
-		w.sliceAttrib = Ints{Key: w.key, Vals: append(a.Vals, val)}
+		a, _ := w.sliceAttrib.(*Ints)
+		if a == nil {
+			w.sliceAttrib = NewInts(w.key, nil)
+		}
+		a.vals = append(a.vals, val)
 	} else {
-		w.attribs = append(w.attribs, Int{Key: w.key, Val: val})
+		w.attribs = append(w.attribs, NewInt(w.key, val))
 	}
 }
 
 func (w *CallbackWriter) WriteUint(val uint64) {
 	if w.isSlice {
-		a, _ := w.sliceAttrib.(Uints)
-		w.sliceAttrib = Uints{Key: w.key, Vals: append(a.Vals, val)}
+		a, _ := w.sliceAttrib.(*Uints)
+		if a == nil {
+			w.sliceAttrib = NewUints(w.key, nil)
+		}
+		a.vals = append(a.vals, val)
 	} else {
-		w.attribs = append(w.attribs, Uint{Key: w.key, Val: val})
+		w.attribs = append(w.attribs, NewUint(w.key, val))
 	}
 }
 
 func (w *CallbackWriter) WriteFloat(val float64) {
 	if w.isSlice {
-		a, _ := w.sliceAttrib.(Floats)
-		w.sliceAttrib = Floats{Key: w.key, Vals: append(a.Vals, val)}
+		a, _ := w.sliceAttrib.(*Floats)
+		if a == nil {
+			w.sliceAttrib = NewFloats(w.key, nil)
+		}
+		a.vals = append(a.vals, val)
 	} else {
-		w.attribs = append(w.attribs, Float{Key: w.key, Val: val})
+		w.attribs = append(w.attribs, NewFloat(w.key, val))
 	}
 }
 
 func (w *CallbackWriter) WriteString(val string) {
 	if w.isSlice {
-		a, _ := w.sliceAttrib.(Strings)
-		w.sliceAttrib = Strings{Key: w.key, Vals: append(a.Vals, val)}
+		a, _ := w.sliceAttrib.(*Strings)
+		if a == nil {
+			w.sliceAttrib = NewStrings(w.key, nil)
+		}
+		a.vals = append(a.vals, val)
 	} else {
-		w.attribs = append(w.attribs, String{Key: w.key, Val: val})
+		w.attribs = append(w.attribs, NewString(w.key, val))
 	}
 }
 
 func (w *CallbackWriter) WriteError(val error) {
 	if w.isSlice {
-		a, _ := w.sliceAttrib.(Errors)
-		w.sliceAttrib = Errors{Key: w.key, Vals: append(a.Vals, val)}
+		a, _ := w.sliceAttrib.(*Errors)
+		if a == nil {
+			w.sliceAttrib = NewErrors(w.key, nil)
+		}
+		a.vals = append(a.vals, val)
 	} else {
-		w.attribs = append(w.attribs, Error{Key: w.key, Val: val})
+		w.attribs = append(w.attribs, NewError(w.key, val))
 	}
 }
 
 func (w *CallbackWriter) WriteUUID(val [16]byte) {
 	if w.isSlice {
-		a, _ := w.sliceAttrib.(UUIDs)
-		w.sliceAttrib = UUIDs{Key: w.key, Vals: append(a.Vals, val)}
+		a, _ := w.sliceAttrib.(*UUIDs)
+		if a == nil {
+			w.sliceAttrib = NewUUIDs(w.key, nil)
+		}
+		a.vals = append(a.vals, val)
 	} else {
-		w.attribs = append(w.attribs, UUID{Key: w.key, Val: val})
+		w.attribs = append(w.attribs, NewUUID(w.key, val))
 	}
 }
 
@@ -197,5 +202,5 @@ func (w *CallbackWriter) WriteJSON(val []byte) {
 	if len(val) == 0 {
 		val = []byte("null")
 	}
-	w.attribs = append(w.attribs, JSON{Key: w.key, Val: val})
+	w.attribs = append(w.attribs, NewJSON(w.key, val))
 }

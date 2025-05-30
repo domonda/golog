@@ -6,7 +6,6 @@ import (
 	"io"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 )
 
@@ -24,11 +23,10 @@ var (
 )
 
 type TextWriterConfig struct {
-	writer     io.Writer
-	format     *Format
-	colorizer  Colorizer
-	filter     LevelFilter
-	writerPool sync.Pool
+	writer    io.Writer
+	format    *Format
+	colorizer Colorizer
+	filter    LevelFilter
 }
 
 func NewTextWriterConfig(writer io.Writer, format *Format, colorizer Colorizer, filters ...LevelFilter) *TextWriterConfig {
@@ -53,14 +51,12 @@ func (c *TextWriterConfig) WriterForNewMessage(ctx context.Context, level Level)
 	if c.filter.IsInactive(ctx, level) {
 		return nil
 	}
-	if w, _ := c.writerPool.Get().(Writer); w != nil {
-		return w
+	w := textWriterPool.GetOrNew()
+	w.config = c
+	if w.buf == nil {
+		w.buf = make([]byte, 0, 1024)
 	}
-	return &TextWriter{
-		config:    c,
-		sliceMode: sliceModeNone,
-		buf:       make([]byte, 0, 1024),
-	}
+	return w
 }
 
 func (c *TextWriterConfig) FlushUnderlying() {
@@ -115,7 +111,7 @@ func (w *TextWriter) CommitMessage() {
 	// Reset and return to pool
 	w.sliceMode = sliceModeNone
 	w.buf = w.buf[:0]
-	w.config.writerPool.Put(w)
+	textWriterPool.ClearAndPutBack(w)
 }
 
 func (w *TextWriter) String() string {

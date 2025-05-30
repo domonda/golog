@@ -31,13 +31,17 @@ var writerConfigsCtxKey int
 // with the passed configs uniquely added to the existing ones
 // so that each WriterConfig is only added once to the context.
 func ContextWithAdditionalWriterConfigs(ctx context.Context, configs ...WriterConfig) context.Context {
+	// Prevent using the same writer multiple times
+	configs, _ = uniqueNonNilWriterConfigs(configs)
 	if len(configs) == 0 {
 		return ctx
 	}
-	if c := WriterConfigsFromContext(ctx); len(c) > 0 {
-		configs = append(c, configs...)
+	ctxConfigs := WriterConfigsFromContext(ctx)
+	if len(ctxConfigs) == 0 {
+		return context.WithValue(ctx, &writerConfigsCtxKey, configs)
 	}
-	return context.WithValue(ctx, &writerConfigsCtxKey, uniqueWriterConfigs(configs))
+	configs, _ = uniqueNonNilWriterConfigs(append(ctxConfigs, configs...))
+	return context.WithValue(ctx, &writerConfigsCtxKey, configs)
 }
 
 // WriterConfigsFromContext retrieves writer configs from the context
@@ -49,28 +53,28 @@ func WriterConfigsFromContext(ctx context.Context) []WriterConfig {
 	return nil
 }
 
-func uniqueWriterConfigs(w []WriterConfig) []WriterConfig {
+func uniqueNonNilWriterConfigs(w []WriterConfig) (unique []WriterConfig, changed bool) {
 	// Fast path checks if w can be returned as is
-	numOK := 0
+	numUniqueNonNil := 0
 	for i, c := range w {
 		if c != nil && !slices.Contains(w[:i], c) {
-			numOK++
+			numUniqueNonNil++
 		}
 	}
-	switch numOK {
-	case 0:
-		return nil
-	case len(w):
-		return w
+	if numUniqueNonNil == 0 {
+		return nil, false
+	}
+	if numUniqueNonNil == len(w) {
+		return w, false
 	}
 	// Slow path to create a new slice with unique elements
-	unique := make([]WriterConfig, 0, numOK)
+	unique = make([]WriterConfig, 0, numUniqueNonNil)
 	for i, c := range w {
 		if c != nil && !slices.Contains(w[:i], c) {
 			unique = append(unique, c)
 		}
 	}
-	return unique
+	return unique, true
 }
 
 func flushUnderlying(writer any) {

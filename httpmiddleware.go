@@ -22,7 +22,7 @@ func GetOrCreateRequestUUID(request *http.Request) [16]byte {
 	}
 	requestID, err := ParseUUID(xRequestID)
 	if err != nil {
-		return NewUUID()
+		return UUIDv4()
 	}
 	return requestID
 }
@@ -41,7 +41,7 @@ func GetOrCreateRequestID(request *http.Request) string {
 	if requestID != "" {
 		return requestID
 	}
-	return FormatUUID(NewUUID())
+	return FormatUUID(UUIDv4())
 }
 
 // GetRequestUUIDFromContext returns a UUID that was added
@@ -49,11 +49,11 @@ func GetOrCreateRequestID(request *http.Request) string {
 // If the context has no requestID attribute
 // then false will be returned for ok.
 func GetRequestUUIDFromContext(ctx context.Context) (requestID [16]byte, ok bool) {
-	attrib, ok := AttribsFromContext(ctx).Get("requestID").(UUID)
+	attrib, ok := AttribsFromContext(ctx).Get("requestID").(*UUID)
 	if !ok {
 		return [16]byte{}, false
 	}
-	return attrib.Val, true
+	return attrib.val, true
 }
 
 // GetRequestIDFromContext returns a string
@@ -65,7 +65,7 @@ func GetRequestIDFromContext(ctx context.Context) string {
 	if requestID == nil {
 		return ""
 	}
-	return requestID.GetValString()
+	return requestID.ValueString()
 }
 
 // GetOrCreateRequestUUIDFromContext returns a UUID that was added
@@ -73,23 +73,23 @@ func GetRequestIDFromContext(ctx context.Context) string {
 // If the context has no requestID attribute
 // then a new random v4 UUID will be returned.
 func GetOrCreateRequestUUIDFromContext(ctx context.Context) [16]byte {
-	requestID, ok := AttribsFromContext(ctx).Get("requestID").(UUID)
+	requestID, ok := AttribsFromContext(ctx).Get("requestID").(*UUID)
 	if !ok {
-		return NewUUID()
+		return UUIDv4()
 	}
-	return requestID.Val
+	return requestID.val
 }
 
 // ContextWithRequestUUID adds the passed requestID as UUID
 // attribute with the key "requestID" to the context.
 func ContextWithRequestUUID(ctx context.Context, requestID [16]byte) context.Context {
-	return ContextWithAttribs(ctx, UUID{Key: "requestID", Val: requestID})
+	return ContextWithAttribs(ctx, NewUUID("requestID", requestID))
 }
 
 // ContextWithRequestID adds the passed requestID as string
 // attribute with the key "requestID" to the context.
 func ContextWithRequestID(ctx context.Context, requestID string) context.Context {
-	return ContextWithAttribs(ctx, String{Key: "requestID", Val: requestID})
+	return ContextWithAttribs(ctx, NewString("requestID", requestID))
 }
 
 // HTTPMiddlewareHandler returns a HTTP middleware handler that passes through a UUID requestID.
@@ -110,7 +110,7 @@ func HTTPMiddlewareHandler(next http.Handler, logger *Logger, level Level, messa
 			requestID := GetOrCreateRequestUUID(request)
 			response.Header().Set("X-Request-ID", FormatUUID(requestID))
 
-			requestWithID := RequestWithAttribs(request, UUID{Key: "requestID", Val: requestID})
+			requestWithID := RequestWithAttribs(request, NewUUID("requestID", requestID))
 
 			logger.NewMessage(request.Context(), level, message).
 				Request(requestWithID, onlyHeaders...).

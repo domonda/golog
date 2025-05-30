@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestAttribs_AppendUnique(t *testing.T) {
+func TestAttribs_CloneAndAppendNonExisting(t *testing.T) {
 	// stringVals := func(valPrefix string, keys ...string) (nv Attribs) {
 	// 	for _, key := range keys {
 	// 		nv = append(nv, Int{Key: key, Val: valPrefix + key})
@@ -26,11 +26,11 @@ func TestAttribs_AppendUnique(t *testing.T) {
 			return false
 		}
 		for i := range left {
-			l, ok := left[i].(Int)
+			l, ok := left[i].(*Int)
 			if !ok {
 				return false
 			}
-			r, ok := right[i].(Int)
+			r, ok := right[i].(*Int)
 			if !ok {
 				return false
 			}
@@ -71,7 +71,7 @@ func TestAttribs_AppendUnique(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := tt.args.left.AppendUnique(tt.args.right...)
+			got := tt.args.left.CloneAndAppendNonExistingCloned(tt.args.right)
 			if !intValsEqual(got, tt.want) {
 				t.Errorf("MergeAttribs() = %v, want %v", got, tt.want)
 			}
@@ -80,14 +80,14 @@ func TestAttribs_AppendUnique(t *testing.T) {
 }
 
 func TestAttribFromContext(t *testing.T) {
-	_, ok := AttribFromContext[Int](context.Background(), "invalid")
+	_, ok := AttribFromContext[*Int](context.Background(), "invalid")
 	require.False(t, ok, "attrib not added to context")
 
-	ctx := ContextWithAttribs(context.Background(), Int{Key: "Int", Val: 1})
-	_, ok = AttribFromContext[Int](ctx, "invalid")
+	ctx := ContextWithAttribs(context.Background(), NewInt("Int", 1))
+	_, ok = AttribFromContext[*Int](ctx, "invalid")
 	require.False(t, ok, "attrib not added to context")
 
-	attrib, ok := AttribFromContext[Int](ctx, "Int")
+	attrib, ok := AttribFromContext[*Int](ctx, "Int")
 	require.True(t, ok, "attrib added to context")
-	require.Equal(t, attrib, Int{Key: "Int", Val: 1})
+	require.Equal(t, attrib, NewInt("Int", 1))
 }

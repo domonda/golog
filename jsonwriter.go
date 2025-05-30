@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"sync"
 	"time"
 
 	"github.com/domonda/go-encjson"
@@ -16,10 +15,9 @@ var (
 )
 
 type JSONWriterConfig struct {
-	writer     io.Writer
-	format     *Format
-	filter     LevelFilter
-	writerPool sync.Pool
+	writer io.Writer
+	format *Format
+	filter LevelFilter
 }
 
 func NewJSONWriterConfig(writer io.Writer, format *Format, filters ...LevelFilter) *JSONWriterConfig {
@@ -40,13 +38,12 @@ func (c *JSONWriterConfig) WriterForNewMessage(ctx context.Context, level Level)
 	if c.filter.IsInactive(ctx, level) {
 		return nil
 	}
-	if w, _ := c.writerPool.Get().(Writer); w != nil {
-		return w
+	w := jsonWriterPool.GetOrNew()
+	w.config = c
+	if w.buf == nil {
+		w.buf = make([]byte, 0, 1024)
 	}
-	return &JSONWriter{
-		config: c,
-		buf:    make([]byte, 0, 1024),
-	}
+	return w
 }
 
 func (c *JSONWriterConfig) FlushUnderlying() {
@@ -93,7 +90,7 @@ func (w *JSONWriter) CommitMessage() {
 
 	// Reset and return to pool
 	w.buf = w.buf[:0]
-	w.config.writerPool.Put(w)
+	jsonWriterPool.ClearAndPutBack(w)
 }
 
 func (w *JSONWriter) String() string {
