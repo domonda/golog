@@ -45,47 +45,48 @@ func newTestLoggerWithPrefix(prefix string) (log *Logger, textOut, jsonOut *byte
 	return NewLoggerWithPrefix(newTestConfig(textOut, jsonOut), prefix), textOut, jsonOut
 }
 
+func checkOutput(t *testing.T, textOut, jsonOut *bytes.Buffer, numMessages int, exptectedTextLine, exptectedJSONLine string) {
+	t.Helper()
+
+	textLines := strings.Split(textOut.String(), "\n")
+	assert.Len(t, textLines, numMessages+1, "strings.Split created empty last line")
+	assert.Equal(t, "", textLines[len(textLines)-1], "strings.Split created empty last line")
+	for _, line := range textLines[:numMessages] {
+		assert.Equal(t, exptectedTextLine, line)
+	}
+
+	jsonLines := strings.Split(jsonOut.String(), "\n")
+	assert.Len(t, jsonLines, numMessages+1, "strings.Split created empty last line")
+	assert.Equal(t, "", jsonLines[len(jsonLines)-1], "strings.Split created empty last line")
+	for _, line := range jsonLines[:numMessages] {
+		assert.Equal(t, exptectedJSONLine, line)
+		jsonObj := []byte(strings.TrimSuffix(line, ","))
+		assert.True(t, json.Valid(jsonObj), "valid JSON message")
+	}
+}
+
 func TestMessage(t *testing.T) {
 	timestamp, _ := time.Parse("2006-01-02 15:04:05", "2006-01-02 15:04:05")
 	ctx := ContextWithTimestamp(context.Background(), timestamp)
 
-	checkOutput := func(textOut, jsonOut *bytes.Buffer, numMessages int, exptectedTextLine, exptectedJSONLine string) {
-		textLines := strings.Split(textOut.String(), "\n")
-		assert.Len(t, textLines, numMessages+1, "strings.Split created empty last line")
-		assert.Equal(t, "", textLines[len(textLines)-1], "strings.Split created empty last line")
-		for _, line := range textLines[:numMessages] {
-			assert.Equal(t, exptectedTextLine, line)
-		}
+	DrainAllMemPools()
+	log, textOut, jsonOut := newTestLogger()
+	infoLevel := log.Config().InfoLevel()
+	mempoolOutput := strings.Builder{}
+	mempool.RegisterCallbacksWriterForTest(t, &mempoolOutput)
+	numMessages := 3
 
-		jsonLines := strings.Split(jsonOut.String(), "\n")
-		assert.Len(t, jsonLines, numMessages+1, "strings.Split created empty last line")
-		assert.Equal(t, "", jsonLines[len(jsonLines)-1], "strings.Split created empty last line")
-		for _, line := range jsonLines[:numMessages] {
-			assert.Equal(t, exptectedJSONLine, line)
-			jsonObj := []byte(strings.TrimSuffix(line, ","))
-			assert.True(t, json.Valid(jsonObj), "valid JSON message")
-		}
+	for i := range numMessages {
+		fmt.Fprintf(&mempoolOutput, "%d:\n", i)
+		log.NewMessage(ctx, infoLevel, "My log message").
+			Exec(writeMessage).
+			Log()
+		assert.Zero(t, mempool.NumOutstanding())
 	}
 
-	t.Run("No sub-loggers", func(t *testing.T) {
-		DrainAllMemPools()
-		log, textOut, jsonOut := newTestLogger()
-		infoLevel := log.Config().InfoLevel()
-		mempoolOutput := strings.Builder{}
-		mempool.RegisterCallbacksWriterForTest(t, &mempoolOutput)
-		numMessages := 3
+	checkOutput(t, textOut, jsonOut, numMessages, exptectedTextMessage, exptectedJSONMessage)
 
-		for i := range numMessages {
-			fmt.Fprintf(&mempoolOutput, "%d:\n", i)
-			log.NewMessage(ctx, infoLevel, "My log message").
-				Exec(writeMessage).
-				Log()
-			mempool.AssertNoOutstanding(t) // No outstanding mempool items after writing message
-		}
-
-		checkOutput(textOut, jsonOut, numMessages, exptectedTextMessage, exptectedJSONMessage)
-
-		exptectedMempoolOutput := `0:
+	exptectedMempoolOutput := `0:
 Allocated []golog.Writer len:0 cap:4
 Allocated *golog.TextWriter
 Allocated *golog.JSONWriter
@@ -113,8 +114,12 @@ Returned *golog.JSONWriter
 Returned []golog.Writer
 Returned *golog.Message
 `
-		assert.Equal(t, exptectedMempoolOutput, mempoolOutput.String())
-	})
+	assert.Equal(t, exptectedMempoolOutput, mempoolOutput.String())
+}
+
+func TestMessageSubLogger(t *testing.T) {
+	timestamp, _ := time.Parse("2006-01-02 15:04:05", "2006-01-02 15:04:05")
+	ctx := ContextWithTimestamp(context.Background(), timestamp)
 
 	t.Run("Sub-logger", func(t *testing.T) {
 		DrainAllMemPools()
@@ -136,17 +141,17 @@ Returned *golog.Message
 				Log()
 		}
 
-		checkOutput(textOut, jsonOut, numMessages, exptectedTextMessageSub, exptectedJSONMessageSub)
+		checkOutput(t, textOut, jsonOut, numMessages, exptectedTextMessageSub, exptectedJSONMessageSub)
 
 		fmt.Fprintf(&mempoolOutput, "RemoveAttribs:\n")
 		subLog.RemoveAttribs()
 		// No outstanding mempool items after writing messages
 		// and removeing the attribs from the sub-logger
-		mempool.AssertNoOutstanding(t)
+		assert.Zero(t, mempool.NumOutstanding())
 
 		exptectedMempoolOutput := `Allocated *golog.Message
 Allocated *golog.String
-Allocated []golog.Attrib len:1 cap:8
+Allocated []golog.Attrib len:1 cap:16
 Allocated *golog.Strings
 Allocated *golog.Nil
 Returned *golog.Message
@@ -155,7 +160,7 @@ Allocated []golog.Writer len:0 cap:4
 Allocated *golog.TextWriter
 Allocated *golog.JSONWriter
 Reused *golog.Message
-Allocated []golog.Attrib len:3 cap:8
+Allocated []golog.Attrib len:3 cap:16
 Allocated *golog.String
 Allocated *golog.Strings
 Allocated *golog.Nil
@@ -237,7 +242,7 @@ Returned []golog.Attrib
 				Log()
 		}
 
-		checkOutput(textOut, jsonOut, numMessages, exptectedTextMessageSubSub, exptectedJSONMessageSubSub)
+		checkOutput(t, textOut, jsonOut, numMessages, exptectedTextMessageSubSub, exptectedJSONMessageSubSub)
 
 		fmt.Fprintf(&mempoolOutput, "RemoveAttribs:\n")
 		subSubSubLog.RemoveAttribs()
@@ -245,20 +250,20 @@ Returned []golog.Attrib
 		subLog.RemoveAttribs()
 		// No outstanding mempool items after writing messages
 		// and removeing the attribs from the sub-loggers
-		mempool.AssertNoOutstanding(t)
+		assert.Zero(t, mempool.NumOutstanding())
 
 		exptectedMempoolOutput := `Allocated *golog.Message
 Allocated *golog.UUID
-Allocated []golog.Attrib len:1 cap:8
+Allocated []golog.Attrib len:1 cap:16
 Returned *golog.Message
-Allocated []golog.Attrib len:1 cap:8
+Allocated []golog.Attrib len:1 cap:16
 Allocated *golog.UUID
 Reused *golog.Message
 Allocated *golog.String
 Allocated *golog.Strings
 Allocated *golog.Nil
 Returned *golog.Message
-Allocated []golog.Attrib len:4 cap:8
+Allocated []golog.Attrib len:4 cap:16
 Allocated *golog.UUID
 Allocated *golog.String
 Allocated *golog.Strings
@@ -270,7 +275,7 @@ Allocated []golog.Writer len:0 cap:4
 Allocated *golog.TextWriter
 Allocated *golog.JSONWriter
 Reused *golog.Message
-Allocated []golog.Attrib len:4 cap:8
+Allocated []golog.Attrib len:4 cap:16
 Allocated *golog.UUID
 Allocated *golog.String
 Allocated *golog.Strings
@@ -318,6 +323,110 @@ Returned *golog.UUID
 Returned []golog.Attrib
 `
 		// t.Fatal(mempoolOutput.String()) // Debug mempoolOutput
+		assert.Equal(t, exptectedMempoolOutput, mempoolOutput.String())
+	})
+}
+
+func TestMessageSubLoggerContext(t *testing.T) {
+	timestamp, _ := time.Parse("2006-01-02 15:04:05", "2006-01-02 15:04:05")
+	ctx := ContextWithTimestamp(context.Background(), timestamp)
+
+	t.Run("Sub-logger-context", func(t *testing.T) {
+		DrainAllMemPools()
+		log, textOut, jsonOut := newTestLogger()
+		infoLevel := log.Config().InfoLevel()
+		mempoolOutput := strings.Builder{}
+		mempool.RegisterCallbacksWriterForTest(t, &mempoolOutput)
+		numMessages := 3
+
+		subLog, ctx := log.With().
+			Str("SuperStr", "SuperStr").
+			Strs("SuperStrs", []string{"A", "B", "C"}).
+			IntPtr("SuperNilInt", nil).
+			SubLoggerContext(ctx)
+		for i := range numMessages {
+			fmt.Fprintf(&mempoolOutput, "%d:\n", i)
+			subLog.NewMessage(ctx, infoLevel, "My log message").
+				Exec(writeMessage).
+				Log()
+		}
+
+		checkOutput(t, textOut, jsonOut, numMessages, exptectedTextMessageSub, exptectedJSONMessageSub)
+
+		fmt.Fprintf(&mempoolOutput, "RemoveAttribs:\n")
+		subLog.RemoveAttribs()
+		// 4 outstanding mempool items that have been added to the context
+		// and not returned to the pool
+		assert.Equal(t, 4, mempool.NumOutstanding())
+
+		exptectedMempoolOutput := `Allocated *golog.Message
+Allocated *golog.String
+Allocated []golog.Attrib len:1 cap:16
+Allocated *golog.Strings
+Allocated *golog.Nil
+Allocated []golog.Attrib len:3 cap:16
+Allocated *golog.String
+Allocated *golog.Strings
+Allocated *golog.Nil
+Returned *golog.Message
+0:
+Allocated []golog.Writer len:0 cap:4
+Allocated *golog.TextWriter
+Allocated *golog.JSONWriter
+Reused *golog.Message
+Allocated []golog.Attrib len:3 cap:16
+Allocated *golog.String
+Allocated *golog.Strings
+Allocated *golog.Nil
+Returned *golog.TextWriter
+Returned *golog.JSONWriter
+Returned []golog.Writer
+Returned *golog.String
+Returned *golog.Strings
+Returned *golog.Nil
+Returned []golog.Attrib
+Returned *golog.Message
+1:
+Reused []golog.Writer len:0 cap:2
+Reused *golog.TextWriter
+Reused *golog.JSONWriter
+Reused *golog.Message
+Reused []golog.Attrib len:3 cap:3
+Reused *golog.String
+Reused *golog.Strings
+Reused *golog.Nil
+Returned *golog.TextWriter
+Returned *golog.JSONWriter
+Returned []golog.Writer
+Returned *golog.String
+Returned *golog.Strings
+Returned *golog.Nil
+Returned []golog.Attrib
+Returned *golog.Message
+2:
+Reused []golog.Writer len:0 cap:2
+Reused *golog.TextWriter
+Reused *golog.JSONWriter
+Reused *golog.Message
+Reused []golog.Attrib len:3 cap:3
+Reused *golog.String
+Reused *golog.Strings
+Reused *golog.Nil
+Returned *golog.TextWriter
+Returned *golog.JSONWriter
+Returned []golog.Writer
+Returned *golog.String
+Returned *golog.Strings
+Returned *golog.Nil
+Returned []golog.Attrib
+Returned *golog.Message
+RemoveAttribs:
+Returned *golog.String
+Returned *golog.Strings
+Returned *golog.Nil
+Returned []golog.Attrib
+`
+		// t.Fatal(mempoolOutput.String())
 		assert.Equal(t, exptectedMempoolOutput, mempoolOutput.String())
 	})
 }

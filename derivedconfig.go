@@ -45,6 +45,9 @@ func ConfigWithAdditionalWriterConfigs(parent *Config, configs ...WriterConfig) 
 	if parent == nil || *parent == nil {
 		panic("golog.DerivedConfig parent must not be nil")
 	}
+	if len(configs) == 0 {
+		return *parent
+	}
 	configs, changed := uniqueNonNilWriterConfigs(append((*parent).WriterConfigs(), configs...))
 	if !changed {
 		// No change, so return the parent config

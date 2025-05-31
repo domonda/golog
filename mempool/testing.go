@@ -57,12 +57,14 @@ func RegisterCallbacksWriterForTest(t *testing.T, w io.Writer) {
 	}
 }
 
-func AssertNoOutstanding(t *testing.T) {
-	t.Helper()
-
-	for typ, num := range numOutstanding {
-		if num != 0 {
-			t.Errorf("%d outstanding %s", num, typ)
-		}
+// NumOutstanding returns the number of outstanding mempool items.
+// This is useful for testing to ensure that all mempool items are returned.
+// The number can be negative if items are returned multiple times.
+// This function is not thread-safe.
+func NumOutstanding() int {
+	total := 0
+	for _, num := range numOutstanding {
+		total += num
 	}
+	return total
 }

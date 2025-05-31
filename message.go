@@ -81,16 +81,17 @@ func (m *Message) SubLoggerContext(ctx context.Context) (*Logger, context.Contex
 		// Message was not created by Logger.With() for recording attribs
 		// which isn't how it should be used, so return the original logger
 		// and don't put the message back into the pool
-		return m.logger, ctx
+		return m.logger, m.attribs.AddToContext(ctx)
 	}
 
-	subLog := m.SubLogger()
+	configFromCtx := WriterConfigsFromContext(ctx)
 
-	if ctxConf := WriterConfigsFromContext(ctx); len(ctxConf) > 0 {
-		subLog.config = ConfigWithAdditionalWriterConfigs(&subLog.config, ctxConf...)
-	}
+	ctxWithAttribs := m.attribs.AddToContext(ctx)
 
-	return subLog, m.attribs.AddToContext(ctx)
+	subLog := m.SubLogger() // Puts the message back into the pool
+	subLog.config = ConfigWithAdditionalWriterConfigs(&subLog.config, configFromCtx...)
+
+	return subLog, ctxWithAttribs
 }
 
 // SubContext returns a new context with recorded per message attribs
