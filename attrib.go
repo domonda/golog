@@ -706,12 +706,17 @@ type UUID struct {
 
 // NewUUID creates a new UUID attribute with the passed key and value.
 //
-// See UUIDv4 for creating a new random UUID value.
+// See NewUUIDv4 and UUIDv4 for creating a new random UUID value.
 func NewUUID(key string, val [16]byte) *UUID {
 	a := uuidPool.GetOrNew()
 	a.key = key
 	a.val = val
 	return a
+}
+
+// NewUUIDv4 creates a new UUID attribute with the passed key and a random version 4 UUID value.
+func NewUUIDv4(key string) *UUID {
+	return NewUUID(key, UUIDv4())
 }
 
 func (a *UUID) Clone() Attrib {

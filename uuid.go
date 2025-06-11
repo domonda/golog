@@ -8,7 +8,7 @@ import (
 	"reflect"
 )
 
-// UUIDv4 returns a new version 4 UUID
+// UUIDv4 returns a random version 4 UUID
 func UUIDv4() [16]byte {
 	var id [16]byte
 	_, err := rand.Read(id[:])
