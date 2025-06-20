@@ -26,6 +26,7 @@ func TestNewNamedPackageLogger(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Cleanup(PackageRegistry.Clear)
 			if got := NewNamedPackageLogger(tt.args.pkgName, tt.args.filters...); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("NewNamedPackageLogger() = %#v, want %#v", got, tt.want)
 			}
@@ -33,11 +34,10 @@ func TestNewNamedPackageLogger(t *testing.T) {
 	}
 }
 
-var testPackageLogger = NewPackageLogger()
-
 func TestNewPackageLogger(t *testing.T) {
 	t.Run("var testPackageLogger", func(t *testing.T) {
 		t.Cleanup(PackageRegistry.Clear)
+		testPackageLogger := NewPackageLogger()
 		if got := testPackageLogger.Prefix(); got != "log" {
 			log.Fatalf(`testPackageLogger.Prefix() = %q, want "log"`, got)
 		}

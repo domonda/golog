@@ -61,10 +61,7 @@ func CallingFunction(skipFrames ...int) string {
 		skip += n
 	}
 	var stack [1]uintptr
-	n := runtime.Callers(skip, stack[:])
-	if n == 0 {
-		return "" // Should never happen, but better safe than sorry because of a panic
-	}
+	runtime.Callers(skip, stack[:])
 	return runtime.FuncForPC(stack[0]).Name()
 }
 
@@ -79,10 +76,7 @@ func CallingFunctionName(skipFrames ...int) string {
 		skip += n
 	}
 	var stack [1]uintptr
-	n := runtime.Callers(skip, stack[:])
-	if n == 0 {
-		return "" // Should never happen, but better safe than sorry because of a panic
-	}
+	runtime.Callers(skip, stack[:])
 	name := runtime.FuncForPC(stack[0]).Name()
 	return name[strings.LastIndex(name, ".")+1:]
 }
@@ -102,4 +96,19 @@ func CallingFunctionPackageName(skipFrames ...int) string {
 	name := runtime.FuncForPC(stack[0]).Name()
 	name = name[strings.LastIndexByte(name, '/')+1:]
 	return name[:strings.IndexByte(name, '.')]
+}
+
+// CallingFunctionPackagePath returns the import path of the calling function.
+//
+// The sum of the optional skipFrames
+// callstack frames will be skipped.
+func CallingFunctionPackagePath(skipFrames ...int) string {
+	skip := 2 // This function plus runtime.Callers
+	for _, n := range skipFrames {
+		skip += n
+	}
+	var stack [1]uintptr
+	runtime.Callers(skip, stack[:])
+	name := runtime.FuncForPC(stack[0]).Name()
+	return name[:strings.LastIndexByte(name, '.')]
 }

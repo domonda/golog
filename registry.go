@@ -1,9 +1,7 @@
 package golog
 
 import (
-	"runtime"
 	"sort"
-	"strings"
 	"sync"
 )
 
@@ -14,7 +12,7 @@ type Registry struct {
 	pkgPathConfigs map[string]*DerivedConfig
 }
 
-func (r *Registry) AddPackageConfig(pkgName string, config *DerivedConfig) (pkgPath string) {
+func (r *Registry) AddPackageConfig(pkgPath, pkgName string, config *DerivedConfig) {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 
@@ -24,24 +22,20 @@ func (r *Registry) AddPackageConfig(pkgName string, config *DerivedConfig) (pkgP
 		r.pkgPathConfigs = make(map[string]*DerivedConfig)
 	}
 
-	pkgPath = getCallingPackageImportPath(2)
-
 	if _, exists := r.pkgNameConfigs[pkgName]; exists {
 		// Panicing because AddPackageConfig is one time global
 		// setup before any other error handlers
-		panic("package name config already added: " + pkgName)
+		panic("config for package name already added: " + pkgName)
 	}
 	if _, exists := r.pkgPathConfigs[pkgPath]; exists {
 		// Panicing because AddPackageConfig is one time global
 		// setup before any other error handlers
-		panic("package path config already added: " + pkgPath)
+		panic("config for package path already added: " + pkgPath)
 	}
 
 	r.pkgPathNames[pkgPath] = pkgName
 	r.pkgNameConfigs[pkgName] = config
 	r.pkgPathConfigs[pkgPath] = config
-
-	return pkgPath
 }
 
 func (r *Registry) ConfigOrNilByPackageName(pkgName string) *DerivedConfig {
@@ -82,15 +76,4 @@ func (r *Registry) Clear() {
 	clear(r.pkgPathNames)
 	clear(r.pkgNameConfigs)
 	clear(r.pkgPathConfigs)
-}
-
-func getCallingPackageImportPath(skip int) string {
-	stack := make([]uintptr, 1)
-	num := runtime.Callers(skip+2, stack)
-	if num != len(stack) {
-		panic("insufficient call stack")
-	}
-	frame, _ := runtime.CallersFrames(stack).Next()
-	name := frame.Func.Name()
-	return name[:strings.LastIndexByte(name, '.')]
 }
