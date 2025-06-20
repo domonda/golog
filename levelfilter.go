@@ -79,8 +79,8 @@ func (f LevelFilter) IsActive(_ context.Context, level Level) bool {
 }
 
 // IsInactive is the inverse of IsActive.
-func (f LevelFilter) IsInactive(_ context.Context, level Level) bool {
-	return !f.IsActive(nil, level)
+func (f LevelFilter) IsInactive(ctx context.Context, level Level) bool {
+	return !f.IsActive(ctx, level)
 }
 
 func (f *LevelFilter) SetActive(level Level, active bool) {
@@ -101,7 +101,7 @@ func (f *LevelFilter) SetActive(level Level, active bool) {
 func (f *LevelFilter) ActiveLevelNames(levels *Levels) []string {
 	var names []string
 	for l := LevelMin; l <= LevelMax; l++ {
-		if levels.HasName(l) && f.IsActive(nil, l) {
+		if levels.HasName(l) && f.IsActive(context.Background(), l) {
 			names = append(names, levels.Name(l))
 		}
 	}
@@ -111,7 +111,7 @@ func (f *LevelFilter) ActiveLevelNames(levels *Levels) []string {
 func (f *LevelFilter) InactiveLevelNames(levels *Levels) []string {
 	var names []string
 	for l := LevelMin; l <= LevelMax; l++ {
-		if levels.HasName(l) && !f.IsActive(nil, l) {
+		if levels.HasName(l) && !f.IsActive(context.Background(), l) {
 			names = append(names, levels.Name(l))
 		}
 	}
