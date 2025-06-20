@@ -16,7 +16,7 @@ var (
 	AddImportPathToPackageLogger = false
 )
 
-// NewPackageLogger creates a logger for a package
+// NewNamedPackageLogger creates a logger for a package
 // where every log message will be prefixed with pkgName.
 // Note that pkgName is the name, not the import path of the package.
 // It still has to be unique for all package loggers because
@@ -29,9 +29,9 @@ var (
 // instead of anything passed for filters.
 // If AddImportPathToPackageLogger is true, then the package import path
 // will be logged as value "pkg" with every message.
-func NewPackageLogger(pkgName string, filters ...golog.LevelFilter) *golog.Logger {
+func NewNamedPackageLogger(pkgName string, filters ...golog.LevelFilter) *golog.Logger {
 	if pkgName == "" {
-		panic("empty pkgName passed to NewPackageLogger")
+		panic("empty pkgName passed to NewNamedPackageLogger")
 	}
 
 	if levelName := os.Getenv("LOG_LEVEL_PKG_" + pkgName); levelName != "" {
@@ -48,4 +48,9 @@ func NewPackageLogger(pkgName string, filters ...golog.LevelFilter) *golog.Logge
 		logger = logger.With().Str("pkg", pkgPath).SubLogger()
 	}
 	return logger
+}
+
+func NewPackageLogger(filters ...golog.LevelFilter) *golog.Logger {
+	pkgName := golog.CallingFunctionPackageName(1)
+	return NewNamedPackageLogger(pkgName, filters...)
 }

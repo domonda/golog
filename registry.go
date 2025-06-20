@@ -76,6 +76,14 @@ func (r *Registry) PackagesSortedByName() (paths, names []string) {
 	return paths, names
 }
 
+func (r *Registry) Clear() {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+	clear(r.pkgPathNames)
+	clear(r.pkgNameConfigs)
+	clear(r.pkgPathConfigs)
+}
+
 func getCallingPackageImportPath(skip int) string {
 	stack := make([]uintptr, 1)
 	num := runtime.Callers(skip+2, stack)

@@ -52,25 +52,54 @@ func callstack(skip int) string {
 
 // CallingFunction returns the fully qualified name
 // including the package import path of the calling function.
-func CallingFunction() string {
-	stack := make([]uintptr, 1)
-	n := runtime.Callers(2, stack)
+//
+// The sum of the optional skipFrames
+// callstack frames will be skipped.
+func CallingFunction(skipFrames ...int) string {
+	skip := 2 // This function plus runtime.Callers
+	for _, n := range skipFrames {
+		skip += n
+	}
+	var stack [1]uintptr
+	n := runtime.Callers(skip, stack[:])
 	if n == 0 {
-		// Should never happen, but better safe than sory because of a panic
-		return "UNKNOWN"
+		return "" // Should never happen, but better safe than sorry because of a panic
 	}
 	return runtime.FuncForPC(stack[0]).Name()
 }
 
 // CallingFunctionName returns the name of the calling function
-// without the package name prefix.
-func CallingFunctionName() string {
-	stack := make([]uintptr, 1)
-	n := runtime.Callers(2, stack)
+// without the package prefix.
+//
+// The sum of the optional skipFrames
+// callstack frames will be skipped.
+func CallingFunctionName(skipFrames ...int) string {
+	skip := 2 // This function plus runtime.Callers
+	for _, n := range skipFrames {
+		skip += n
+	}
+	var stack [1]uintptr
+	n := runtime.Callers(skip, stack[:])
 	if n == 0 {
-		// Should never happen, but better safe than sory because of a panic
-		return "UNKNOWN"
+		return "" // Should never happen, but better safe than sorry because of a panic
 	}
 	name := runtime.FuncForPC(stack[0]).Name()
 	return name[strings.LastIndex(name, ".")+1:]
+}
+
+// CallingFunctionPackageName returns the name of the calling function
+// without the package prefix.
+//
+// The sum of the optional skipFrames
+// callstack frames will be skipped.
+func CallingFunctionPackageName(skipFrames ...int) string {
+	skip := 2 // This function plus runtime.Callers
+	for _, n := range skipFrames {
+		skip += n
+	}
+	var stack [1]uintptr
+	runtime.Callers(skip, stack[:])
+	name := runtime.FuncForPC(stack[0]).Name()
+	name = name[strings.LastIndexByte(name, '/')+1:]
+	return name[:strings.IndexByte(name, '.')]
 }
