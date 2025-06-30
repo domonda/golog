@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -240,6 +241,10 @@ func NewBools(key string, vals []bool) *Bools {
 	return a
 }
 
+func NewBoolsCopy(key string, vals []bool) *Bools {
+	return NewBools(key, slices.Clone(vals))
+}
+
 func (a *Bools) Clone() Attrib {
 	return NewBools(a.key, a.vals)
 }
@@ -320,6 +325,17 @@ func NewInts(key string, vals []int64) *Ints {
 	a.key = key
 	a.vals = vals
 	return a
+}
+
+func NewIntsCopy[T ~int | ~int8 | ~int16 | ~int32 | ~int64](key string, vals []T) *Ints {
+	if vals == nil {
+		return NewInts(key, nil)
+	}
+	ints := make([]int64, len(vals))
+	for i, val := range vals {
+		ints[i] = int64(val)
+	}
+	return NewInts(key, ints)
 }
 
 func (a *Ints) Clone() Attrib {
@@ -404,6 +420,17 @@ func NewUints(key string, vals []uint64) *Uints {
 	return a
 }
 
+func NewUintsCopy[T ~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64](key string, vals []T) *Uints {
+	if vals == nil {
+		return NewUints(key, nil)
+	}
+	uints := make([]uint64, len(vals))
+	for i, val := range vals {
+		uints[i] = uint64(val)
+	}
+	return NewUints(key, uints)
+}
+
 func (a *Uints) Clone() Attrib {
 	return NewUints(a.key, a.vals)
 }
@@ -486,6 +513,17 @@ func NewFloats(key string, vals []float64) *Floats {
 	return a
 }
 
+func NewFloatsCopy[T ~float32 | ~float64](key string, vals []T) *Floats {
+	if vals == nil {
+		return NewFloats(key, nil)
+	}
+	floats := make([]float64, len(vals))
+	for i, val := range vals {
+		floats[i] = float64(val)
+	}
+	return NewFloats(key, floats)
+}
+
 func (a *Floats) Clone() Attrib {
 	return NewFloats(a.key, a.vals)
 }
@@ -565,6 +603,17 @@ func NewStrings(key string, vals []string) *Strings {
 	a.key = key
 	a.vals = vals
 	return a
+}
+
+func NewStringsCopy[T ~string](key string, vals []T) *Strings {
+	if vals == nil {
+		return NewStrings(key, nil)
+	}
+	strings := make([]string, len(vals))
+	for i, val := range vals {
+		strings[i] = string(val)
+	}
+	return NewStrings(key, strings)
 }
 
 func (a *Strings) Clone() Attrib {
@@ -655,6 +704,10 @@ func NewErrors(key string, vals []error) *Errors {
 	a.key = key
 	a.vals = vals
 	return a
+}
+
+func NewErrorsCopy(key string, vals []error) *Errors {
+	return NewErrors(key, slices.Clone(vals))
 }
 
 func (a *Errors) Clone() Attrib {
@@ -754,6 +807,17 @@ func NewUUIDs(key string, vals [][16]byte) *UUIDs {
 	a.key = key
 	a.vals = vals
 	return a
+}
+
+func NewUUIDsCopy[T ~[16]byte](key string, vals []T) *UUIDs {
+	if vals == nil {
+		return NewUUIDs(key, nil)
+	}
+	uuids := make([][16]byte, len(vals))
+	for i, val := range vals {
+		uuids[i] = val
+	}
+	return NewUUIDs(key, uuids)
 }
 
 func (a *UUIDs) Clone() Attrib {

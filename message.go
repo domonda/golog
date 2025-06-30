@@ -10,7 +10,6 @@ import (
 	"go/token"
 	"net/http"
 	"reflect"
-	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -163,7 +162,7 @@ func (m *Message) Errors(key string, vals []error) *Message {
 		return m
 	}
 	if m.IsAttribRecorder() {
-		m.attribs.Add(NewErrors(key, vals))
+		m.attribs.Add(NewErrorsCopy(key, vals))
 		return m
 	}
 	for _, w := range m.writers {
@@ -481,7 +480,7 @@ func (m *Message) Bools(key string, vals []bool) *Message {
 		return m
 	}
 	if m.IsAttribRecorder() {
-		m.attribs.Add(NewBools(key, slices.Clone(vals)))
+		m.attribs.Add(NewBoolsCopy(key, vals))
 		return m
 	}
 	for _, w := range m.writers {
@@ -521,11 +520,7 @@ func (m *Message) Ints(key string, vals []int) *Message {
 		return m
 	}
 	if m.IsAttribRecorder() {
-		valsCpy := make([]int64, len(vals))
-		for i, val := range vals {
-			valsCpy[i] = int64(val)
-		}
-		m.attribs.Add(NewInts(key, valsCpy))
+		m.attribs.Add(NewIntsCopy(key, vals))
 		return m
 	}
 	for _, w := range m.writers {
@@ -565,11 +560,7 @@ func (m *Message) Int8s(key string, vals []int8) *Message {
 		return m
 	}
 	if m.IsAttribRecorder() {
-		valsCpy := make([]int64, len(vals))
-		for i, val := range vals {
-			valsCpy[i] = int64(val)
-		}
-		m.attribs.Add(NewInts(key, valsCpy))
+		m.attribs.Add(NewIntsCopy(key, vals))
 		return m
 	}
 	for _, w := range m.writers {
@@ -609,11 +600,7 @@ func (m *Message) Int16s(key string, vals []int16) *Message {
 		return m
 	}
 	if m.IsAttribRecorder() {
-		valsCpy := make([]int64, len(vals))
-		for i, val := range vals {
-			valsCpy[i] = int64(val)
-		}
-		m.attribs.Add(NewInts(key, valsCpy))
+		m.attribs.Add(NewIntsCopy(key, vals))
 		return m
 	}
 	for _, w := range m.writers {
@@ -653,11 +640,7 @@ func (m *Message) Int32s(key string, vals []int32) *Message {
 		return m
 	}
 	if m.IsAttribRecorder() {
-		valsCpy := make([]int64, len(vals))
-		for i, val := range vals {
-			valsCpy[i] = int64(val)
-		}
-		m.attribs.Add(NewInts(key, valsCpy))
+		m.attribs.Add(NewIntsCopy(key, vals))
 		return m
 	}
 	for _, w := range m.writers {
@@ -697,7 +680,7 @@ func (m *Message) Int64s(key string, vals []int64) *Message {
 		return m
 	}
 	if m.IsAttribRecorder() {
-		m.attribs.Add(NewInts(key, slices.Clone(vals)))
+		m.attribs.Add(NewIntsCopy(key, vals))
 		return m
 	}
 	for _, w := range m.writers {
@@ -737,11 +720,7 @@ func (m *Message) Uints(key string, vals []uint) *Message {
 		return m
 	}
 	if m.IsAttribRecorder() {
-		valsCpy := make([]uint64, len(vals))
-		for i, val := range vals {
-			valsCpy[i] = uint64(val)
-		}
-		m.attribs.Add(NewUints(key, valsCpy))
+		m.attribs.Add(NewUintsCopy(key, vals))
 		return m
 	}
 	for _, w := range m.writers {
@@ -781,11 +760,7 @@ func (m *Message) Uint8s(key string, vals []uint8) *Message {
 		return m
 	}
 	if m.IsAttribRecorder() {
-		valsCpy := make([]uint64, len(vals))
-		for i, val := range vals {
-			valsCpy[i] = uint64(val)
-		}
-		m.attribs.Add(NewUints(key, valsCpy))
+		m.attribs.Add(NewUintsCopy(key, vals))
 		return m
 	}
 	for _, w := range m.writers {
@@ -825,11 +800,7 @@ func (m *Message) Uint16s(key string, vals []uint16) *Message {
 		return m
 	}
 	if m.IsAttribRecorder() {
-		valsCpy := make([]uint64, len(vals))
-		for i, val := range vals {
-			valsCpy[i] = uint64(val)
-		}
-		m.attribs.Add(NewUints(key, valsCpy))
+		m.attribs.Add(NewUintsCopy(key, vals))
 		return m
 	}
 	for _, w := range m.writers {
@@ -869,11 +840,7 @@ func (m *Message) Uint32s(key string, vals []uint32) *Message {
 		return m
 	}
 	if m.IsAttribRecorder() {
-		valsCpy := make([]uint64, len(vals))
-		for i, val := range vals {
-			valsCpy[i] = uint64(val)
-		}
-		m.attribs.Add(NewUints(key, valsCpy))
+		m.attribs.Add(NewUintsCopy(key, vals))
 		return m
 	}
 	for _, w := range m.writers {
@@ -913,7 +880,7 @@ func (m *Message) Uint64s(key string, vals []uint64) *Message {
 		return m
 	}
 	if m.IsAttribRecorder() {
-		m.attribs.Add(NewUints(key, slices.Clone(vals)))
+		m.attribs.Add(NewUintsCopy(key, vals))
 		return m
 	}
 	for _, w := range m.writers {
@@ -953,11 +920,7 @@ func (m *Message) Float32s(key string, vals []float32) *Message {
 		return m
 	}
 	if m.IsAttribRecorder() {
-		valsCpy := make([]float64, len(vals))
-		for i, val := range vals {
-			valsCpy[i] = float64(val)
-		}
-		m.attribs.Add(NewFloats(key, valsCpy))
+		m.attribs.Add(NewFloatsCopy(key, vals))
 		return m
 	}
 	for _, w := range m.writers {
@@ -998,7 +961,7 @@ func (m *Message) Floats(key string, vals []float64) *Message {
 		return m
 	}
 	if m.IsAttribRecorder() {
-		m.attribs.Add(NewFloats(key, slices.Clone(vals)))
+		m.attribs.Add(NewFloatsCopy(key, vals))
 		return m
 	}
 	for _, w := range m.writers {
@@ -1038,7 +1001,7 @@ func (m *Message) Strs(key string, vals []string) *Message {
 		return m
 	}
 	if m.IsAttribRecorder() {
-		m.attribs.Add(NewStrings(key, slices.Clone(vals)))
+		m.attribs.Add(NewStringsCopy(key, vals))
 		return m
 	}
 	for _, w := range m.writers {
@@ -1160,7 +1123,7 @@ func (m *Message) UUIDs(key string, vals [][16]byte) *Message {
 		return m
 	}
 	if m.IsAttribRecorder() {
-		m.attribs.Add(NewUUIDs(key, slices.Clone(vals)))
+		m.attribs.Add(NewUUIDsCopy(key, vals))
 		return m
 	}
 	for _, w := range m.writers {
