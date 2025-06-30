@@ -7,7 +7,7 @@ require (
 	github.com/mattn/go-isatty v0.0.20
 	github.com/muesli/termenv v0.16.0
 	github.com/stretchr/testify v1.10.0
-	github.com/ungerik/go-fs v0.0.0-20250527162931-1691110c1708
+	github.com/ungerik/go-fs v0.0.0-20250625190701-a26b03a1a7ca
 )
 
 require (
