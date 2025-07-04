@@ -20,7 +20,7 @@ var (
 )
 
 const (
-	nopWriter golog.NopWriter = "logsentry.nopWriter"
+	nopWriter golog.NopWriter = "logsentry.nopWriter" //#nosec G101 -- not a credential
 )
 
 // ContextWithoutLogging returns a new context with

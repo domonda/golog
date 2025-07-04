@@ -17,13 +17,13 @@ const (
 type LevelFilter uint64
 
 func LevelFilterOut(level Level) LevelFilter {
-	levelBitIndex := LevelFilter(level + 32)  // LevelMin is -32
+	levelBitIndex := LevelFilter(level + 32)  //#nosec G115 -- integer conversion OK: LevelMin is -32
 	filter := LevelFilter(1) << levelBitIndex // Set bit with levelBitIndex
 	return filter
 }
 
 func LevelFilterOutBelow(level Level) LevelFilter {
-	levelBitIndex := LevelFilter(level + 32)  // LevelMin is -32
+	levelBitIndex := LevelFilter(level + 32)  //#nosec G115 -- integer conversion OK: LevelMin is -32
 	filter := LevelFilter(1) << levelBitIndex // Set bit with levelBitIndex
 	filter -= 1                               // Set all bits below levelBitIndex
 	// fmt.Printf("LevelFilter: %b\n", filter)
@@ -31,7 +31,7 @@ func LevelFilterOutBelow(level Level) LevelFilter {
 }
 
 func LevelFilterOutAbove(level Level) LevelFilter {
-	levelBitIndex := LevelFilter(level + 32)        // LevelMin is -32
+	levelBitIndex := LevelFilter(level + 32)        //#nosec G115 -- integer conversion OK: LevelMin is -32
 	filter := LevelFilter(1) << (levelBitIndex + 1) // Set bit with levelBitIndex+1
 	filter -= 1                                     // Set all bits below levelBitIndex+1 which includes levelBitIndex
 	filter = ^filter                                // Inverse bits, now levelBitIndex and below are not set
@@ -40,7 +40,7 @@ func LevelFilterOutAbove(level Level) LevelFilter {
 }
 
 func LevelFilterOutAllOther(level Level) LevelFilter {
-	levelBitIndex := LevelFilter(level + 32)  // LevelMin is -32
+	levelBitIndex := LevelFilter(level + 32)  //#nosec G115 -- integer conversion OK: LevelMin is -32
 	filter := LevelFilter(1) << levelBitIndex // Set bit with levelBitIndex
 	filter = ^filter                          // Inverse bits, now all bits except levelBitIndex are set
 	// fmt.Printf("LevelFilter: %b\n", filter)
@@ -72,7 +72,7 @@ func (f LevelFilter) IsActive(_ context.Context, level Level) bool {
 	if level < LevelMin || level > LevelMax {
 		return false
 	}
-	levelBitIndex := LevelFilter(level + 32) // LevelMin is -32
+	levelBitIndex := LevelFilter(level + 32) //#nosec G115 -- integer conversion OK: LevelMin is -32
 	levelBitMask := LevelFilter(1) << levelBitIndex
 	// level is active when bit at levelBitIndex is zero
 	return (f & levelBitMask) == 0
@@ -87,7 +87,7 @@ func (f *LevelFilter) SetActive(level Level, active bool) {
 	if level < LevelMin || level > LevelMax {
 		return
 	}
-	levelBitIndex := LevelFilter(level + 32) // LevelMin is -32
+	levelBitIndex := LevelFilter(level + 32) //#nosec G115 -- integer conversion OK: LevelMin is -32
 	levelBitMask := LevelFilter(1) << levelBitIndex
 	if active {
 		// Don't filter out level by zeroing bit levelBitIndex

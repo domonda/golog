@@ -93,7 +93,7 @@ func (l *Levels) LevelOfName(name string) Level {
 		}
 	}
 	if i, err := strconv.Atoi(name); err == nil && i >= int(LevelMin) && i <= int(LevelMax) {
-		return Level(i)
+		return Level(i) //#nosec G115 -- integer conversion OK: LevelMin is -32
 	}
 	return LevelInvalid
 }

@@ -163,13 +163,13 @@ func HTTPMiddlewareRespondPlaintextCtxLogsIfNotOK(wrapped http.Handler, filter .
 			// In case of an error respond with the recorded logs
 			response.Header().Set("Content-Type", "text/plain; charset=utf-8")
 			response.Header().Set("X-Content-Type-Options", "nosniff")
-			response.Write(logBuffer.Bytes())
+			_, _ = response.Write(logBuffer.Bytes())
 
 			// Also respond with the recorded response body if it is text
 			ct := responseRecorder.Header().Get("Content-Type")
 			if strings.HasPrefix(ct, "text/") || strings.HasPrefix(ct, "application/json") || strings.HasPrefix(ct, "application/xml") {
-				response.Write([]byte("\n\n"))
-				response.Write(responseRecorder.Body.Bytes())
+				_, _ = response.Write([]byte("\n\n"))
+				_, _ = response.Write(responseRecorder.Body.Bytes())
 				return
 			}
 		}
@@ -181,6 +181,6 @@ func HTTPMiddlewareRespondPlaintextCtxLogsIfNotOK(wrapped http.Handler, filter .
 				response.Header().Add(k, v)
 			}
 		}
-		response.Write(responseRecorder.Body.Bytes())
+		_, _ = response.Write(responseRecorder.Body.Bytes())
 	}
 }
