@@ -5,7 +5,7 @@ import (
 	"os"
 	"slices"
 
-	"github.com/mattn/go-isatty"
+	"golang.org/x/term"
 )
 
 // WriterConfig is a factory or pool for Writers
@@ -86,7 +86,7 @@ func flushUnderlying(writer any) {
 
 // IsTerminal returns true if the current process is attached to a terminal.
 func IsTerminal() bool {
-	return isatty.IsTerminal(os.Stdout.Fd())
+	return term.IsTerminal(int(os.Stdout.Fd()))
 }
 
 // DecideWriterConfigForTerminal returns terminalWriter

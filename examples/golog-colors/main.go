@@ -5,12 +5,16 @@ import (
 	"fmt"
 	"os"
 
-	color "github.com/fatih/color"
+	"github.com/fatih/color"
 
 	"github.com/domonda/golog"
 	"github.com/domonda/golog/log"
 )
 
+// Set environment variable NO_COLOR=true to disable colors:
+// Example:
+//
+//	NO_COLOR=true go run main.go
 func main() {
 	consoleColorizer := &ConsoleColorizer{
 		TimespampColor: color.New(color.FgHiBlack),

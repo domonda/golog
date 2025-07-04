@@ -6,10 +6,10 @@ tool github.com/securego/gosec/v2/cmd/gosec
 
 require (
 	github.com/domonda/go-encjson v0.0.0-20250402115751-77a50fd88c01
-	github.com/mattn/go-isatty v0.0.20
 	github.com/muesli/termenv v0.16.0
 	github.com/stretchr/testify v1.10.0
 	github.com/ungerik/go-fs v0.0.0-20250625190701-a26b03a1a7ca
+	golang.org/x/term v0.32.0
 )
 
 require (
@@ -33,6 +33,7 @@ require (
 	github.com/googleapis/gax-go/v2 v2.14.2 // indirect
 	github.com/gookit/color v1.5.4 // indirect
 	github.com/lucasb-eyer/go-colorful v1.2.0 // indirect
+	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/securego/gosec/v2 v2.22.5 // indirect
