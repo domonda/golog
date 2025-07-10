@@ -62,7 +62,12 @@ func CallingFunction(skipFrames ...int) string {
 	}
 	var stack [1]uintptr
 	runtime.Callers(skip, stack[:])
-	return runtime.FuncForPC(stack[0]).Name()
+	name := runtime.FuncForPC(stack[0]).Name()
+	// Trim generic type parameters from the function name
+	if generic := strings.IndexByte(name, '['); generic != -1 {
+		name = name[:generic]
+	}
+	return name
 }
 
 // CallingFunctionName returns the name of the calling function
@@ -71,13 +76,7 @@ func CallingFunction(skipFrames ...int) string {
 // The sum of the optional skipFrames
 // callstack frames will be skipped.
 func CallingFunctionName(skipFrames ...int) string {
-	skip := 2 // This function plus runtime.Callers
-	for _, n := range skipFrames {
-		skip += n
-	}
-	var stack [1]uintptr
-	runtime.Callers(skip, stack[:])
-	name := runtime.FuncForPC(stack[0]).Name()
+	name := CallingFunction(append(skipFrames, 1)...)
 	return name[strings.LastIndex(name, ".")+1:]
 }
 
@@ -87,13 +86,7 @@ func CallingFunctionName(skipFrames ...int) string {
 // The sum of the optional skipFrames
 // callstack frames will be skipped.
 func CallingFunctionPackageName(skipFrames ...int) string {
-	skip := 2 // This function plus runtime.Callers
-	for _, n := range skipFrames {
-		skip += n
-	}
-	var stack [1]uintptr
-	runtime.Callers(skip, stack[:])
-	name := runtime.FuncForPC(stack[0]).Name()
+	name := CallingFunction(append(skipFrames, 1)...)
 	name = name[strings.LastIndexByte(name, '/')+1:]
 	return name[:strings.IndexByte(name, '.')]
 }
@@ -103,12 +96,6 @@ func CallingFunctionPackageName(skipFrames ...int) string {
 // The sum of the optional skipFrames
 // callstack frames will be skipped.
 func CallingFunctionPackagePath(skipFrames ...int) string {
-	skip := 2 // This function plus runtime.Callers
-	for _, n := range skipFrames {
-		skip += n
-	}
-	var stack [1]uintptr
-	runtime.Callers(skip, stack[:])
-	name := runtime.FuncForPC(stack[0]).Name()
+	name := CallingFunction(append(skipFrames, 1)...)
 	return name[:strings.LastIndexByte(name, '.')]
 }
