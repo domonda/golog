@@ -1231,6 +1231,30 @@ func (m *Message) StrBytes(key string, val []byte) *Message {
 	return m.Str(key, string(val))
 }
 
+// StrBytesMax logs the passed bytes as string if they are valid UTF-8,
+// else the bytes are encoded using base64.RawURLEncoding.
+// The logged string is truncated at maxNumRunes runes.
+// If maxNumRunes is <= 0 then the bytes are logged as is.
+func (m *Message) StrBytesMax(key string, val []byte, maxNumRunes int) *Message {
+	if maxNumRunes <= 0 {
+		return m.StrBytes(key, val)
+	}
+	numRunes := 0
+	byteIndex := 0
+	for byteIndex < len(val) {
+		r, size := utf8.DecodeRune(val[byteIndex:])
+		if r == utf8.RuneError {
+			return m.StrMax(key, base64.RawURLEncoding.EncodeToString(val), maxNumRunes)
+		}
+		numRunes++
+		if numRunes > maxNumRunes {
+			return m.Str(key, string(val[:byteIndex]))
+		}
+		byteIndex += size
+	}
+	return m.Str(key, string(val))
+}
+
 // Request logs a http.Request including values added to the request context.
 //
 // The following request values are logged:
