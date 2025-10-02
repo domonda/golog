@@ -989,11 +989,18 @@ func (m *Message) Str(key, val string) *Message {
 	return m
 }
 
-// StrMax logs the string val with a maximum length of maxLen.
-// If maxLen is <= 0, the string is logged as is.
-func (m *Message) StrMax(key, val string, maxLen int) *Message {
-	if maxLen > 0 && len(val) > maxLen {
-		val = val[:maxLen]
+// StrMax logs the string val with a maximum number of maxNumRunes runes.
+// If maxNumRunes is <= 0 then the string is logged as is.
+func (m *Message) StrMax(key, val string, maxNumRunes int) *Message {
+	if maxNumRunes <= 0 {
+		return m.Str(key, val)
+	}
+	numRunes := 0
+	for byteIndex := range val {
+		numRunes++
+		if numRunes > maxNumRunes {
+			return m.Str(key, val[:byteIndex])
+		}
 	}
 	return m.Str(key, val)
 }
