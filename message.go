@@ -1225,11 +1225,19 @@ func (m *Message) StrBytes(key string, val []byte) *Message {
 }
 
 // Request logs a http.Request including values added to the request context.
-// The following request values are logged: remote, method, uri,
-// and contentLength only if available and greater than zero.
-// If onlyHeaders are passed, then only those headers are logged if available,
-// else all headers not in the package level FilterHTTPHeaders map will be logged.
-// To disable header logging, pass an impossible header name.
+//
+// The following request values are logged:
+//   - "remote" (request.RemoteAddr)
+//   - "method" (request.Method)
+//   - "uri" (request.RequestURI)
+//   - "contentLength" (request.ContentLength only if available and greater than zero)
+//
+// If onlyHeaders are passed, then only those headers are logged if available.
+// If no onlyHeaders are passed, then all headers
+// not in the package level FilterHTTPHeaders map will be logged.
+//
+// To disable header logging, pass an impossible header name
+// like an empty string as onlyHeaders.
 func (m *Message) Request(request *http.Request, onlyHeaders ...string) *Message {
 	if m == nil {
 		return nil
@@ -1241,7 +1249,7 @@ func (m *Message) Request(request *http.Request, onlyHeaders ...string) *Message
 	m.Str("method", request.Method)
 	m.Str("uri", request.RequestURI)
 	if request.ContentLength > 0 {
-		m.Int64("Content-Length", request.ContentLength)
+		m.Int64("contentLength", request.ContentLength)
 	}
 
 	if len(onlyHeaders) > 0 {
@@ -1254,18 +1262,18 @@ func (m *Message) Request(request *http.Request, onlyHeaders ...string) *Message
 				}
 			}
 		}
-	} else {
-		for header, values := range request.Header {
-			if _, filter := FilterHTTPHeaders[header]; !filter {
-				if len(values) == 1 {
-					m.Str(header, values[0])
-				} else {
-					m.Strs(header, values)
-				}
+		return m
+	}
+
+	for header, values := range request.Header {
+		if _, filter := FilterHTTPHeaders[header]; !filter {
+			if len(values) == 1 {
+				m.Str(header, values[0])
+			} else {
+				m.Strs(header, values)
 			}
 		}
 	}
-
 	return m
 }
 
