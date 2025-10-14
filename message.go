@@ -15,6 +15,14 @@ import (
 	"unicode/utf8"
 )
 
+// Message is a fluent builder for constructing log messages with typed attributes.
+// Create messages using Logger methods like Info(), Debug(), Error(), etc.
+// Add attributes with methods like Str(), Int(), Err(), etc.
+// Call Log() to emit the message, or LogAndPanic() to log and panic.
+// A nil Message is safe to use and will not log anything.
+//
+// Messages should not be reused after calling Log() or SubLogger()
+// as they are returned to an internal pool.
 type Message struct {
 	logger  *Logger
 	attribs Attribs
