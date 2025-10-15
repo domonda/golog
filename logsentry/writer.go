@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"strings"
 	"sync"
 	"time"
@@ -122,12 +123,8 @@ func (w *Writer) CommitMessage() {
 		event.Level = w.level
 		event.Message = w.message.String()
 		event.Fingerprint = []string{event.Message}
-		for key, val := range w.config.extra {
-			event.Extra[key] = val
-		}
-		for key, val := range w.values {
-			event.Extra[key] = val
-		}
+		maps.Copy(event.Extra, w.config.extra)
+		maps.Copy(event.Extra, w.values)
 		if w.config.hub.Client().Options().AttachStacktrace {
 			stackTrace := sentry.NewStacktrace()
 			stackTrace.Frames = filterFrames(stackTrace.Frames)
