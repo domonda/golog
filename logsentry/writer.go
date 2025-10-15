@@ -19,6 +19,30 @@ var (
 	_ golog.WriterConfig = new(WriterConfig)
 )
 
+// WriterConfig implements golog.WriterConfig and serves as a factory for
+// creating Writer instances that send log messages to Sentry.
+//
+// It maintains configuration for Sentry integration including the Sentry hub,
+// message formatting, level filtering, and object pooling for efficient
+// memory usage. WriterConfig instances are typically created once and reused
+// across multiple log operations.
+//
+// The config determines:
+//   - Which Sentry project receives events (via hub)
+//   - How messages are formatted (via format)
+//   - Which log levels are sent to Sentry (via filter)
+//   - Whether values appear in message text (via valsAsMsg)
+//   - Additional metadata included with every event (via extra)
+//
+// Example usage:
+//
+//	config := logsentry.NewWriterConfig(
+//	    sentry.CurrentHub(),
+//	    golog.NewDefaultFormat(),
+//	    golog.ErrorLevel().FilterOutBelow(),
+//	    false,
+//	    map[string]any{"service": "my-app"},
+//	)
 type WriterConfig struct {
 	hub        *sentry.Hub
 	format     *golog.Format
@@ -115,6 +139,20 @@ func (w *Writer) BeginMessage(config golog.Config, timestamp time.Time, level go
 	}
 }
 
+// CommitMessage implements golog.Writer and finalizes the log message
+// by sending it to Sentry as an event. This method is called at the end
+// of each log operation after all data has been written.
+//
+// The method creates a Sentry event with:
+//   - The accumulated message text
+//   - The mapped Sentry level
+//   - The original timestamp
+//   - All key-value pairs as extra data (from both config.extra and values)
+//   - Optional stack trace (if enabled in Sentry options)
+//   - A fingerprint based on the message for grouping
+//
+// After sending the event, the Writer is reset and returned to the object
+// pool for reuse, ensuring efficient memory management.
 func (w *Writer) CommitMessage() {
 	// Flush w.message
 	if w.message.Len() > 0 {
