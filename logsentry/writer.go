@@ -55,6 +55,27 @@ func (c *WriterConfig) FlushUnderlying() {
 
 ///////////////////////////////////////////////////////////////////////////////
 
+// Writer implements golog.Writer and handles the actual writing of log
+// messages to Sentry. It accumulates log data during the logging process
+// and sends it as a Sentry event when CommitMessage() is called.
+//
+// Writer instances are designed to be reused through object pooling to
+// minimize memory allocations and improve performance. Each Writer
+// accumulates:
+//   - Message text and timestamp
+//   - Sentry level (mapped from golog level)
+//   - Key-value pairs as Sentry event extra data
+//   - Optional stack trace information
+//
+// The Writer automatically maps golog levels to Sentry levels:
+//
+//	TRACE/DEBUG -> DEBUG, INFO -> INFO, WARN -> WARNING, ERROR -> ERROR, FATAL -> FATAL
+//
+// Example usage through golog:
+//
+//	logger.Error("Database error").Str("query", sql).Err(err).Log()
+//	// Creates Sentry event with level=ERROR, message="Database error",
+//	// and extra data: {"query": sql, "error": err.Error()}
 type Writer struct {
 	config    *WriterConfig
 	timestamp time.Time
@@ -128,6 +149,8 @@ func (w *Writer) CommitMessage() {
 	w.config.writerPool.Put(w)
 }
 
+// filterFrames removes golog internal frames from stack traces to provide
+// cleaner Sentry debugging information by focusing on application code.
 func filterFrames(frames []sentry.Frame) []sentry.Frame {
 	filtered := make([]sentry.Frame, 0, len(frames))
 	for _, frame := range frames {
@@ -226,20 +249,37 @@ func (w *Writer) writeVal(val any) {
 	}
 }
 
+// valueMapPool is a global pool for reusing map[string]any instances
+// to reduce memory allocations when storing key-value pairs.
 var valueMapPool sync.Pool
 
+// writeFinalVal is an internal method that stores a value as a key-value pair
+// in the Writer's values map. It uses object pooling to efficiently manage
+// the map instances.
+//
+// The method first tries to reuse an existing map from the pool, clearing
+// it before use. If no pooled map is available, it creates a new one.
+//
+// Parameters:
+//   - val: the value to store with the current key
 func (w *Writer) writeFinalVal(val any) {
+	// If we already have a values map, just add the key-value pair
 	if w.values != nil {
 		w.values[w.key] = val
 		return
 	}
+
+	// Try to get a reusable map from the pool
 	if m, _ := valueMapPool.Get().(map[string]any); m != nil {
+		// Clear the map before reuse
 		for k := range m {
 			delete(m, k)
 		}
+		// Add the new key-value pair
 		m[w.key] = val
 		w.values = m
 	} else {
+		// Create a new map if pool is empty
 		w.values = map[string]any{w.key: val}
 	}
 }
