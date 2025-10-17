@@ -20,12 +20,12 @@ func TestRotatingWriter(t *testing.T) {
 	})
 
 	const jsonRotateSize = 350 // fit two 165 byte lines, but not three
-	jsonWriter, err := NewRotatingWriter(dir.Join("json.log").LocalPath(), 0600, jsonRotateSize)
+	jsonWriter, err := NewRotatingWriter(dir.Join("json.log").LocalPath(), 0644, jsonRotateSize)
 	assert.NoError(t, err)
 	defer jsonWriter.Close()
 
 	const textRotateSize = 300 // fit two 130 byte lines but not three
-	textWriter, err := NewRotatingWriter(dir.Join("text.log").LocalPath(), 0600, textRotateSize)
+	textWriter, err := NewRotatingWriter(dir.Join("text.log").LocalPath(), 0644, textRotateSize)
 	assert.NoError(t, err)
 	defer textWriter.Close()
 
