@@ -1,6 +1,7 @@
 package posthog
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -25,13 +26,13 @@ type WriterConfig struct {
 	filter     golog.LevelFilter
 	client     posthog.Client
 	distinctID string // PostHog's unique identifier for tracking events (see function docs for details)
-	extra      map[string]any
 	writerPool sync.Pool
 	valsAsMsg  bool
 }
 
 // NewWriterConfigFromEnv returns a new WriterConfig using PostHog client created from environment variables.
 // It reads POSTHOG_API_KEY from environment and creates a client with default configuration.
+// If POSTHOG_ENDPOINT is set, it will be used as the endpoint for the client instead of the default endpoint.
 //
 // distinctID is PostHog's unique identifier for tracking events. It serves to associate log events
 // with specific users or system components. Common patterns include:
@@ -42,21 +43,32 @@ type WriterConfig struct {
 //
 // PostHog restricts certain values: "anonymous", "guest", "distinctid", "undefined", "null", "true", "false", etc.
 // The distinctID should be unique and meaningful for your analytics needs.
-func NewWriterConfigFromEnv(format *golog.Format, filter golog.LevelFilter, distinctID string, valsAsMsg bool, extra map[string]any) (*WriterConfig, error) {
-	apiKey := os.Getenv("POSTHOG_API_KEY")
+func NewWriterConfigFromEnv(format *golog.Format, filter golog.LevelFilter, distinctID string, valsAsMsg bool, defaultProps posthog.Properties) (*WriterConfig, error) {
+	apiKey := strings.TrimSpace(os.Getenv("POSTHOG_API_KEY"))
 	if apiKey == "" {
 		return nil, errors.New("POSTHOG_API_KEY is not set")
 	}
+	endpoint := cmp.Or(
+		strings.TrimSpace(os.Getenv("POSTHOG_ENDPOINT")),
+		DefaultEndpoint,
+	)
 	client, err := posthog.NewWithConfig(
 		apiKey,
 		posthog.Config{
-			Endpoint: "https://us.i.posthog.com", // Default endpoint
+			Endpoint:               endpoint,
+			DefaultEventProperties: defaultProps,
+			Interval:               DefaultInterval,
+			Transport:              DefaultTransport,
+			Logger:                 DefaultLogger,
+			Callback:               DefaultCallback,
+			BatchSize:              DefaultBatchSize,
+			Verbose:                DefaultVerbose,
 		},
 	)
 	if err != nil {
 		return nil, err
 	}
-	return NewWriterConfig(client, format, filter, distinctID, valsAsMsg, extra), nil
+	return NewWriterConfig(client, format, filter, distinctID, valsAsMsg), nil
 }
 
 // NewWriterConfig returns a new WriterConfig for PostHog.
@@ -71,14 +83,13 @@ func NewWriterConfigFromEnv(format *golog.Format, filter golog.LevelFilter, dist
 //
 // PostHog restricts certain values: "anonymous", "guest", "distinctid", "undefined", "null", "true", "false", etc.
 // The distinctID should be unique and meaningful for your analytics needs.
-func NewWriterConfig(client posthog.Client, format *golog.Format, filter golog.LevelFilter, distinctID string, valsAsMsg bool, extra map[string]any) *WriterConfig {
+func NewWriterConfig(client posthog.Client, format *golog.Format, filter golog.LevelFilter, distinctID string, valsAsMsg bool) *WriterConfig {
 	return &WriterConfig{
 		format:     format,
 		filter:     filter,
 		client:     client,
 		distinctID: distinctID,
 		valsAsMsg:  valsAsMsg,
-		extra:      extra,
 	}
 }
 
@@ -128,11 +139,6 @@ func (w *Writer) CommitMessage() {
 		// Add log level - use proper level name if available
 		levelName := w.levels.Name(w.level)
 		properties.Set("log_level", levelName)
-
-		// Add extra properties from config
-		for key, val := range w.config.extra {
-			properties.Set(key, val)
-		}
 
 		// Add values from the log message
 		for key, val := range w.values {
