@@ -1,0 +1,63 @@
+version: '3.8'
+
+services:
+  posthog:
+    image: posthog/posthog:latest
+    container_name: posthog-test
+    ports:
+      - "8000:8000"
+    environment:
+      - POSTHOG_SECRET_KEY=test-secret-key-for-testing-only
+      - DATABASE_URL=postgresql://posthog:posthog@postgres:5432/posthog
+      - REDIS_URL=redis://redis:6379
+      - SECRET_KEY=test-secret-key-for-testing-only
+      - DEBUG=1
+      - SKIP_SERVICE_VERSION_REQUIREMENTS=1
+      - LOG_LEVEL=DEBUG
+      - LOG_FILE_PATH=${POSTHOG_LOG_FILE_PATH:-/tmp/posthog.log}
+    volumes:
+      - posthog_logs:/tmp
+      - ${POSTHOG_LOG_FILE_PATH:-./posthog-test.log}:/tmp/posthog.log:rw
+    depends_on:
+      - postgres
+      - redis
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    command: >
+      sh -c "
+        echo 'Starting PostHog with log file: $LOG_FILE_PATH' &&
+        python manage.py migrate --noinput &&
+        python manage.py runserver 0.0.0.0:8000 2>&1 | tee $LOG_FILE_PATH
+      "
+
+  postgres:
+    image: postgres:13
+    container_name: posthog-postgres-test
+    environment:
+      - POSTGRES_DB=posthog
+      - POSTGRES_USER=posthog
+      - POSTGRES_PASSWORD=posthog
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U posthog -d posthog"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:6-alpine
+    container_name: posthog-redis-test
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+  posthog_logs:
