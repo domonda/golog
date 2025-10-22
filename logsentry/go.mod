@@ -1,6 +1,6 @@
 module github.com/domonda/golog/logsentry
 
-go 1.24.0
+go 1.23
 
 replace github.com/domonda/golog => ..
 
