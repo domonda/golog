@@ -15,6 +15,7 @@ Fast and flexible structured logging library for Go inspired by zerolog
 - **Context Support**: Log attributes can be stored in and retrieved from context
 - **Colorized Output**: Beautiful colored console output with customizable colorizers
 - **Flexible Configuration**: Multiple writers, filters, and level configurations
+- **Rotating Log Files**: Automatic file rotation based on size thresholds
 - **HTTP Middleware**: Built-in HTTP request/response logging
 - **UUID Support**: Native UUID logging support
 - **Call Stack Tracing**: Capture and log call stacks for debugging
@@ -164,6 +165,64 @@ log := golog.NewLogger(config)
 // This will appear in colored text on stdout and as JSON in the file (if WARN+)
 log.Error("Database connection failed").Err(err).Log()
 ```
+
+## Rotating Log Files
+
+Automatic file rotation based on size thresholds using the `logfile` subpackage:
+
+```go
+import (
+    "github.com/domonda/golog"
+    "github.com/domonda/golog/logfile"
+)
+
+// Create a rotating writer that rotates at 10MB
+writer, err := logfile.NewRotatingWriter(
+    "/var/log/myapp.log",                    // File path
+    logfile.RotatingWriterDefaultTimeFormat, // Time format for rotated files
+    0644,         // File permissions
+    10*1024*1024, // Rotate at 10MB
+)
+if err != nil {
+    log.Fatal(err)
+}
+defer writer.Close()
+
+// Use with golog
+config := golog.NewConfig(
+    &golog.DefaultLevels,
+    golog.AllLevelsActive,
+    golog.NewJSONWriterConfig(writer, nil),
+)
+
+log := golog.NewLogger(config)
+
+log.Info("Application started").Log()
+```
+
+When the log file reaches 10MB:
+- The current file is renamed with a timestamp (e.g., `myapp.log.2024-01-15_10:30:45`)
+- A new file is created at the original path
+- Logging continues seamlessly to the new file
+
+### Multiple Writers with Rotation
+
+```go
+// Console output with colors + rotating JSON file
+fileWriter, _ := logfile.NewRotatingWriter("/var/log/app.log", "", 0644, 50*1024*1024)
+defer fileWriter.Close()
+
+config := golog.NewConfig(
+    &golog.DefaultLevels,
+    golog.AllLevelsActive,
+    golog.NewTextWriterConfig(os.Stdout, nil, golog.NewStyledColorizer()),
+    golog.NewJSONWriterConfig(fileWriter, nil),
+)
+
+log := golog.NewLogger(config)
+```
+
+See the [logfile package documentation](logfile/README.md) for more details.
 
 ## HTTP Middleware
 
