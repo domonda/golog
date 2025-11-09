@@ -16,6 +16,7 @@ Fast and flexible structured logging library for Go inspired by zerolog
 - **Colorized Output**: Beautiful colored console output with customizable colorizers
 - **Flexible Configuration**: Multiple writers, filters, and level configurations
 - **Rotating Log Files**: Automatic file rotation based on size thresholds
+- **slog Integration**: Use as a backend for Go's standard log/slog package
 - **HTTP Middleware**: Built-in HTTP request/response logging
 - **UUID Support**: Native UUID logging support
 - **Call Stack Tracing**: Capture and log call stacks for debugging
@@ -223,6 +224,44 @@ log := golog.NewLogger(config)
 ```
 
 See the [logfile package documentation](logfile/README.md) for more details.
+
+## Standard Library Integration (slog)
+
+Use golog as a backend for Go's standard `log/slog` package via the `goslog` adapter:
+
+```go
+import (
+    "log/slog"
+
+    "github.com/domonda/golog"
+    "github.com/domonda/golog/goslog"
+)
+
+// Create golog logger
+gologLogger := golog.NewLogger(
+    golog.NewConfig(
+        &golog.DefaultLevels,
+        golog.AllLevelsActive,
+        golog.NewJSONWriterConfig(os.Stdout, nil),
+    ),
+)
+
+// Create slog handler that uses golog
+handler := goslog.Handler(gologLogger, goslog.ConvertDefaultLevels)
+
+// Use with slog
+logger := slog.New(handler)
+logger.Info("Hello from slog", "key", "value")
+```
+
+### Benefits of slog Integration
+
+- **Standard API**: Use Go's standard library slog API
+- **Existing Code**: Works with existing code that uses slog
+- **golog Features**: Get all golog benefits (multiple writers, rotation, colors)
+- **Full Compatibility**: Passes slogtest compliance suite
+
+See the [goslog package documentation](goslog/README.md) for more details.
 
 ## HTTP Middleware
 
