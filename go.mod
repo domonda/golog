@@ -8,7 +8,7 @@ require (
 	github.com/domonda/go-encjson v0.0.0-20250402115751-77a50fd88c01
 	github.com/muesli/termenv v0.16.0
 	github.com/stretchr/testify v1.11.1
-	github.com/ungerik/go-fs v0.0.0-20251120085644-7ba7c70faff1
+	github.com/ungerik/go-fs v0.0.0-20251126120757-683c69bae6b7
 	golang.org/x/term v0.37.0
 )
 
