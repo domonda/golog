@@ -4,7 +4,7 @@ go 1.24.0
 
 replace github.com/domonda/golog => ..
 
-require github.com/domonda/golog v0.0.0-00010101000000-000000000000 // replaced
+require github.com/domonda/golog v0.0.0-20251126122558-37b8614e470c // replaced
 
 require github.com/stretchr/testify v1.11.1
 
@@ -18,9 +18,9 @@ require (
 	github.com/muesli/termenv v0.16.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
-	github.com/rogpeppe/go-internal v1.13.1 // indirect
-	golang.org/x/sys v0.38.0 // indirect
-	golang.org/x/term v0.37.0 // indirect
+	github.com/rogpeppe/go-internal v1.14.1 // indirect
+	golang.org/x/sys v0.39.0 // indirect
+	golang.org/x/term v0.38.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
