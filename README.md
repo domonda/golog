@@ -313,6 +313,31 @@ log.Error("Panic recovered").
     Log()
 ```
 
+### Redacting Sensitive Data
+
+Use the `golog:"redact"` struct tag to automatically redact sensitive fields when logging structs:
+
+```go
+type User struct {
+    ID       int    `json:"id"`
+    Username string `json:"username"`
+    Password string `json:"password" golog:"redact"`
+    APIKey   string `json:"api_key"  golog:"redact"`
+}
+
+user := User{
+    ID:       123,
+    Username: "john_doe",
+    Password: "secret123",
+    APIKey:   "sk-abc123",
+}
+
+log.Info("User logged in").StructFields(user).Log()
+// Output: ... id=123 username="john_doe" password="***REDACTED***" api_key="***REDACTED***"
+```
+
+The `golog:"redact"` tag works with both `StructFields()` and `TaggedStructFields()` methods.
+
 ### Custom Levels
 
 ```go

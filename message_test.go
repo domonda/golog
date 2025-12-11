@@ -786,3 +786,368 @@ func TestMessage_Ctx(t *testing.T) {
 
 // 	// Output:
 // }
+
+func TestMessage_StructFields(t *testing.T) {
+	timestamp, _ := time.Parse("2006-01-02 15:04:05", "2006-01-02 15:04:05")
+	ctx := ContextWithTimestamp(context.Background(), timestamp)
+
+	log, textOut, jsonOut := newTestLogger()
+	infoLevel := log.Config().InfoLevel()
+
+	t.Run("basic struct fields", func(t *testing.T) {
+		textOut.Reset()
+		jsonOut.Reset()
+
+		type BasicStruct struct {
+			Name    string
+			Age     int
+			Active  bool
+			private string //nolint:unused
+		}
+
+		s := BasicStruct{
+			Name:    "John",
+			Age:     30,
+			Active:  true,
+			private: "hidden",
+		}
+
+		log.NewMessage(ctx, infoLevel, "Msg").
+			StructFields(s).
+			Log()
+
+		assert.Contains(t, textOut.String(), `Name="John"`)
+		assert.Contains(t, textOut.String(), `Age=30`)
+		assert.Contains(t, textOut.String(), `Active=true`)
+		assert.NotContains(t, textOut.String(), `private`)
+		assert.NotContains(t, textOut.String(), `hidden`)
+	})
+
+	t.Run("redact tag", func(t *testing.T) {
+		textOut.Reset()
+		jsonOut.Reset()
+
+		type UserWithSecrets struct {
+			Username string
+			Password string `golog:"redact"`
+			APIKey   string `golog:"redact"`
+			Email    string
+		}
+
+		u := UserWithSecrets{
+			Username: "john_doe",
+			Password: "secret123",
+			APIKey:   "sk-abc123",
+			Email:    "john@example.com",
+		}
+
+		log.NewMessage(ctx, infoLevel, "Msg").
+			StructFields(u).
+			Log()
+
+		assert.Contains(t, textOut.String(), `Username="john_doe"`)
+		assert.Contains(t, textOut.String(), `Password="***REDACTED***"`)
+		assert.Contains(t, textOut.String(), `APIKey="***REDACTED***"`)
+		assert.Contains(t, textOut.String(), `Email="john@example.com"`)
+		assert.NotContains(t, textOut.String(), `secret123`)
+		assert.NotContains(t, textOut.String(), `sk-abc123`)
+
+		// Also check JSON output
+		assert.Contains(t, jsonOut.String(), `"Password":"***REDACTED***"`)
+		assert.Contains(t, jsonOut.String(), `"APIKey":"***REDACTED***"`)
+	})
+
+	t.Run("embedded struct", func(t *testing.T) {
+		textOut.Reset()
+		jsonOut.Reset()
+
+		type Embedded struct {
+			EmbeddedField string
+		}
+
+		type OuterStruct struct {
+			Embedded
+			OuterField string
+		}
+
+		s := OuterStruct{
+			Embedded:   Embedded{EmbeddedField: "embedded_value"},
+			OuterField: "outer_value",
+		}
+
+		log.NewMessage(ctx, infoLevel, "Msg").
+			StructFields(s).
+			Log()
+
+		assert.Contains(t, textOut.String(), `EmbeddedField="embedded_value"`)
+		assert.Contains(t, textOut.String(), `OuterField="outer_value"`)
+	})
+
+	t.Run("pointer to struct", func(t *testing.T) {
+		textOut.Reset()
+		jsonOut.Reset()
+
+		type SimpleStruct struct {
+			Value string
+		}
+
+		s := &SimpleStruct{Value: "pointer_value"}
+
+		log.NewMessage(ctx, infoLevel, "Msg").
+			StructFields(s).
+			Log()
+
+		assert.Contains(t, textOut.String(), `Value="pointer_value"`)
+	})
+
+	t.Run("nil struct pointer", func(t *testing.T) {
+		textOut.Reset()
+		jsonOut.Reset()
+
+		type SimpleStruct struct {
+			Value string
+		}
+
+		var s *SimpleStruct
+
+		log.NewMessage(ctx, infoLevel, "Msg").
+			StructFields(s).
+			Log()
+
+		// Should not contain any field from the struct
+		assert.NotContains(t, textOut.String(), `Value=`)
+	})
+}
+
+func TestMessage_TaggedStructFields(t *testing.T) {
+	timestamp, _ := time.Parse("2006-01-02 15:04:05", "2006-01-02 15:04:05")
+	ctx := ContextWithTimestamp(context.Background(), timestamp)
+
+	log, textOut, jsonOut := newTestLogger()
+	infoLevel := log.Config().InfoLevel()
+
+	t.Run("json tag", func(t *testing.T) {
+		textOut.Reset()
+		jsonOut.Reset()
+
+		type JSONTaggedStruct struct {
+			UserName string `json:"user_name"`
+			UserAge  int    `json:"user_age"`
+			NoTag    string
+			Ignored  string `json:"-"`
+			Empty    string `json:""`
+		}
+
+		s := JSONTaggedStruct{
+			UserName: "John",
+			UserAge:  30,
+			NoTag:    "no_tag_value",
+			Ignored:  "ignored_value",
+			Empty:    "empty_value",
+		}
+
+		log.NewMessage(ctx, infoLevel, "Msg").
+			TaggedStructFields(s, "json").
+			Log()
+
+		assert.Contains(t, textOut.String(), `user_name="John"`)
+		assert.Contains(t, textOut.String(), `user_age=30`)
+		assert.NotContains(t, textOut.String(), `UserName`)
+		assert.NotContains(t, textOut.String(), `NoTag`)
+		assert.NotContains(t, textOut.String(), `no_tag_value`)
+		assert.NotContains(t, textOut.String(), `Ignored`)
+		assert.NotContains(t, textOut.String(), `ignored_value`)
+		assert.NotContains(t, textOut.String(), `Empty`)
+		assert.NotContains(t, textOut.String(), `empty_value`)
+	})
+
+	t.Run("json tag with options", func(t *testing.T) {
+		textOut.Reset()
+		jsonOut.Reset()
+
+		type JSONTagWithOptions struct {
+			Name   string `json:"name,omitempty"`
+			Status string `json:"status,omitempty,string"`
+		}
+
+		s := JSONTagWithOptions{
+			Name:   "Jane",
+			Status: "active",
+		}
+
+		log.NewMessage(ctx, infoLevel, "Msg").
+			TaggedStructFields(s, "json").
+			Log()
+
+		// Should use tag value before the first comma
+		assert.Contains(t, textOut.String(), `name="Jane"`)
+		assert.Contains(t, textOut.String(), `status="active"`)
+	})
+
+	t.Run("redact with json tag", func(t *testing.T) {
+		textOut.Reset()
+		jsonOut.Reset()
+
+		type SecureStruct struct {
+			Username string `json:"username"`
+			Password string `json:"password" golog:"redact"`
+			Token    string `json:"token" golog:"redact"`
+		}
+
+		s := SecureStruct{
+			Username: "admin",
+			Password: "super_secret",
+			Token:    "tok_xyz789",
+		}
+
+		log.NewMessage(ctx, infoLevel, "Msg").
+			TaggedStructFields(s, "json").
+			Log()
+
+		assert.Contains(t, textOut.String(), `username="admin"`)
+		assert.Contains(t, textOut.String(), `password="***REDACTED***"`)
+		assert.Contains(t, textOut.String(), `token="***REDACTED***"`)
+		assert.NotContains(t, textOut.String(), `super_secret`)
+		assert.NotContains(t, textOut.String(), `tok_xyz789`)
+	})
+
+	t.Run("golog tag as key tag does not redact", func(t *testing.T) {
+		textOut.Reset()
+		jsonOut.Reset()
+
+		// When keyTag is "golog", the tag value is used as the field key,
+		// not as a redaction directive
+		type GologTaggedStruct struct {
+			Password string `golog:"secret_field"`
+			APIKey   string `golog:"api_key"`
+			NoTag    string
+		}
+
+		s := GologTaggedStruct{
+			Password: "my_password",
+			APIKey:   "my_api_key",
+			NoTag:    "no_tag_value",
+		}
+
+		log.NewMessage(ctx, infoLevel, "Msg").
+			TaggedStructFields(s, "golog").
+			Log()
+
+		// Values should NOT be redacted when using golog as the key tag
+		assert.Contains(t, textOut.String(), `secret_field="my_password"`)
+		assert.Contains(t, textOut.String(), `api_key="my_api_key"`)
+		assert.NotContains(t, textOut.String(), `***REDACTED***`)
+		assert.NotContains(t, textOut.String(), `NoTag`)
+		assert.NotContains(t, textOut.String(), `no_tag_value`)
+	})
+
+	t.Run("custom tag", func(t *testing.T) {
+		textOut.Reset()
+		jsonOut.Reset()
+
+		type CustomTaggedStruct struct {
+			Field1 string `log:"field_one"`
+			Field2 int    `log:"field_two"`
+			Field3 string `json:"json_field"` // Different tag, should be ignored
+		}
+
+		s := CustomTaggedStruct{
+			Field1: "value1",
+			Field2: 42,
+			Field3: "json_value",
+		}
+
+		log.NewMessage(ctx, infoLevel, "Msg").
+			TaggedStructFields(s, "log").
+			Log()
+
+		assert.Contains(t, textOut.String(), `field_one="value1"`)
+		assert.Contains(t, textOut.String(), `field_two=42`)
+		assert.NotContains(t, textOut.String(), `Field3`)
+		assert.NotContains(t, textOut.String(), `json_field`)
+		assert.NotContains(t, textOut.String(), `json_value`)
+	})
+
+	t.Run("embedded struct with tags", func(t *testing.T) {
+		textOut.Reset()
+		jsonOut.Reset()
+
+		type EmbeddedTagged struct {
+			EmbeddedField string `json:"embedded_field"`
+		}
+
+		type OuterTagged struct {
+			EmbeddedTagged
+			OuterField string `json:"outer_field"`
+		}
+
+		s := OuterTagged{
+			EmbeddedTagged: EmbeddedTagged{EmbeddedField: "embedded_value"},
+			OuterField:     "outer_value",
+		}
+
+		log.NewMessage(ctx, infoLevel, "Msg").
+			TaggedStructFields(s, "json").
+			Log()
+
+		assert.Contains(t, textOut.String(), `embedded_field="embedded_value"`)
+		assert.Contains(t, textOut.String(), `outer_field="outer_value"`)
+	})
+
+	t.Run("nil struct", func(t *testing.T) {
+		textOut.Reset()
+		jsonOut.Reset()
+
+		log.NewMessage(ctx, infoLevel, "Msg").
+			TaggedStructFields(nil, "json").
+			Log()
+
+		// Should not panic and should produce minimal output
+		assert.NotContains(t, textOut.String(), `=`)
+	})
+
+	t.Run("whitespace in tag value", func(t *testing.T) {
+		textOut.Reset()
+		jsonOut.Reset()
+
+		type WhitespaceTagStruct struct {
+			Field1 string `json:"  field_one  "`
+			Field2 string `json:"   "`
+		}
+
+		s := WhitespaceTagStruct{
+			Field1: "value1",
+			Field2: "value2",
+		}
+
+		log.NewMessage(ctx, infoLevel, "Msg").
+			TaggedStructFields(s, "json").
+			Log()
+
+		// Trimmed tag value should be used, empty tag after trim should be ignored
+		assert.Contains(t, textOut.String(), `field_one="value1"`)
+		assert.NotContains(t, textOut.String(), `Field2`)
+		assert.NotContains(t, textOut.String(), `value2`)
+	})
+
+	t.Run("redact with whitespace", func(t *testing.T) {
+		textOut.Reset()
+		jsonOut.Reset()
+
+		type WhitespaceRedactStruct struct {
+			Password string `json:"password" golog:" redact "`
+		}
+
+		s := WhitespaceRedactStruct{
+			Password: "secret",
+		}
+
+		log.NewMessage(ctx, infoLevel, "Msg").
+			TaggedStructFields(s, "json").
+			Log()
+
+		// Should still redact even with whitespace around "redact"
+		assert.Contains(t, textOut.String(), `password="***REDACTED***"`)
+		assert.NotContains(t, textOut.String(), `secret`)
+	})
+}

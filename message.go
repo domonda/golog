@@ -358,7 +358,8 @@ func (m *Message) tryWriteInterface(w Writer, val reflect.Value) (written bool) 
 	return false
 }
 
-// StructFields calls Any(fieldName, fieldValue) for every exported struct field
+// StructFields calls Any(fieldName, fieldValue) for every exported struct field.
+// Fields with the tag `golog:"redact"` will have their value replaced with "***REDACTED***".
 func (m *Message) StructFields(strct any) *Message {
 	if m == nil || strct == nil {
 		return m
@@ -368,19 +369,22 @@ func (m *Message) StructFields(strct any) *Message {
 }
 
 // TaggedStructFields calls Any(fieldTag, fieldValue) for every exported struct field
-// that has the passed tag with the tag value not being empty or "-".
+// that has the passed keyTag with the tag value not being empty or "-".
 // Tag values are only considered until the first comma character,
 // so `tag:"hello_world,omitempty"` will result in the fieldTag "hello_world".
-// Fields with the following tags will be ignored: `tag:"-"`, `tag:""` `tag:",xxx"`.
-func (m *Message) TaggedStructFields(strct any, tag string) *Message {
+// Fields with the following tags will be ignored: `keyTag:"-"`, `keyTag:""` `keyTag:",xxx"`
+// where keyTag is the passed keyTag parameter.
+// Fields with the tag `golog:"redact"` will have their value replaced with "***REDACTED***"
+// (unless keyTag is "golog", in which case the tag value is used as the field key).
+func (m *Message) TaggedStructFields(strct any, keyTag string) *Message {
 	if m == nil || strct == nil {
 		return m
 	}
-	m.structFields(reflect.ValueOf(strct), tag)
+	m.structFields(reflect.ValueOf(strct), keyTag)
 	return m
 }
 
-func (m *Message) structFields(v reflect.Value, tag string) {
+func (m *Message) structFields(v reflect.Value, keyTag string) {
 	for v.Kind() == reflect.Pointer {
 		if v.IsNil() {
 			return
@@ -392,20 +396,24 @@ func (m *Message) structFields(v reflect.Value, tag string) {
 		field := t.Field(i)
 		switch {
 		case field.Anonymous:
-			m.structFields(v.Field(i), tag)
+			m.structFields(v.Field(i), keyTag)
 		case token.IsExported(field.Name):
-			name := field.Name
-			if tag != "" {
-				n := field.Tag.Get(tag)
-				if c := strings.IndexByte(n, ','); c >= 0 {
-					n = n[:c]
-				}
-				if n == "" || n == "-" {
+			var (
+				key   = field.Name
+				value = v.Field(i).Interface()
+			)
+			if keyTag != "golog" && strings.TrimSpace(field.Tag.Get("golog")) == "redact" {
+				value = "***REDACTED***"
+			}
+			if keyTag != "" {
+				key = field.Tag.Get(keyTag)
+				key, _, _ = strings.Cut(key, ",")
+				key = strings.TrimSpace(key)
+				if key == "" || key == "-" {
 					continue
 				}
-				name = n
 			}
-			m.Any(name, v.Field(i).Interface())
+			m.Any(key, value)
 		}
 	}
 }
