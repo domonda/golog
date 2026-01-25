@@ -406,6 +406,57 @@ golog is designed for high performance:
 
 For complete API documentation, see [pkg.go.dev](https://pkg.go.dev/github.com/domonda/golog).
 
+## Known Issues (TODO)
+
+The following behaviors were identified during test coverage improvements and may warrant manual inspection:
+
+### `Levels.NameLenRange()` - Minimum always returns 0
+
+The `NameLenRange()` method is intended to return the minimum and maximum length of level names. However, the `min` variable is initialized to 0 (Go's zero value for int) and the comparison `if nameLen < min` will never be true for non-empty names since all string lengths are >= 0.
+
+**Current behavior**: `min` always returns 0 regardless of actual minimum name length.
+
+**Location**: `levels.go:112-123`
+
+```go
+// Current implementation
+func (l *Levels) NameLenRange() (min, max int) {
+    for _, name := range l.Names {
+        nameLen := len(name)
+        if nameLen < min {  // Never true for non-empty names
+            min = nameLen
+        }
+        // ...
+    }
+    return min, max
+}
+```
+
+**Suggested fix**: Initialize `min` to `math.MaxInt` or set it from the first name encountered.
+
+### `ConfigWithAdditionalWriterConfigs()` - Inverted logic for unique vs duplicate writers
+
+The function's behavior appears inverted from what the name suggests:
+
+- **When adding unique writers**: Returns the parent config unchanged (no new DerivedConfig created)
+- **When adding duplicate writers**: Creates a new DerivedConfig
+
+This happens because `uniqueNonNilWriterConfigs()` returns `changed=false` when the combined list is already all unique and non-nil, and `changed=true` when duplicates were removed. The caller interprets `changed=false` as "no change needed, return parent".
+
+**Current behavior**: Adding a new unique writer to a config returns the original config without the new writer.
+
+**Location**: `derivedconfig.go:44-60`, `writerconfig.go:56-78`
+
+```go
+// In ConfigWithAdditionalWriterConfigs:
+configs, changed := uniqueNonNilWriterConfigs(append((*parent).WriterConfigs(), configs...))
+if !changed {
+    return *parent  // Returns parent even when adding NEW unique writers
+}
+```
+
+**Impact**: Code that expects `logger.WithAdditionalWriterConfigs(newWriter)` to add `newWriter` to the logger will not work as expected.
+
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
