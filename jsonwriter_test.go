@@ -205,7 +205,7 @@ func TestJSONWriter_WriteValues(t *testing.T) {
 		writer.CommitMessage()
 
 		var result map[string]any
-		err := json.Unmarshal([]byte(buf.String()), &result)
+		err := json.Unmarshal(buf.Bytes(), &result)
 		require.NoError(t, err)
 		assert.Nil(t, result["myKey"])
 	})
@@ -222,7 +222,7 @@ func TestJSONWriter_WriteValues(t *testing.T) {
 		writer.CommitMessage()
 
 		var result map[string]any
-		err := json.Unmarshal([]byte(buf.String()), &result)
+		err := json.Unmarshal(buf.Bytes(), &result)
 		require.NoError(t, err)
 		assert.Equal(t, true, result["active"])
 	})
@@ -239,7 +239,7 @@ func TestJSONWriter_WriteValues(t *testing.T) {
 		writer.CommitMessage()
 
 		var result map[string]any
-		err := json.Unmarshal([]byte(buf.String()), &result)
+		err := json.Unmarshal(buf.Bytes(), &result)
 		require.NoError(t, err)
 		assert.Equal(t, float64(-123), result["count"])
 	})
@@ -256,7 +256,7 @@ func TestJSONWriter_WriteValues(t *testing.T) {
 		writer.CommitMessage()
 
 		var result map[string]any
-		err := json.Unmarshal([]byte(buf.String()), &result)
+		err := json.Unmarshal(buf.Bytes(), &result)
 		require.NoError(t, err)
 		assert.Equal(t, float64(456), result["count"])
 	})
@@ -273,7 +273,7 @@ func TestJSONWriter_WriteValues(t *testing.T) {
 		writer.CommitMessage()
 
 		var result map[string]any
-		err := json.Unmarshal([]byte(buf.String()), &result)
+		err := json.Unmarshal(buf.Bytes(), &result)
 		require.NoError(t, err)
 		assert.Equal(t, 3.14, result["price"])
 	})
@@ -290,7 +290,7 @@ func TestJSONWriter_WriteValues(t *testing.T) {
 		writer.CommitMessage()
 
 		var result map[string]any
-		err := json.Unmarshal([]byte(buf.String()), &result)
+		err := json.Unmarshal(buf.Bytes(), &result)
 		require.NoError(t, err)
 		assert.Equal(t, "John", result["name"])
 	})
@@ -307,7 +307,7 @@ func TestJSONWriter_WriteValues(t *testing.T) {
 		writer.CommitMessage()
 
 		var result map[string]any
-		err := json.Unmarshal([]byte(buf.String()), &result)
+		err := json.Unmarshal(buf.Bytes(), &result)
 		require.NoError(t, err)
 		assert.Equal(t, "something went wrong", result["error"])
 	})
@@ -325,7 +325,7 @@ func TestJSONWriter_WriteValues(t *testing.T) {
 		writer.CommitMessage()
 
 		var result map[string]any
-		err := json.Unmarshal([]byte(buf.String()), &result)
+		err := json.Unmarshal(buf.Bytes(), &result)
 		require.NoError(t, err)
 		assert.Equal(t, "a547276f-b02b-4e7d-b67e-c6deb07567da", result["id"])
 	})
@@ -357,7 +357,7 @@ func TestJSONWriter_WriteValues(t *testing.T) {
 		writer.CommitMessage()
 
 		var result map[string]any
-		err := json.Unmarshal([]byte(buf.String()), &result)
+		err := json.Unmarshal(buf.Bytes(), &result)
 		require.NoError(t, err)
 		assert.Nil(t, result["data"])
 	})

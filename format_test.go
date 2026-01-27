@@ -31,18 +31,3 @@ func TestFormat_CustomValues(t *testing.T) {
 	assert.Equal(t, "[%s] %s", format.PrefixFmt)
 	assert.Equal(t, "msg", format.MessageKey)
 }
-
-func TestFormat_EmptyKeys(t *testing.T) {
-	// Format with empty keys is valid - these fields can be omitted
-	format := &Format{
-		TimestampKey:    "",
-		TimestampFormat: "2006-01-02 15:04:05",
-		LevelKey:        "",
-		PrefixFmt:       "%s: %s",
-		MessageKey:      "",
-	}
-
-	assert.Empty(t, format.TimestampKey)
-	assert.Empty(t, format.LevelKey)
-	assert.Empty(t, format.MessageKey)
-}

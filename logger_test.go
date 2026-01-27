@@ -346,7 +346,8 @@ func TestLogger_NewMessageAt(t *testing.T) {
 		config := NewConfig(&DefaultLevels, AllLevelsActive, NewTextWriterConfig(buf, nil, nil))
 		logger := NewLogger(config)
 
-		msg := logger.NewMessageAt(nil, timestamp, DefaultLevels.Info, "test")
+		var nilCtx context.Context
+		msg := logger.NewMessageAt(nilCtx, timestamp, DefaultLevels.Info, "test")
 		require.NotNil(t, msg)
 		msg.Log()
 
