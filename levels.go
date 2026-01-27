@@ -2,10 +2,13 @@ package golog
 
 import (
 	"maps"
+	"math"
 	"slices"
 	"strconv"
 )
 
+// DefaultLevels provides the standard log level configuration
+// with Trace=-20, Debug=-10, Info=0, Warn=10, Error=20, Fatal=30.
 var DefaultLevels = Levels{
 	Trace: -20,
 	Debug: -10,
@@ -23,6 +26,8 @@ var DefaultLevels = Levels{
 	},
 }
 
+// Levels defines the log level values and their display names.
+// Use DefaultLevels for the standard configuration.
 type Levels struct {
 	Trace Level
 	Debug Level
@@ -42,31 +47,38 @@ func (l *Levels) Name(level Level) string {
 	return strconv.Itoa(int(level))
 }
 
+// HasName returns true if the level has a name defined in Names.
 func (l *Levels) HasName(level Level) bool {
 	_, has := l.Names[level]
 	return has
 }
 
+// FatalName returns the display name for the Fatal level.
 func (l *Levels) FatalName() string {
 	return l.Name(l.Fatal)
 }
 
+// ErrorName returns the display name for the Error level.
 func (l *Levels) ErrorName() string {
 	return l.Name(l.Error)
 }
 
+// WarnName returns the display name for the Warn level.
 func (l *Levels) WarnName() string {
 	return l.Name(l.Warn)
 }
 
+// InfoName returns the display name for the Info level.
 func (l *Levels) InfoName() string {
 	return l.Name(l.Info)
 }
 
+// DebugName returns the display name for the Debug level.
 func (l *Levels) DebugName() string {
 	return l.Name(l.Debug)
 }
 
+// TraceName returns the display name for the Trace level.
 func (l *Levels) TraceName() string {
 	return l.Name(l.Trace)
 }
@@ -109,19 +121,22 @@ func (l *Levels) LevelOfNameOrDefault(name string, defaultLevel Level) Level {
 	return defaultLevel
 }
 
-func (l *Levels) NameLenRange() (min, max int) {
-	for _, name := range l.Names {
-		nameLen := len(name)
-		if nameLen < min {
-			min = nameLen
-		}
-		if nameLen > max {
-			max = nameLen
-		}
+// NameLenRange returns the minimum and maximum length of level names.
+func (l *Levels) NameLenRange() (minLen, maxLen int) {
+	if len(l.Names) == 0 {
+		return 0, 0
 	}
-	return min, max
+	minLen = math.MaxInt
+	for _, name := range l.Names {
+		l := len(name)
+		minLen = min(minLen, l)
+		maxLen = max(maxLen, l)
+	}
+	return minLen, maxLen
 }
 
+// CopyWithLeftPaddedNames returns a copy of Levels with all names
+// left-padded with spaces to match the longest name length.
 func (l *Levels) CopyWithLeftPaddedNames() *Levels {
 	padded := *l
 	padded.Names = make(map[Level]string, len(l.Names))
@@ -135,6 +150,8 @@ func (l *Levels) CopyWithLeftPaddedNames() *Levels {
 	return &padded
 }
 
+// CopyWithRightPaddedNames returns a copy of Levels with all names
+// right-padded with spaces to match the longest name length.
 func (l *Levels) CopyWithRightPaddedNames() *Levels {
 	padded := *l
 	padded.Names = make(map[Level]string, len(l.Names))

@@ -32,7 +32,7 @@ var writerConfigsCtxKey int
 // so that each WriterConfig is only added once to the context.
 func ContextWithAdditionalWriterConfigs(ctx context.Context, configs ...WriterConfig) context.Context {
 	// Prevent using the same writer multiple times
-	configs, _ = uniqueNonNilWriterConfigs(configs)
+	configs = uniqueNonNilWriterConfigs(configs)
 	if len(configs) == 0 {
 		return ctx
 	}
@@ -40,7 +40,7 @@ func ContextWithAdditionalWriterConfigs(ctx context.Context, configs ...WriterCo
 	if len(ctxConfigs) == 0 {
 		return context.WithValue(ctx, &writerConfigsCtxKey, configs)
 	}
-	configs, _ = uniqueNonNilWriterConfigs(append(ctxConfigs, configs...))
+	configs = uniqueNonNilWriterConfigs(append(ctxConfigs, configs...))
 	return context.WithValue(ctx, &writerConfigsCtxKey, configs)
 }
 
@@ -53,7 +53,11 @@ func WriterConfigsFromContext(ctx context.Context) []WriterConfig {
 	return nil
 }
 
-func uniqueNonNilWriterConfigs(w []WriterConfig) (unique []WriterConfig, changed bool) {
+// uniqueNonNilWriterConfigs returns a slice containing only the unique,
+// non-nil elements from w, preserving their original order.
+// Returns nil if w contains no non-nil elements.
+// Returns w unchanged if all elements are already unique and non-nil.
+func uniqueNonNilWriterConfigs(w []WriterConfig) (unique []WriterConfig) {
 	// Fast path checks if w can be returned as is
 	numUniqueNonNil := 0
 	for i, c := range w {
@@ -62,10 +66,10 @@ func uniqueNonNilWriterConfigs(w []WriterConfig) (unique []WriterConfig, changed
 		}
 	}
 	if numUniqueNonNil == 0 {
-		return nil, false
+		return nil
 	}
 	if numUniqueNonNil == len(w) {
-		return w, false
+		return w
 	}
 	// Slow path to create a new slice with unique elements
 	unique = make([]WriterConfig, 0, numUniqueNonNil)
@@ -74,9 +78,11 @@ func uniqueNonNilWriterConfigs(w []WriterConfig) (unique []WriterConfig, changed
 			unique = append(unique, c)
 		}
 	}
-	return unique, true
+	return unique
 }
 
+// flushUnderlying flushes any buffered data in writer by calling
+// Sync() if the writer implements it. Sync errors are ignored.
 func flushUnderlying(writer any) {
 	switch x := writer.(type) {
 	case interface{ Sync() error }:
