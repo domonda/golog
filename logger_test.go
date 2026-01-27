@@ -227,9 +227,7 @@ func TestLogger_WithAdditionalWriterConfigs(t *testing.T) {
 		assert.Same(t, logger, result)
 	})
 
-	t.Run("returns logger with same config when adding unique writers", func(t *testing.T) {
-		// Note: Due to implementation of ConfigWithAdditionalWriterConfigs,
-		// adding unique writers returns the parent config unchanged
+	t.Run("creates logger with additional writers when adding unique writers", func(t *testing.T) {
 		buf1 := bytes.NewBuffer(nil)
 		buf2 := bytes.NewBuffer(nil)
 		config := NewConfig(&DefaultLevels, AllLevelsActive, NewTextWriterConfig(buf1, nil, nil))
@@ -237,8 +235,7 @@ func TestLogger_WithAdditionalWriterConfigs(t *testing.T) {
 		newLogger := logger.WithAdditionalWriterConfigs(NewTextWriterConfig(buf2, nil, nil))
 
 		require.NotNil(t, newLogger)
-		// Due to implementation behavior, this returns the parent config
-		assert.Len(t, newLogger.Config().WriterConfigs(), 1)
+		assert.Len(t, newLogger.Config().WriterConfigs(), 2, "should have both parent and new writer")
 	})
 }
 

@@ -276,23 +276,19 @@ func TestConfigWithAdditionalWriterConfigs(t *testing.T) {
 		assert.Equal(t, parentConfig, result)
 	})
 
-	t.Run("returns parent when adding unique writers", func(t *testing.T) {
-		// Note: Due to implementation, when adding unique writers the function
-		// returns the parent config unchanged (uniqueNonNilWriterConfigs returns changed=false)
+	t.Run("creates derived config when adding unique writers", func(t *testing.T) {
 		result := ConfigWithAdditionalWriterConfigs(&parentConfig, NewTextWriterConfig(buf2, nil, nil))
 		require.NotNil(t, result)
-		assert.Equal(t, parentConfig, result)
+		derived, isDerived := result.(*DerivedConfig)
+		require.True(t, isDerived, "should create a DerivedConfig when adding new writers")
+		assert.Len(t, derived.WriterConfigs(), 2, "should have both parent and new writer")
 	})
 
-	t.Run("creates derived config when adding duplicate writers", func(t *testing.T) {
-		// Note: Due to implementation, when adding duplicate writers the function
-		// creates a DerivedConfig (uniqueNonNilWriterConfigs returns changed=true after dedup)
+	t.Run("returns parent when adding duplicate writers", func(t *testing.T) {
 		existingWriter := parentConfig.WriterConfigs()[0]
 		result := ConfigWithAdditionalWriterConfigs(&parentConfig, existingWriter)
 		require.NotNil(t, result)
-		// Returns a DerivedConfig, not the parent
-		_, isDerived := result.(*DerivedConfig)
-		assert.True(t, isDerived)
+		assert.Equal(t, parentConfig, result, "should return parent unchanged when all added writers are duplicates")
 	})
 }
 

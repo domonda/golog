@@ -24,7 +24,7 @@ type DerivedConfig struct {
 
 func NewDerivedConfig(parent *Config) *DerivedConfig {
 	if parent == nil || *parent == nil {
-		panic("golog.DerivedConfig parent must not be nil")
+		panic("golog.DerivedConfig parent must not be nil") // Panic during setup is acceptable
 	}
 	return &DerivedConfig{
 		parent: parent,
@@ -33,7 +33,7 @@ func NewDerivedConfig(parent *Config) *DerivedConfig {
 
 func NewDerivedConfigWithFilter(parent *Config, filters ...LevelFilter) *DerivedConfig {
 	if parent == nil || *parent == nil {
-		panic("golog.DerivedConfig parent must not be nil")
+		panic("golog.DerivedConfig parent must not be nil") // Panic during setup is acceptable
 	}
 	return &DerivedConfig{
 		parent: parent,
@@ -41,21 +41,28 @@ func NewDerivedConfigWithFilter(parent *Config, filters ...LevelFilter) *Derived
 	}
 }
 
+// ConfigWithAdditionalWriterConfigs creates a new DerivedConfig with the passed writer configs
+// added to the parent config. If the parent config already has the same writer configs,
+// the parent config is returned unchanged.
 func ConfigWithAdditionalWriterConfigs(parent *Config, configs ...WriterConfig) Config {
 	if parent == nil || *parent == nil {
-		panic("golog.DerivedConfig parent must not be nil")
+		panic("golog.DerivedConfig parent must not be nil") // Panic during setup is acceptable
 	}
 	if len(configs) == 0 {
 		return *parent
 	}
-	configs, changed := uniqueNonNilWriterConfigs(append((*parent).WriterConfigs(), configs...))
-	if !changed {
-		// No change, so return the parent config
+	parentConfigs := (*parent).WriterConfigs()
+	// Combine parent and new configs, removing duplicates and nils.
+	// We compare lengths to detect if new unique writers were added:
+	// since we append to parentConfigs, if the deduplicated length
+	// equals the parent length, all added configs were duplicates.
+	combined := uniqueNonNilWriterConfigs(append(parentConfigs, configs...))
+	if len(combined) == len(parentConfigs) {
 		return *parent
 	}
 	return &DerivedConfig{
 		parent:           parent,
-		addWriterConfigs: configs,
+		addWriterConfigs: combined,
 	}
 }
 
@@ -68,7 +75,7 @@ func (c *DerivedConfig) Parent() Config {
 
 func (c *DerivedConfig) SetParent(parent *Config) {
 	if parent == nil || *parent == nil {
-		panic("golog.DerivedConfig parent must not be nil")
+		panic("golog.DerivedConfig parent must not be nil") // Panic during setup is acceptable
 	}
 	c.mutex.Lock()
 	c.parent = parent
@@ -86,7 +93,7 @@ func (c *DerivedConfig) SetAdditionalWriterConfigs(configs ...WriterConfig) {
 	if len(configs) == 0 {
 		c.addWriterConfigs = nil
 	} else {
-		c.addWriterConfigs, _ = uniqueNonNilWriterConfigs(append((*c.parent).WriterConfigs(), configs...))
+		c.addWriterConfigs = uniqueNonNilWriterConfigs(append((*c.parent).WriterConfigs(), configs...))
 	}
 	c.mutex.Unlock()
 }

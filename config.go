@@ -44,7 +44,7 @@ func NewConfig(levels *Levels, filter LevelFilter, writers ...WriterConfig) Conf
 	if levels == nil {
 		panic("golog.Config needs Levels")
 	}
-	writers, _ = uniqueNonNilWriterConfigs(writers)
+	writers = uniqueNonNilWriterConfigs(writers)
 	if len(writers) == 0 {
 		panic("golog.Config needs a Writer")
 	}

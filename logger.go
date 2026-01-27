@@ -201,7 +201,7 @@ func (l *Logger) NewMessageAt(ctx context.Context, timestamp time.Time, level Le
 	}
 	configs := l.config.WriterConfigs()
 	if c := WriterConfigsFromContext(ctx); len(c) > 0 {
-		configs, _ = uniqueNonNilWriterConfigs(append(configs, c...))
+		configs = uniqueNonNilWriterConfigs(append(configs, c...))
 	}
 	var writers []Writer
 	if len(configs) > 0 {
