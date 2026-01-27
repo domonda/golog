@@ -16,12 +16,14 @@ const (
 // where a set bit filters out and zero allows a log level.
 type LevelFilter uint64
 
+// LevelFilterOut returns a LevelFilter that filters out only the specified level.
 func LevelFilterOut(level Level) LevelFilter {
 	levelBitIndex := LevelFilter(level + 32)  //#nosec G115 -- integer conversion OK: LevelMin is -32
 	filter := LevelFilter(1) << levelBitIndex // Set bit with levelBitIndex
 	return filter
 }
 
+// LevelFilterOutBelow returns a LevelFilter that filters out all levels below the specified level.
 func LevelFilterOutBelow(level Level) LevelFilter {
 	levelBitIndex := LevelFilter(level + 32)  //#nosec G115 -- integer conversion OK: LevelMin is -32
 	filter := LevelFilter(1) << levelBitIndex // Set bit with levelBitIndex
@@ -30,6 +32,7 @@ func LevelFilterOutBelow(level Level) LevelFilter {
 	return filter
 }
 
+// LevelFilterOutAbove returns a LevelFilter that filters out all levels above the specified level.
 func LevelFilterOutAbove(level Level) LevelFilter {
 	levelBitIndex := LevelFilter(level + 32)        //#nosec G115 -- integer conversion OK: LevelMin is -32
 	filter := LevelFilter(1) << (levelBitIndex + 1) // Set bit with levelBitIndex+1
@@ -39,6 +42,7 @@ func LevelFilterOutAbove(level Level) LevelFilter {
 	return filter
 }
 
+// LevelFilterOutAllOther returns a LevelFilter that filters out all levels except the specified one.
 func LevelFilterOutAllOther(level Level) LevelFilter {
 	levelBitIndex := LevelFilter(level + 32)  //#nosec G115 -- integer conversion OK: LevelMin is -32
 	filter := LevelFilter(1) << levelBitIndex // Set bit with levelBitIndex
@@ -57,6 +61,8 @@ func JoinLevelFilters(filters ...LevelFilter) LevelFilter {
 	return combined
 }
 
+// newLevelFilterOrNil returns a pointer to a combined LevelFilter from all passed filters,
+// or nil if no filters are passed.
 func newLevelFilterOrNil(filters []LevelFilter) *LevelFilter {
 	if len(filters) == 0 {
 		return nil
@@ -83,6 +89,7 @@ func (f LevelFilter) IsInactive(ctx context.Context, level Level) bool {
 	return !f.IsActive(ctx, level)
 }
 
+// SetActive sets whether the specified level is active (not filtered out).
 func (f *LevelFilter) SetActive(level Level, active bool) {
 	if level < LevelMin || level > LevelMax {
 		return
@@ -98,6 +105,8 @@ func (f *LevelFilter) SetActive(level Level, active bool) {
 	}
 }
 
+// ActiveLevelNames returns the names of all active (not filtered out) levels
+// that have names defined in the provided Levels.
 func (f *LevelFilter) ActiveLevelNames(levels *Levels) []string {
 	var names []string
 	for l := LevelMin; l <= LevelMax; l++ {
@@ -108,6 +117,8 @@ func (f *LevelFilter) ActiveLevelNames(levels *Levels) []string {
 	return names
 }
 
+// InactiveLevelNames returns the names of all inactive (filtered out) levels
+// that have names defined in the provided Levels.
 func (f *LevelFilter) InactiveLevelNames(levels *Levels) []string {
 	var names []string
 	for l := LevelMin; l <= LevelMax; l++ {

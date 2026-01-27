@@ -40,6 +40,9 @@ type Config interface {
 	TraceLevel() Level
 }
 
+// NewConfig creates a new Config with the given levels, filter, and writer configs.
+// Panics if levels is nil or no writers are provided.
+// Duplicate and nil writers are automatically removed.
 func NewConfig(levels *Levels, filter LevelFilter, writers ...WriterConfig) Config {
 	if levels == nil {
 		panic("golog.Config needs Levels")

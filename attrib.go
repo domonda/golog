@@ -38,9 +38,11 @@ type Attrib interface {
 	Free()
 }
 
+// SliceAttrib extends Attrib for attributes that contain multiple values.
 type SliceAttrib interface {
 	Attrib
 
+	// Len returns the number of values in the slice.
 	Len() int
 }
 

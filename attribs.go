@@ -21,10 +21,10 @@ var (
 // the attributes in the slice in the given order.
 type Attribs []Attrib
 
-var (
-	attribsCtxKey int
-)
+var attribsCtxKey int
 
+// Add appends an attribute to the Attribs slice.
+// If a is nil or attrib is nil, the method is a no-op.
 func (a *Attribs) Add(attrib Attrib) {
 	if a == nil || attrib == nil {
 		return // Be conservative and don't panic

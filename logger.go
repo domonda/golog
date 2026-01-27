@@ -96,6 +96,8 @@ func (l *Logger) WithLevelFilter(filter LevelFilter) *Logger {
 	}
 }
 
+// WithAdditionalWriterConfigs returns a clone of the logger with additional writer configs.
+// Returns the logger unchanged if no configs are provided or if the logger is nil.
 func (l *Logger) WithAdditionalWriterConfigs(configs ...WriterConfig) *Logger {
 	if l == nil || len(configs) == 0 {
 		return l
@@ -253,30 +255,37 @@ func (l *Logger) FatalAndPanic(p any) {
 	panic(p)
 }
 
+// Fatal starts a new fatal level log message.
 func (l *Logger) Fatal(text string) *Message {
 	return l.NewMessage(context.Background(), l.config.FatalLevel(), text)
 }
 
+// FatalCtx starts a new fatal level log message with the given context.
 func (l *Logger) FatalCtx(ctx context.Context, text string) *Message {
 	return l.NewMessage(ctx, l.config.FatalLevel(), text)
 }
 
+// Fatalf starts a new fatal level log message formatted using fmt.Sprintf.
 func (l *Logger) Fatalf(format string, args ...any) *Message {
 	return l.NewMessagef(context.Background(), l.config.FatalLevel(), format, args...)
 }
 
+// FatalfCtx starts a new fatal level log message with context, formatted using fmt.Sprintf.
 func (l *Logger) FatalfCtx(ctx context.Context, format string, args ...any) *Message {
 	return l.NewMessagef(ctx, l.config.FatalLevel(), format, args...)
 }
 
+// Error starts a new error level log message.
 func (l *Logger) Error(text string) *Message {
 	return l.NewMessage(context.Background(), l.config.ErrorLevel(), text)
 }
 
+// ErrorAt starts a new error level log message with the given timestamp.
 func (l *Logger) ErrorAt(timestamp time.Time, text string) *Message {
 	return l.NewMessageAt(context.Background(), timestamp, l.config.ErrorLevel(), text)
 }
 
+// ErrorCtx starts a new error level log message with the given context.
 func (l *Logger) ErrorCtx(ctx context.Context, text string) *Message {
 	return l.NewMessage(ctx, l.config.ErrorLevel(), text)
 }
@@ -291,110 +300,137 @@ func (l *Logger) ErrorfCtx(ctx context.Context, format string, args ...any) *Mes
 	return l.NewMessage(ctx, l.config.ErrorLevel(), fmt.Errorf(format, args...).Error())
 }
 
+// Warn starts a new warn level log message.
 func (l *Logger) Warn(text string) *Message {
 	return l.NewMessage(context.Background(), l.config.WarnLevel(), text)
 }
 
+// WarnAt starts a new warn level log message with the given timestamp.
 func (l *Logger) WarnAt(timestamp time.Time, text string) *Message {
 	return l.NewMessageAt(context.Background(), timestamp, l.config.WarnLevel(), text)
 }
 
+// WarnCtx starts a new warn level log message with the given context.
 func (l *Logger) WarnCtx(ctx context.Context, text string) *Message {
 	return l.NewMessage(ctx, l.config.WarnLevel(), text)
 }
 
+// Warnf starts a new warn level log message formatted using fmt.Sprintf.
 func (l *Logger) Warnf(format string, args ...any) *Message {
 	return l.NewMessagef(context.Background(), l.config.WarnLevel(), format, args...)
 }
 
+// WarnfCtx starts a new warn level log message with context, formatted using fmt.Sprintf.
 func (l *Logger) WarnfCtx(ctx context.Context, format string, args ...any) *Message {
 	return l.NewMessagef(ctx, l.config.WarnLevel(), format, args...)
 }
 
+// Info starts a new info level log message.
 func (l *Logger) Info(text string) *Message {
 	return l.NewMessage(context.Background(), l.config.InfoLevel(), text)
 }
 
+// InfoAt starts a new info level log message with the given timestamp.
 func (l *Logger) InfoAt(timestamp time.Time, text string) *Message {
 	return l.NewMessageAt(context.Background(), timestamp, l.config.InfoLevel(), text)
 }
 
+// InfoCtx starts a new info level log message with the given context.
 func (l *Logger) InfoCtx(ctx context.Context, text string) *Message {
 	return l.NewMessage(ctx, l.config.InfoLevel(), text)
 }
 
+// Infof starts a new info level log message formatted using fmt.Sprintf.
 func (l *Logger) Infof(format string, args ...any) *Message {
 	return l.NewMessagef(context.Background(), l.config.InfoLevel(), format, args...)
 }
 
+// InfofCtx starts a new info level log message with context, formatted using fmt.Sprintf.
 func (l *Logger) InfofCtx(ctx context.Context, format string, args ...any) *Message {
 	return l.NewMessagef(ctx, l.config.InfoLevel(), format, args...)
 }
 
+// Debug starts a new debug level log message.
 func (l *Logger) Debug(text string) *Message {
 	return l.NewMessage(context.Background(), l.config.DebugLevel(), text)
 }
 
+// DebugAt starts a new debug level log message with the given timestamp.
 func (l *Logger) DebugAt(timestamp time.Time, text string) *Message {
 	return l.NewMessageAt(context.Background(), timestamp, l.config.DebugLevel(), text)
 }
 
+// DebugCtx starts a new debug level log message with the given context.
 func (l *Logger) DebugCtx(ctx context.Context, text string) *Message {
 	return l.NewMessage(ctx, l.config.DebugLevel(), text)
 }
 
+// Debugf starts a new debug level log message formatted using fmt.Sprintf.
 func (l *Logger) Debugf(format string, args ...any) *Message {
 	return l.NewMessagef(context.Background(), l.config.DebugLevel(), format, args...)
 }
 
+// DebugfCtx starts a new debug level log message with context, formatted using fmt.Sprintf.
 func (l *Logger) DebugfCtx(ctx context.Context, format string, args ...any) *Message {
 	return l.NewMessagef(ctx, l.config.DebugLevel(), format, args...)
 }
 
+// Trace starts a new trace level log message.
 func (l *Logger) Trace(text string) *Message {
 	return l.NewMessage(context.Background(), l.config.TraceLevel(), text)
 }
 
+// TraceAt starts a new trace level log message with the given timestamp.
 func (l *Logger) TraceAt(timestamp time.Time, text string) *Message {
 	return l.NewMessageAt(context.Background(), timestamp, l.config.TraceLevel(), text)
 }
 
+// TraceCtx starts a new trace level log message with the given context.
 func (l *Logger) TraceCtx(ctx context.Context, text string) *Message {
 	return l.NewMessage(ctx, l.config.TraceLevel(), text)
 }
 
+// Tracef starts a new trace level log message formatted using fmt.Sprintf.
 func (l *Logger) Tracef(format string, args ...any) *Message {
 	return l.NewMessagef(context.Background(), l.config.TraceLevel(), format, args...)
 }
 
+// TracefCtx starts a new trace level log message with context, formatted using fmt.Sprintf.
 func (l *Logger) TracefCtx(ctx context.Context, format string, args ...any) *Message {
 	return l.NewMessagef(ctx, l.config.TraceLevel(), format, args...)
 }
 
+// NewLevelWriter returns an io.Writer that logs each Write call as a message at the given level.
 func (l *Logger) NewLevelWriter(level Level) *LevelWriter {
 	return &LevelWriter{logger: l, level: level}
 }
 
+// FatalWriter returns an io.Writer that logs each Write call as a fatal level message.
 func (l *Logger) FatalWriter() *LevelWriter {
 	return l.NewLevelWriter(l.config.FatalLevel())
 }
 
+// ErrorWriter returns an io.Writer that logs each Write call as an error level message.
 func (l *Logger) ErrorWriter() *LevelWriter {
 	return l.NewLevelWriter(l.config.ErrorLevel())
 }
 
+// WarnWriter returns an io.Writer that logs each Write call as a warn level message.
 func (l *Logger) WarnWriter() *LevelWriter {
 	return l.NewLevelWriter(l.config.WarnLevel())
 }
 
+// InfoWriter returns an io.Writer that logs each Write call as an info level message.
 func (l *Logger) InfoWriter() *LevelWriter {
 	return l.NewLevelWriter(l.config.InfoLevel())
 }
 
+// DebugWriter returns an io.Writer that logs each Write call as a debug level message.
 func (l *Logger) DebugWriter() *LevelWriter {
 	return l.NewLevelWriter(l.config.DebugLevel())
 }
 
+// TraceWriter returns an io.Writer that logs each Write call as a trace level message.
 func (l *Logger) TraceWriter() *LevelWriter {
 	return l.NewLevelWriter(l.config.TraceLevel())
 }
