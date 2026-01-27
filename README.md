@@ -410,29 +410,6 @@ For complete API documentation, see [pkg.go.dev](https://pkg.go.dev/github.com/d
 
 The following behaviors were identified during test coverage improvements and may warrant manual inspection:
 
-### `Levels.NameLenRange()` - Minimum always returns 0
-
-The `NameLenRange()` method is intended to return the minimum and maximum length of level names. However, the `min` variable is initialized to 0 (Go's zero value for int) and the comparison `if nameLen < min` will never be true for non-empty names since all string lengths are >= 0.
-
-**Current behavior**: `min` always returns 0 regardless of actual minimum name length.
-
-**Location**: `levels.go:112-123`
-
-```go
-// Current implementation
-func (l *Levels) NameLenRange() (min, max int) {
-    for _, name := range l.Names {
-        nameLen := len(name)
-        if nameLen < min {  // Never true for non-empty names
-            min = nameLen
-        }
-        // ...
-    }
-    return min, max
-}
-```
-
-**Suggested fix**: Initialize `min` to `math.MaxInt` or set it from the first name encountered.
 
 ### `ConfigWithAdditionalWriterConfigs()` - Inverted logic for unique vs duplicate writers
 

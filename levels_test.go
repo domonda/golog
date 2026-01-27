@@ -109,11 +109,9 @@ func TestLevels_LevelOfNameOrDefault(t *testing.T) {
 
 func TestLevels_NameLenRange(t *testing.T) {
 	t.Run("default levels", func(t *testing.T) {
-		min, max := DefaultLevels.NameLenRange()
-		// Note: Implementation has a bug where min starts at 0 and never updates properly
-		// So min is always 0, max is the longest name ("TRACE", "DEBUG", "ERROR", "FATAL" are 5)
-		assert.Equal(t, 0, min)
-		assert.Equal(t, 5, max)
+		minLen, maxLen := DefaultLevels.NameLenRange()
+		assert.Equal(t, 4, minLen)
+		assert.Equal(t, 5, maxLen)
 	})
 
 	t.Run("custom levels", func(t *testing.T) {
@@ -123,19 +121,18 @@ func TestLevels_NameLenRange(t *testing.T) {
 				1: "BCDEFGHIJ",
 			},
 		}
-		min, max := customLevels.NameLenRange()
-		// min is always 0 due to implementation
-		assert.Equal(t, 0, min)
-		assert.Equal(t, 9, max)
+		minLen, maxLen := customLevels.NameLenRange()
+		assert.Equal(t, 1, minLen)
+		assert.Equal(t, 9, maxLen)
 	})
 
 	t.Run("empty names", func(t *testing.T) {
 		customLevels := Levels{
 			Names: map[Level]string{},
 		}
-		min, max := customLevels.NameLenRange()
-		assert.Equal(t, 0, min)
-		assert.Equal(t, 0, max)
+		minLen, maxLen := customLevels.NameLenRange()
+		assert.Equal(t, 0, minLen)
+		assert.Equal(t, 0, maxLen)
 	})
 }
 

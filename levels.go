@@ -2,6 +2,7 @@ package golog
 
 import (
 	"maps"
+	"math"
 	"slices"
 	"strconv"
 )
@@ -109,17 +110,17 @@ func (l *Levels) LevelOfNameOrDefault(name string, defaultLevel Level) Level {
 	return defaultLevel
 }
 
-func (l *Levels) NameLenRange() (min, max int) {
-	for _, name := range l.Names {
-		nameLen := len(name)
-		if nameLen < min {
-			min = nameLen
-		}
-		if nameLen > max {
-			max = nameLen
-		}
+func (l *Levels) NameLenRange() (minLen, maxLen int) {
+	if len(l.Names) == 0 {
+		return 0, 0
 	}
-	return min, max
+	minLen = math.MaxInt
+	for _, name := range l.Names {
+		l := len(name)
+		minLen = min(minLen, l)
+		maxLen = max(maxLen, l)
+	}
+	return minLen, maxLen
 }
 
 func (l *Levels) CopyWithLeftPaddedNames() *Levels {
