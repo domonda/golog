@@ -550,15 +550,17 @@ func TestLogger_DuplicateKeyHandling(t *testing.T) {
 	config := NewConfig(&DefaultLevels, AllLevelsActive, NewTextWriterConfig(buf, nil, nil))
 	logger := NewLogger(config, NewString("key", "original"))
 
-	// Context with same key should be ignored
+	// Context attribs with duplicate keys are filtered out to prevent key collisions.
+	// Logger attribs take precedence over context attribs.
 	ctx := ContextWithAttribs(context.Background(), NewString("key", "from_context"))
 
 	logger.NewMessage(ctx, DefaultLevels.Info, "test").Log()
 
 	output := buf.String()
-	// Only original value should be logged (context value ignored due to duplicate key)
+	// Only the logger attrib value should be present
 	assert.Contains(t, output, `key="original"`)
-	// The context value should also appear since it's logged after but with same key
-	// This behavior depends on implementation - verify both are present
-	assert.Contains(t, output, "key=")
+	// The context value with duplicate key should NOT appear
+	assert.NotContains(t, output, `key="from_context"`)
+	// Verify only one occurrence of the key
+	assert.Equal(t, 1, strings.Count(output, "key="), "key should appear exactly once")
 }

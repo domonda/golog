@@ -127,6 +127,8 @@ func TestLevels_NameLenRange(t *testing.T) {
 	})
 
 	t.Run("empty names", func(t *testing.T) {
+		// When Names is empty, (0, 0) is returned as a sentinel value
+		// indicating no names exist. This is intentional behavior.
 		customLevels := Levels{
 			Names: map[Level]string{},
 		}

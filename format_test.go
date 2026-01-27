@@ -15,19 +15,3 @@ func TestNewDefaultFormat(t *testing.T) {
 	assert.Equal(t, "%s: %s", format.PrefixFmt)
 	assert.Equal(t, "message", format.MessageKey)
 }
-
-func TestFormat_CustomValues(t *testing.T) {
-	format := &Format{
-		TimestampKey:    "ts",
-		TimestampFormat: "2006-01-02T15:04:05Z07:00",
-		LevelKey:        "severity",
-		PrefixFmt:       "[%s] %s",
-		MessageKey:      "msg",
-	}
-
-	assert.Equal(t, "ts", format.TimestampKey)
-	assert.Equal(t, "2006-01-02T15:04:05Z07:00", format.TimestampFormat)
-	assert.Equal(t, "severity", format.LevelKey)
-	assert.Equal(t, "[%s] %s", format.PrefixFmt)
-	assert.Equal(t, "msg", format.MessageKey)
-}
