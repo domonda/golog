@@ -167,6 +167,108 @@ log := golog.NewLogger(config)
 log.Error("Database connection failed").Err(err).Log()
 ```
 
+## Terminal Detection
+
+golog can automatically switch between human-readable text and machine-readable JSON output based on whether the process is attached to a terminal (TTY):
+
+```go
+config := golog.NewConfig(
+    &golog.DefaultLevels,
+    golog.AllLevelsActive,
+    golog.DecideWriterConfigForTerminal(
+        golog.NewTextWriterConfig(os.Stdout, format, golog.NewStyledColorizer()), // Used when running in terminal
+        golog.NewJSONWriterConfig(os.Stdout, format),                             // Used when output is piped/redirected
+    ),
+)
+
+log := golog.NewLogger(config)
+```
+
+- **Terminal (TTY)**: Outputs colored, human-readable text format
+- **Non-terminal**: Outputs machine-readable JSON format (ideal for log aggregation systems)
+
+You can also check the terminal status directly:
+
+```go
+if golog.IsTerminal() {
+    // Running in a terminal
+}
+```
+
+This feature is useful for:
+- **Development**: Human-readable logs in the terminal
+- **Production**: Machine-parseable JSON logs for log aggregation systems
+- **CI/CD**: Automatic format switching based on the environment
+- **Containerized Applications**: Proper format when logs are piped to files or log collectors
+
+## Ready-to-Use Logger (`log` subpackage)
+
+For quick setup, the `log` subpackage provides a pre-configured logger with sensible defaults:
+
+```go
+import "github.com/domonda/golog/log"
+
+func main() {
+    log.Info("Application started").Log()
+    log.Error("Something went wrong").Err(err).Log()
+    log.Debug("Debug information").Str("key", "value").Log()
+}
+```
+
+### Default Configuration
+
+The `log` package is configured with:
+
+- **Log Levels**: Uses `golog.DefaultLevels` (TRACE, DEBUG, INFO, WARN, ERROR, FATAL)
+- **Level Filter**: Filters out levels below `LOG_LEVEL` environment variable (defaults to DEBUG if not set)
+- **Output**: Writes to stdout with automatic format selection:
+  - **Terminal**: Colorized text format for human readability
+  - **Non-terminal**: JSON format for log aggregation systems
+
+### Customizing the Default Logger
+
+The `log.Config` variable can be modified at runtime:
+
+```go
+import "github.com/domonda/golog/log"
+
+func init() {
+    // Change the minimum log level
+    log.Config = golog.NewConfig(
+        log.Levels,
+        log.Levels.Info.FilterOutBelow(), // Only INFO and above
+        golog.DecideWriterConfigForTerminal(
+            golog.NewTextWriterConfig(os.Stdout, &log.Format, &log.Colorizer),
+            golog.NewJSONWriterConfig(os.Stdout, &log.Format),
+        ),
+    )
+}
+```
+
+The logger uses a `DerivedConfig` that references `log.Config`, so changes to `log.Config` take effect immediately without recreating the logger.
+
+### Available Package-Level Functions
+
+The `log` package exposes convenience functions for all log levels:
+
+```go
+log.Trace("message").Log()
+log.Debug("message").Log()
+log.Info("message").Log()
+log.Warn("message").Log()
+log.Error("message").Log()
+log.Fatal("message").Log()
+
+// With context
+log.InfoCtx(ctx, "message").Log()
+
+// Formatted messages
+log.Infof("User %s logged in", username).Log()
+
+// Create sub-loggers
+subLog := log.With().Str("component", "auth").SubLogger()
+```
+
 ## Rotating Log Files
 
 Automatic file rotation based on size thresholds using the `logfile` subpackage:
