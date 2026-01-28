@@ -1,6 +1,6 @@
 # golog
 
-Fast and flexible structured logging library for Go inspired by zerolog
+Fast and feature-rich structured logging library for Go
 
 ![GitHub go.mod Go version](https://img.shields.io/github/go-mod/go-version/domonda/golog)
 [![Go Reference](https://pkg.go.dev/badge/github.com/domonda/golog.svg)](https://pkg.go.dev/github.com/domonda/golog)
