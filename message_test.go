@@ -166,11 +166,11 @@ Allocated *golog.Strings
 Allocated *golog.Nil
 Returned *golog.TextWriter
 Returned *golog.JSONWriter
-Returned []golog.Writer
 Returned *golog.String
 Returned *golog.Strings
 Returned *golog.Nil
 Returned []golog.Attrib
+Returned []golog.Writer
 Returned *golog.Message
 1:
 Reused []golog.Writer len:0 cap:2
@@ -183,11 +183,11 @@ Reused *golog.Strings
 Reused *golog.Nil
 Returned *golog.TextWriter
 Returned *golog.JSONWriter
-Returned []golog.Writer
 Returned *golog.String
 Returned *golog.Strings
 Returned *golog.Nil
 Returned []golog.Attrib
+Returned []golog.Writer
 Returned *golog.Message
 2:
 Reused []golog.Writer len:0 cap:2
@@ -200,11 +200,11 @@ Reused *golog.Strings
 Reused *golog.Nil
 Returned *golog.TextWriter
 Returned *golog.JSONWriter
-Returned []golog.Writer
 Returned *golog.String
 Returned *golog.Strings
 Returned *golog.Nil
 Returned []golog.Attrib
+Returned []golog.Writer
 Returned *golog.Message
 RemoveAttribs:
 Returned *golog.String
@@ -282,12 +282,12 @@ Allocated *golog.Strings
 Allocated *golog.Nil
 Returned *golog.TextWriter
 Returned *golog.JSONWriter
-Returned []golog.Writer
 Returned *golog.UUID
 Returned *golog.String
 Returned *golog.Strings
 Returned *golog.Nil
 Returned []golog.Attrib
+Returned []golog.Writer
 Returned *golog.Message
 1:
 Reused []golog.Writer len:0 cap:2
@@ -301,12 +301,12 @@ Reused *golog.Strings
 Reused *golog.Nil
 Returned *golog.TextWriter
 Returned *golog.JSONWriter
-Returned []golog.Writer
 Returned *golog.UUID
 Returned *golog.String
 Returned *golog.Strings
 Returned *golog.Nil
 Returned []golog.Attrib
+Returned []golog.Writer
 Returned *golog.Message
 RemoveAttribs:
 Returned *golog.UUID
@@ -380,11 +380,11 @@ Allocated *golog.Strings
 Allocated *golog.Nil
 Returned *golog.TextWriter
 Returned *golog.JSONWriter
-Returned []golog.Writer
 Returned *golog.String
 Returned *golog.Strings
 Returned *golog.Nil
 Returned []golog.Attrib
+Returned []golog.Writer
 Returned *golog.Message
 1:
 Reused []golog.Writer len:0 cap:2
@@ -397,11 +397,11 @@ Reused *golog.Strings
 Reused *golog.Nil
 Returned *golog.TextWriter
 Returned *golog.JSONWriter
-Returned []golog.Writer
 Returned *golog.String
 Returned *golog.Strings
 Returned *golog.Nil
 Returned []golog.Attrib
+Returned []golog.Writer
 Returned *golog.Message
 2:
 Reused []golog.Writer len:0 cap:2
@@ -414,11 +414,11 @@ Reused *golog.Strings
 Reused *golog.Nil
 Returned *golog.TextWriter
 Returned *golog.JSONWriter
-Returned []golog.Writer
 Returned *golog.String
 Returned *golog.Strings
 Returned *golog.Nil
 Returned []golog.Attrib
+Returned []golog.Writer
 Returned *golog.Message
 RemoveAttribs:
 Returned *golog.String

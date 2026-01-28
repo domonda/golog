@@ -41,6 +41,18 @@ func newMessage(logger *Logger, attribs Attribs, writers []Writer, level Level, 
 	return m
 }
 
+func (m *Message) reset() {
+	// First clear data then put back into the pool
+	m.attribs.Free()
+	if m.writers != nil {
+		writersPool.ClearAndPutBack(m.writers)
+	}
+
+	// Then zero the message
+	var zero Message
+	*m = zero
+}
+
 // IsActive returns true if the message is not nil.
 func (m *Message) IsActive() bool {
 	return m != nil
@@ -65,15 +77,20 @@ func (m *Message) SubLogger() *Logger {
 		// and don't put the message back into the pool
 		return m.logger
 	}
-	// The message has ownership of the
-	// cloned parent logger attribs
+	// The message has ownership of the cloned parent logger attribs
 	// and those added by methods of the message.
+	// Transfer attribs ownership to sub-logger by direct assignment
+	// (no Clone needed since message will be reset and pooled).
 	subLog := &Logger{
 		config:  m.logger.config,
 		prefix:  m.logger.prefix,
-		attribs: m.attribs, // Give ownership of the message attribs to the sub-logger
+		attribs: m.attribs,
 	}
-	messagePool.ClearAndPutBack(m)
+	// Nil out attribs before reset() to prevent freeing
+	// the attribs that are now owned by subLog.
+	m.attribs = nil
+	m.reset()
+	messagePool.PutBack(m)
 	return subLog
 }
 
@@ -1340,10 +1357,8 @@ func (m *Message) Log() {
 	}
 
 	// Reset and return to pools
-	writersPool.ClearAndPutBack(m.writers)
-
-	m.attribs.Free()
-	messagePool.ClearAndPutBack(m)
+	m.reset()
+	messagePool.PutBack(m)
 }
 
 // LogAndPanic writes the complete log message

@@ -74,28 +74,56 @@ Tests text/console output format instead of JSON.
 - **Use case**: Human-readable development logs
 - **What it measures**: Text formatting performance
 
-## Sample Results
+## Benchmark Results
 
-Results from a sample run on Intel Xeon Platinum 8581C @ 2.10GHz:
+Results from Apple M2:
 
 ```
-BenchmarkSimpleMessage/golog-16       	 1201732	      1032 ns/op	    1050 B/op	       2 allocs/op
-BenchmarkSimpleMessage/zerolog-16     	16943080	        74.92 ns/op	       0 B/op	       0 allocs/op
-BenchmarkSimpleMessage/zap-16         	 3537788	       343.7 ns/op	       0 B/op	       0 allocs/op
-BenchmarkSimpleMessage/slog-16        	 2385986	       491.6 ns/op	       0 B/op	       0 allocs/op
-BenchmarkSimpleMessage/logrus-16      	  728607	      1623 ns/op	     882 B/op	      20 allocs/op
+goos: darwin
+goarch: arm64
+cpu: Apple M2
 
-BenchmarkWithFields/golog-16          	  799130	      1377 ns/op	    1050 B/op	       2 allocs/op
-BenchmarkWithFields/zerolog-16        	 5594331	       211.4 ns/op	       0 B/op	       0 allocs/op
-BenchmarkWithFields/zap-16            	 1765508	       691.5 ns/op	     256 B/op	       1 allocs/op
-BenchmarkWithFields/slog-16           	  924662	      1289 ns/op	     208 B/op	       9 allocs/op
-BenchmarkWithFields/logrus-16         	  337856	      3595 ns/op	    1933 B/op	      34 allocs/op
+BenchmarkSimpleMessage/golog-8         	 1882119	       638 ns/op	      24 B/op	       1 allocs/op
+BenchmarkSimpleMessage/zerolog-8       	14454950	        83 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSimpleMessage/zap-8           	 3103516	       388 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSimpleMessage/slog-8          	 1939730	       627 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSimpleMessage/logrus-8        	  775527	      1695 ns/op	     889 B/op	      20 allocs/op
 
-BenchmarkDisabled/golog-16            	14264186	        79.43 ns/op	       0 B/op	       0 allocs/op
-BenchmarkDisabled/zerolog-16          	272754601	         4.346 ns/op	       0 B/op	       0 allocs/op
-BenchmarkDisabled/zap-16              	12929640	        89.96 ns/op	     128 B/op	       1 allocs/op
-BenchmarkDisabled/slog-16             	13903776	        81.30 ns/op	      48 B/op	       3 allocs/op
-BenchmarkDisabled/logrus-16           	 2224910	       537.5 ns/op	     528 B/op	       6 allocs/op
+BenchmarkWithFields/golog-8            	 1000000	      1066 ns/op	      24 B/op	       1 allocs/op
+BenchmarkWithFields/zerolog-8          	 4985748	       240 ns/op	       0 B/op	       0 allocs/op
+BenchmarkWithFields/zap-8              	 1726173	       698 ns/op	     256 B/op	       1 allocs/op
+BenchmarkWithFields/slog-8             	  853892	      1422 ns/op	     208 B/op	       9 allocs/op
+BenchmarkWithFields/logrus-8           	  376412	      3066 ns/op	    1939 B/op	      34 allocs/op
+
+BenchmarkWithManyFields/golog-8        	  780331	      1741 ns/op	      24 B/op	       1 allocs/op
+BenchmarkWithManyFields/zerolog-8      	 2786185	       472 ns/op	       0 B/op	       0 allocs/op
+BenchmarkWithManyFields/zap-8          	 1000000	      1133 ns/op	     704 B/op	       1 allocs/op
+BenchmarkWithManyFields/slog-8         	  541113	      2311 ns/op	     448 B/op	       7 allocs/op
+BenchmarkWithManyFields/logrus-8       	  199092	      6057 ns/op	    3998 B/op	      53 allocs/op
+
+BenchmarkWithAccumulatedContext/golog-8         	  916940	      1319 ns/op	      48 B/op	       2 allocs/op
+BenchmarkWithAccumulatedContext/zerolog-8       	 8606998	       140 ns/op	       0 B/op	       0 allocs/op
+BenchmarkWithAccumulatedContext/zap-8           	 2105499	       545 ns/op	     128 B/op	       1 allocs/op
+BenchmarkWithAccumulatedContext/slog-8          	 1000000	      1058 ns/op	      48 B/op	       3 allocs/op
+BenchmarkWithAccumulatedContext/logrus-8        	  385596	      3065 ns/op	    1882 B/op	      32 allocs/op
+
+BenchmarkDisabled/golog-8              	17221944	        70 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDisabled/zerolog-8            	180251212	         7 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDisabled/zap-8                	27230875	        44 ns/op	     128 B/op	       1 allocs/op
+BenchmarkDisabled/slog-8               	17217342	        69 ns/op	      48 B/op	       3 allocs/op
+BenchmarkDisabled/logrus-8             	 3024298	       395 ns/op	     528 B/op	       6 allocs/op
+
+BenchmarkComplexFields/golog-8         	  697248	      1848 ns/op	     152 B/op	       4 allocs/op
+BenchmarkComplexFields/zerolog-8       	 5323473	       225 ns/op	       0 B/op	       0 allocs/op
+BenchmarkComplexFields/zap-8           	 1561759	       763 ns/op	     256 B/op	       1 allocs/op
+BenchmarkComplexFields/slog-8          	  904917	      1333 ns/op	     104 B/op	       6 allocs/op
+BenchmarkComplexFields/logrus-8        	  347187	      3891 ns/op	    2022 B/op	      36 allocs/op
+
+BenchmarkTextOutput/golog-8            	  859528	      1550 ns/op	     347 B/op	       8 allocs/op
+BenchmarkTextOutput/zerolog-8          	 7879134	       135 ns/op	       0 B/op	       0 allocs/op
+BenchmarkTextOutput/zap-8              	 1322112	       835 ns/op	     192 B/op	       4 allocs/op
+BenchmarkTextOutput/slog-8             	 1000000	      1056 ns/op	      48 B/op	       3 allocs/op
+BenchmarkTextOutput/logrus-8           	  511267	      2251 ns/op	    1245 B/op	      21 allocs/op
 ```
 
 ## Performance Analysis
@@ -104,15 +132,15 @@ BenchmarkDisabled/logrus-16           	 2224910	       537.5 ns/op	     528 B/op
 1. **zerolog** - Consistently the fastest across all scenarios
 2. **zap** - Excellent performance, especially with fields
 3. **slog** - Good performance from standard library
-4. **golog** - Competitive with logrus, focuses on features over raw speed
+4. **golog** - Competitive with slog, much better than logrus
 5. **logrus** - Slowest of the tested libraries
 
 ### Memory Allocation Ranking (lowest to highest)
 1. **zerolog** - Zero allocations in most scenarios
 2. **zap** - Minimal allocations (0-1 per log)
-3. **slog** - Low allocations (0-9 per log depending on scenario)
-4. **golog** - Consistent ~1050 B/op with 2 allocs/op
-5. **logrus** - Highest allocations (882-3996 B/op)
+3. **golog** - Consistent 24 B/op with 1 alloc/op for JSON output
+4. **slog** - Variable allocations (0-9 per log depending on scenario)
+5. **logrus** - Highest allocations (889-3998 B/op)
 
 ### Key Observations
 
@@ -132,10 +160,10 @@ BenchmarkDisabled/logrus-16           	 2224910	       537.5 ns/op	     528 B/op
 - Built-in support in Go 1.21+
 
 **golog's Design Trade-offs**
-- Focuses on flexibility and feature richness
-- Consistent memory profile across scenarios
-- Better than logrus, competitive with slog in some scenarios
-- Excellent disabled logging performance (79 ns/op, 0 allocs)
+- Consistent low memory profile (24 B/op) across most scenarios
+- Excellent disabled logging performance (70 ns/op, 0 allocs)
+- More allocations for text output and complex fields
+- Flexible multi-writer architecture
 
 **logrus Performance**
 - Mature library with wide adoption
@@ -162,7 +190,7 @@ BenchmarkDisabled/logrus-16           	 2224910	       537.5 ns/op	     528 B/op
 **Choose golog when:**
 - You need flexible configuration options
 - Multiple output formats and writers are required
-- Feature richness is more important than raw speed
+- Zero allocations when disabled is important
 - Integration with existing domonda ecosystem
 
 **Choose logrus when:**
@@ -170,19 +198,9 @@ BenchmarkDisabled/logrus-16           	 2224910	       537.5 ns/op	     528 B/op
 - Performance is not a primary concern
 - Wide plugin ecosystem is needed
 
-## Optimization Opportunities
-
-Based on these benchmarks, potential optimization areas for golog:
-
-1. **Memory pooling**: Consider sync.Pool for message/buffer reuse
-2. **Zero-allocation paths**: Optimize hot paths to reduce allocations
-3. **Buffer pre-allocation**: Size buffers based on typical log sizes
-4. **Inlining**: Ensure critical methods are inlined by the compiler
-
-See [ALLOCATIONS.md](ALLOCATIONS.md) for a detailed analysis of where allocations occur and specific optimization recommendations.
-
 ## References
 
+- [ALLOCATIONS.md](ALLOCATIONS.md) - Detailed analysis of where allocations occur
 - [Better Stack Go Logging Benchmarks](https://betterstack.com/community/guides/logging/best-golang-logging-libraries/)
 - [Better Stack Go Logging Benchmarks Repository](https://github.com/betterstack-community/go-logging-benchmarks)
 - [Zerolog Repository](https://github.com/rs/zerolog)
