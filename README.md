@@ -392,12 +392,13 @@ Run internal benchmarks:
 go test -bench=. -benchmem
 ```
 
-For comparative benchmarks against other popular Go logging libraries (zerolog, zap, slog, logrus):
+For comparative benchmarks against other popular Go logging libraries (zerolog, zap, slog, logrus),
+the benchmarks are in a separate module to avoid adding those dependencies to the main golog module:
 ```bash
-go test -bench=. -benchmem comparative_bench_test.go
+go test ./benchmarks -bench=. -benchmem -benchtime=1s
 ```
 
-See [BENCHMARKS.md](BENCHMARKS.md) for detailed comparative analysis and performance insights.
+See [benchmarks/README.md](benchmarks/README.md) for detailed comparative analysis and performance insights.
 
 ## API Reference
 

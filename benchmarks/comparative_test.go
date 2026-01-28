@@ -1,4 +1,4 @@
-package golog_test
+package benchmarks
 
 import (
 	"errors"
@@ -47,7 +47,7 @@ func BenchmarkSimpleMessage(b *testing.B) {
 		b.ResetTimer()
 		b.ReportAllocs()
 
-		for i := 0; i < b.N; i++ {
+		for range b.N {
 			logger.Info(testMessage).Log()
 		}
 	})
@@ -58,7 +58,7 @@ func BenchmarkSimpleMessage(b *testing.B) {
 		b.ResetTimer()
 		b.ReportAllocs()
 
-		for i := 0; i < b.N; i++ {
+		for range b.N {
 			logger.Info().Msg(testMessage)
 		}
 	})
@@ -74,7 +74,7 @@ func BenchmarkSimpleMessage(b *testing.B) {
 		b.ResetTimer()
 		b.ReportAllocs()
 
-		for i := 0; i < b.N; i++ {
+		for range b.N {
 			logger.Info(testMessage)
 		}
 	})
@@ -85,7 +85,7 @@ func BenchmarkSimpleMessage(b *testing.B) {
 		b.ResetTimer()
 		b.ReportAllocs()
 
-		for i := 0; i < b.N; i++ {
+		for range b.N {
 			logger.Info(testMessage)
 		}
 	})
@@ -98,7 +98,7 @@ func BenchmarkSimpleMessage(b *testing.B) {
 		b.ResetTimer()
 		b.ReportAllocs()
 
-		for i := 0; i < b.N; i++ {
+		for range b.N {
 			logger.Info(testMessage)
 		}
 	})
@@ -116,7 +116,7 @@ func BenchmarkWithFields(b *testing.B) {
 		b.ResetTimer()
 		b.ReportAllocs()
 
-		for i := 0; i < b.N; i++ {
+		for range b.N {
 			logger.Info(testMessage).
 				Str(testStringKey, testStringValue).
 				Int(testIntKey, testIntValue).
@@ -132,7 +132,7 @@ func BenchmarkWithFields(b *testing.B) {
 		b.ResetTimer()
 		b.ReportAllocs()
 
-		for i := 0; i < b.N; i++ {
+		for range b.N {
 			logger.Info().
 				Str(testStringKey, testStringValue).
 				Int(testIntKey, testIntValue).
@@ -153,7 +153,7 @@ func BenchmarkWithFields(b *testing.B) {
 		b.ResetTimer()
 		b.ReportAllocs()
 
-		for i := 0; i < b.N; i++ {
+		for range b.N {
 			logger.Info(testMessage,
 				zap.String(testStringKey, testStringValue),
 				zap.Int(testIntKey, testIntValue),
@@ -169,7 +169,7 @@ func BenchmarkWithFields(b *testing.B) {
 		b.ResetTimer()
 		b.ReportAllocs()
 
-		for i := 0; i < b.N; i++ {
+		for range b.N {
 			logger.Info(testMessage,
 				testStringKey, testStringValue,
 				testIntKey, testIntValue,
@@ -187,7 +187,7 @@ func BenchmarkWithFields(b *testing.B) {
 		b.ResetTimer()
 		b.ReportAllocs()
 
-		for i := 0; i < b.N; i++ {
+		for range b.N {
 			logger.WithFields(logrus.Fields{
 				testStringKey: testStringValue,
 				testIntKey:    testIntValue,
@@ -210,7 +210,7 @@ func BenchmarkWithManyFields(b *testing.B) {
 		b.ResetTimer()
 		b.ReportAllocs()
 
-		for i := 0; i < b.N; i++ {
+		for range b.N {
 			logger.Info(testMessage).
 				Str("field1", "value1").
 				Str("field2", "value2").
@@ -232,7 +232,7 @@ func BenchmarkWithManyFields(b *testing.B) {
 		b.ResetTimer()
 		b.ReportAllocs()
 
-		for i := 0; i < b.N; i++ {
+		for range b.N {
 			logger.Info().
 				Str("field1", "value1").
 				Str("field2", "value2").
@@ -259,7 +259,7 @@ func BenchmarkWithManyFields(b *testing.B) {
 		b.ResetTimer()
 		b.ReportAllocs()
 
-		for i := 0; i < b.N; i++ {
+		for range b.N {
 			logger.Info(testMessage,
 				zap.String("field1", "value1"),
 				zap.String("field2", "value2"),
@@ -281,7 +281,7 @@ func BenchmarkWithManyFields(b *testing.B) {
 		b.ResetTimer()
 		b.ReportAllocs()
 
-		for i := 0; i < b.N; i++ {
+		for range b.N {
 			logger.Info(testMessage,
 				"field1", "value1",
 				"field2", "value2",
@@ -305,7 +305,7 @@ func BenchmarkWithManyFields(b *testing.B) {
 		b.ResetTimer()
 		b.ReportAllocs()
 
-		for i := 0; i < b.N; i++ {
+		for range b.N {
 			logger.WithFields(logrus.Fields{
 				"field1":  "value1",
 				"field2":  "value2",
@@ -339,7 +339,7 @@ func BenchmarkWithAccumulatedContext(b *testing.B) {
 		b.ResetTimer()
 		b.ReportAllocs()
 
-		for i := 0; i < b.N; i++ {
+		for range b.N {
 			logger.Info(testMessage).
 				Str(testStringKey, testStringValue).
 				Int(testIntKey, testIntValue).
@@ -356,7 +356,7 @@ func BenchmarkWithAccumulatedContext(b *testing.B) {
 		b.ResetTimer()
 		b.ReportAllocs()
 
-		for i := 0; i < b.N; i++ {
+		for range b.N {
 			logger.Info().
 				Str(testStringKey, testStringValue).
 				Int(testIntKey, testIntValue).
@@ -378,7 +378,7 @@ func BenchmarkWithAccumulatedContext(b *testing.B) {
 		b.ResetTimer()
 		b.ReportAllocs()
 
-		for i := 0; i < b.N; i++ {
+		for range b.N {
 			logger.Info(testMessage,
 				zap.String(testStringKey, testStringValue),
 				zap.Int(testIntKey, testIntValue),
@@ -395,7 +395,7 @@ func BenchmarkWithAccumulatedContext(b *testing.B) {
 		b.ResetTimer()
 		b.ReportAllocs()
 
-		for i := 0; i < b.N; i++ {
+		for range b.N {
 			logger.Info(testMessage,
 				testStringKey, testStringValue,
 				testIntKey, testIntValue,
@@ -415,7 +415,7 @@ func BenchmarkWithAccumulatedContext(b *testing.B) {
 		b.ResetTimer()
 		b.ReportAllocs()
 
-		for i := 0; i < b.N; i++ {
+		for range b.N {
 			logger.WithFields(logrus.Fields{
 				testStringKey: testStringValue,
 				testIntKey:    testIntValue,
@@ -436,7 +436,7 @@ func BenchmarkDisabled(b *testing.B) {
 		b.ResetTimer()
 		b.ReportAllocs()
 
-		for i := 0; i < b.N; i++ {
+		for range b.N {
 			// Debug is disabled
 			logger.Debug(testMessage).
 				Str(testStringKey, testStringValue).
@@ -451,7 +451,7 @@ func BenchmarkDisabled(b *testing.B) {
 		b.ResetTimer()
 		b.ReportAllocs()
 
-		for i := 0; i < b.N; i++ {
+		for range b.N {
 			// Debug is disabled
 			logger.Debug().
 				Str(testStringKey, testStringValue).
@@ -471,7 +471,7 @@ func BenchmarkDisabled(b *testing.B) {
 		b.ResetTimer()
 		b.ReportAllocs()
 
-		for i := 0; i < b.N; i++ {
+		for range b.N {
 			// Debug is disabled
 			logger.Debug(testMessage,
 				zap.String(testStringKey, testStringValue),
@@ -488,7 +488,7 @@ func BenchmarkDisabled(b *testing.B) {
 		b.ResetTimer()
 		b.ReportAllocs()
 
-		for i := 0; i < b.N; i++ {
+		for range b.N {
 			// Debug is disabled
 			logger.Debug(testMessage,
 				testStringKey, testStringValue,
@@ -506,7 +506,7 @@ func BenchmarkDisabled(b *testing.B) {
 		b.ResetTimer()
 		b.ReportAllocs()
 
-		for i := 0; i < b.N; i++ {
+		for range b.N {
 			// Debug is disabled
 			logger.WithFields(logrus.Fields{
 				testStringKey: testStringValue,
@@ -528,7 +528,7 @@ func BenchmarkComplexFields(b *testing.B) {
 		b.ResetTimer()
 		b.ReportAllocs()
 
-		for i := 0; i < b.N; i++ {
+		for range b.N {
 			logger.Error(testMessage).
 				Str(testStringKey, testStringValue).
 				Int(testIntKey, testIntValue).
@@ -544,7 +544,7 @@ func BenchmarkComplexFields(b *testing.B) {
 		b.ResetTimer()
 		b.ReportAllocs()
 
-		for i := 0; i < b.N; i++ {
+		for range b.N {
 			logger.Error().
 				Str(testStringKey, testStringValue).
 				Int(testIntKey, testIntValue).
@@ -565,7 +565,7 @@ func BenchmarkComplexFields(b *testing.B) {
 		b.ResetTimer()
 		b.ReportAllocs()
 
-		for i := 0; i < b.N; i++ {
+		for range b.N {
 			logger.Error(testMessage,
 				zap.String(testStringKey, testStringValue),
 				zap.Int(testIntKey, testIntValue),
@@ -581,7 +581,7 @@ func BenchmarkComplexFields(b *testing.B) {
 		b.ResetTimer()
 		b.ReportAllocs()
 
-		for i := 0; i < b.N; i++ {
+		for range b.N {
 			logger.Error(testMessage,
 				testStringKey, testStringValue,
 				testIntKey, testIntValue,
@@ -599,7 +599,7 @@ func BenchmarkComplexFields(b *testing.B) {
 		b.ResetTimer()
 		b.ReportAllocs()
 
-		for i := 0; i < b.N; i++ {
+		for range b.N {
 			logger.WithFields(logrus.Fields{
 				testStringKey: testStringValue,
 				testIntKey:    testIntValue,
@@ -622,7 +622,7 @@ func BenchmarkTextOutput(b *testing.B) {
 		b.ResetTimer()
 		b.ReportAllocs()
 
-		for i := 0; i < b.N; i++ {
+		for range b.N {
 			logger.Info(testMessage).
 				Str(testStringKey, testStringValue).
 				Int(testIntKey, testIntValue).
@@ -636,7 +636,7 @@ func BenchmarkTextOutput(b *testing.B) {
 		b.ResetTimer()
 		b.ReportAllocs()
 
-		for i := 0; i < b.N; i++ {
+		for range b.N {
 			logger.Info().
 				Str(testStringKey, testStringValue).
 				Int(testIntKey, testIntValue).
@@ -655,7 +655,7 @@ func BenchmarkTextOutput(b *testing.B) {
 		b.ResetTimer()
 		b.ReportAllocs()
 
-		for i := 0; i < b.N; i++ {
+		for range b.N {
 			logger.Info(testMessage,
 				zap.String(testStringKey, testStringValue),
 				zap.Int(testIntKey, testIntValue),
@@ -669,7 +669,7 @@ func BenchmarkTextOutput(b *testing.B) {
 		b.ResetTimer()
 		b.ReportAllocs()
 
-		for i := 0; i < b.N; i++ {
+		for range b.N {
 			logger.Info(testMessage,
 				testStringKey, testStringValue,
 				testIntKey, testIntValue,
@@ -685,7 +685,7 @@ func BenchmarkTextOutput(b *testing.B) {
 		b.ResetTimer()
 		b.ReportAllocs()
 
-		for i := 0; i < b.N; i++ {
+		for range b.N {
 			logger.WithFields(logrus.Fields{
 				testStringKey: testStringValue,
 				testIntKey:    testIntValue,

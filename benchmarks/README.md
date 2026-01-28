@@ -12,16 +12,27 @@ This document contains comparative benchmarks between golog and other popular Go
 
 ## Running the Benchmarks
 
-To run all comparative benchmarks:
+The benchmarks are in a separate module at `benchmarks/` to avoid adding dependencies on other
+logging libraries (zerolog, zap, logrus) to the main golog module. The benchmarks module uses
+a `replace` directive to reference the local golog package.
+
+To run all comparative benchmarks from the golog directory:
 
 ```bash
-go test -bench=. -benchmem -benchtime=1s comparative_bench_test.go
+go test ./benchmarks -bench=. -benchmem -benchtime=1s
+```
+
+Or from the benchmarks directory:
+
+```bash
+cd benchmarks
+go test -bench=. -benchmem -benchtime=1s
 ```
 
 To run a specific benchmark:
 
 ```bash
-go test -bench=BenchmarkSimpleMessage -benchmem
+go test ./benchmarks -bench=BenchmarkSimpleMessage -benchmem
 ```
 
 ## Benchmark Scenarios
