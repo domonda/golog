@@ -73,7 +73,7 @@ You can also manually test the terminal detection:
 ### Build the Docker Image
 
 ```bash
-docker build -t golog-terminaldetection-test -f testdata/terminaldetection/Dockerfile .
+docker build -t golog-terminaldetection-test -f tests/terminaldetection/Dockerfile .
 ```
 
 ### Run with Terminal (Text Format)

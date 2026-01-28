@@ -13,7 +13,7 @@ RUN go mod download
 COPY . .
 
 # Build the test executable
-RUN go build -o /terminaldetection ./testdata/terminaldetection
+RUN go build -o /terminaldetection ./tests/terminaldetection
 
 # Set the executable as the entrypoint
 ENTRYPOINT ["/terminaldetection"]
