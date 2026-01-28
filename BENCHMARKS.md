@@ -168,6 +168,8 @@ Based on these benchmarks, potential optimization areas for golog:
 3. **Buffer pre-allocation**: Size buffers based on typical log sizes
 4. **Inlining**: Ensure critical methods are inlined by the compiler
 
+See [ALLOCATIONS.md](ALLOCATIONS.md) for a detailed analysis of where allocations occur and specific optimization recommendations.
+
 ## References
 
 - [Better Stack Go Logging Benchmarks](https://betterstack.com/community/guides/logging/best-golang-logging-libraries/)
