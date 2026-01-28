@@ -385,6 +385,20 @@ golog is designed for high performance:
 - Lazy evaluation of expensive operations
 - Minimal overhead for inactive log levels
 
+### Benchmarks
+
+Run internal benchmarks:
+```bash
+go test -bench=. -benchmem
+```
+
+For comparative benchmarks against other popular Go logging libraries (zerolog, zap, slog, logrus):
+```bash
+go test -bench=. -benchmem comparative_bench_test.go
+```
+
+See [BENCHMARKS.md](BENCHMARKS.md) for detailed comparative analysis and performance insights.
+
 ## API Reference
 
 ### Core Types
