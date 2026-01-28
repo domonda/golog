@@ -5,7 +5,7 @@ go 1.24.0
 tool github.com/securego/gosec/v2/cmd/gosec
 
 require (
-	github.com/domonda/go-encjson v0.0.0-20250402115751-77a50fd88c01
+	github.com/domonda/go-encjson v1.0.0
 	github.com/muesli/termenv v0.16.0
 	github.com/stretchr/testify v1.11.1
 	github.com/ungerik/go-fs v0.0.0-20260118110456-0ae82a14cadb
