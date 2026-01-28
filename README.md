@@ -487,6 +487,84 @@ golog is designed for high performance:
 - Lazy evaluation of expensive operations
 - Minimal overhead for inactive log levels
 
+### Benchmarks
+
+Run internal benchmarks:
+```bash
+go test -bench=. -benchmem
+```
+
+For comparative benchmarks against other popular Go logging libraries (zerolog, zap, slog, logrus),
+the benchmarks are in a separate module to avoid adding those dependencies to the main golog module:
+```bash
+go test ./benchmarks -bench=. -benchmem -benchtime=1s
+```
+
+See [benchmarks/README.md](benchmarks/README.md) for detailed comparative analysis and performance insights.
+
+## Comparison with Other Logging Libraries
+
+golog is designed to strike a balance between performance and flexibility. While libraries like zerolog and zap prioritize raw speed, golog provides a richer feature set that makes it more adaptable to complex logging requirements.
+
+### Performance vs Flexibility Tradeoffs
+
+| Feature                                  | zerolog          | zap              | golog                 |
+|------------------------------------------|------------------|------------------|-----------------------|
+| **Multi-writer support**                 | Single output    | Limited          | Native, unlimited     |
+| **Duplicate key prevention**             | No               | No               | Yes                   |
+| **Context attribute integration**        | Manual           | Manual           | Automatic             |
+| **Sub-logger with inherited attributes** | Basic            | Basic            | Full support with attrib recording |
+| **Zero allocations (simple message)**    | Yes              | Yes              | Yes                   |
+| **Zero allocations (with fields)**       | Yes              | No (1 alloc)     | Yes                   |
+| **slog compatibility**                   | Separate adapter | Separate adapter | Native goslog package |
+
+### Architectural Differences
+
+**zerolog: Extreme Minimalism**
+- Optimized for a single use case: fast JSON logging to a single output
+- Minimal abstraction layers result in the fastest raw JSON performance
+- Disabled log levels have near-zero overhead (~4 ns/op)
+- Trade-off: Limited flexibility for complex logging scenarios
+- Trade-off: ConsoleWriter for text output is significantly slower (2283 ns/op vs 50 ns/op for JSON)
+
+**zap: Performance + Type Safety**
+- Typed `Field` structs provide compile-time safety
+- Separate "Sugar" logger offers convenience at the cost of performance
+- Trade-off: Allocates a slice for variadic field arguments (~1 alloc per log call with fields)
+
+**golog: Flexibility + Features**
+- **Native multi-writer architecture**: Log to console, files, and external services simultaneously with different formats and filters per destination
+- **Automatic context integration**: Attributes added to `context.Context` are automatically included in log messages without manual plumbing
+- **Sub-logger attribute recording**: The `With().SubLogger()` pattern creates child loggers that efficiently inherit and extend parent attributes
+- **Duplicate key prevention**: Prevents accidental duplicate keys in log output, ensuring clean structured data
+- **Zero allocations for standard logging**: Despite the richer feature set, golog achieves zero allocations for JSON logging with fields
+- **Nil-safe design**: A nil logger is safe to use and won't panic, simplifying error handling
+
+### When to Choose golog
+
+golog is the right choice when you need:
+
+- **Multiple output destinations**: Log to stdout with colors for development and JSON files for production simultaneously
+- **Request-scoped logging**: Automatically propagate correlation IDs, user IDs, and other context through your application
+- **Sub-loggers with inherited context**: Create child loggers for specific components that include parent attributes
+- **Clean structured data**: Prevent duplicate keys from appearing in your logs
+- **slog compatibility**: Use golog as a backend for Go's standard library logging interface
+- **Rotating log files**: Built-in support for size-based log rotation
+
+### When to Choose Alternatives
+
+- **zerolog**: When raw JSON logging speed is the only priority and you don't need multi-writer support, context integration, or text/console output (zerolog's ConsoleWriter is slow)
+- **zap**: When you prefer a variadic field API with compile-time type checking, or when you need fast text/console output
+- **slog**: When you want zero external dependencies and good-enough performance from the standard library
+
+### Real-World Performance
+
+For most applications, the performance difference between logging libraries is negligible. At 361 ns/op for a simple JSON message, golog can handle nearly 3 million log messages per second on a single core. The additional features golog provides—multi-writer support, context integration, and duplicate key prevention—often save more development time than the nanoseconds saved by faster alternatives.
+
+**Note on text output**: For human-readable console/text output, golog (816 ns/op) actually outperforms zerolog's ConsoleWriter (2283 ns/op), which incurs significant overhead. If you need fast text logging for development, golog and zap are better choices than zerolog.
+
+The performance gap for JSON output becomes meaningful only in extreme high-throughput scenarios (100K+ logs/second sustained), where zerolog's 50 ns/op provides measurable benefits. For typical applications, golog's flexibility and rich feature set make it a more productive choice.
+
 ## API Reference
 
 ### Core Types

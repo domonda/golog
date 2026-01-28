@@ -84,7 +84,7 @@ func (a *Nil) Clone() Attrib {
 }
 
 func (a *Nil) Free() {
-	nilPool.ClearAndPutBack(a)
+	nilPool.ZeroAndPutBack(a)
 }
 
 func (a *Nil) Key() string         { return a.key }
@@ -122,7 +122,7 @@ func (a *Any) Clone() Attrib {
 }
 
 func (a *Any) Free() {
-	anyPool.ClearAndPutBack(a)
+	anyPool.ZeroAndPutBack(a)
 }
 
 func (a *Any) Key() string { return a.key }
@@ -211,7 +211,7 @@ func (a *Bool) Clone() Attrib {
 }
 
 func (a *Bool) Free() {
-	boolPool.ClearAndPutBack(a)
+	boolPool.ZeroAndPutBack(a)
 }
 
 func (a Bool) Key() string         { return a.key }
@@ -252,7 +252,7 @@ func (a *Bools) Clone() Attrib {
 }
 
 func (a *Bools) Free() {
-	boolsPool.ClearAndPutBack(a)
+	boolsPool.ZeroAndPutBack(a)
 }
 
 func (a *Bools) Key() string         { return a.key }
@@ -297,7 +297,7 @@ func (a *Int) Clone() Attrib {
 }
 
 func (a *Int) Free() {
-	intPool.ClearAndPutBack(a)
+	intPool.ZeroAndPutBack(a)
 }
 
 func (a *Int) Key() string         { return a.key }
@@ -345,7 +345,7 @@ func (a *Ints) Clone() Attrib {
 }
 
 func (a *Ints) Free() {
-	intsPool.ClearAndPutBack(a)
+	intsPool.ZeroAndPutBack(a)
 }
 
 func (a *Ints) Key() string         { return a.key }
@@ -390,7 +390,7 @@ func (a *Uint) Clone() Attrib {
 }
 
 func (a *Uint) Free() {
-	uintPool.ClearAndPutBack(a)
+	uintPool.ZeroAndPutBack(a)
 }
 
 func (a *Uint) Key() string         { return a.key }
@@ -438,7 +438,7 @@ func (a *Uints) Clone() Attrib {
 }
 
 func (a *Uints) Free() {
-	uintsPool.ClearAndPutBack(a)
+	uintsPool.ZeroAndPutBack(a)
 }
 
 func (a *Uints) Key() string          { return a.key }
@@ -483,7 +483,7 @@ func (a *Float) Clone() Attrib {
 }
 
 func (a *Float) Free() {
-	floatPool.ClearAndPutBack(a)
+	floatPool.ZeroAndPutBack(a)
 }
 
 func (a *Float) Key() string         { return a.key }
@@ -531,7 +531,7 @@ func (a *Floats) Clone() Attrib {
 }
 
 func (a *Floats) Free() {
-	floatsPool.ClearAndPutBack(a)
+	floatsPool.ZeroAndPutBack(a)
 }
 
 func (a *Floats) Key() string            { return a.key }
@@ -576,7 +576,7 @@ func (a *String) Clone() Attrib {
 }
 
 func (a *String) Free() {
-	stringPool.ClearAndPutBack(a)
+	stringPool.ZeroAndPutBack(a)
 }
 
 func (a *String) Key() string         { return a.key }
@@ -623,7 +623,7 @@ func (a *Strings) Clone() Attrib {
 }
 
 func (a *Strings) Free() {
-	stringsPool.ClearAndPutBack(a)
+	stringsPool.ZeroAndPutBack(a)
 }
 
 func (a *Strings) Key() string            { return a.key }
@@ -668,7 +668,7 @@ func (a *Error) Clone() Attrib {
 }
 
 func (a *Error) Free() {
-	errorPool.ClearAndPutBack(a)
+	errorPool.ZeroAndPutBack(a)
 }
 
 func (a *Error) Key() string { return a.key }
@@ -717,7 +717,7 @@ func (a *Errors) Clone() Attrib {
 }
 
 func (a *Errors) Free() {
-	errorsPool.ClearAndPutBack(a)
+	errorsPool.ZeroAndPutBack(a)
 }
 
 func (a *Errors) Key() string { return a.key }
@@ -779,7 +779,7 @@ func (a *UUID) Clone() Attrib {
 }
 
 func (a *UUID) Free() {
-	uuidPool.ClearAndPutBack(a)
+	uuidPool.ZeroAndPutBack(a)
 }
 
 func (a *UUID) Key() string         { return a.key }
@@ -827,7 +827,7 @@ func (a *UUIDs) Clone() Attrib {
 }
 
 func (a *UUIDs) Free() {
-	uuidsPool.ClearAndPutBack(a)
+	uuidsPool.ZeroAndPutBack(a)
 }
 
 func (a *UUIDs) Key() string { return a.key }
@@ -883,7 +883,7 @@ func (a *JSON) Clone() Attrib {
 }
 
 func (a *JSON) Free() {
-	jsonPool.ClearAndPutBack(a)
+	jsonPool.ZeroAndPutBack(a)
 }
 
 func (a *JSON) Key() string                { return a.key }

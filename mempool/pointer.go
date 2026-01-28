@@ -39,17 +39,28 @@ func (p *Pointer[T]) GetOrNew() *T {
 	return pointer
 }
 
-// ClearAndPutBack zeroes the pointed-to value and returns the pointer to the pool for reuse.
+// PutBack returns the pointer to the pool for reuse.
+//
+// This method is safe to call with nil pointers (no-op).
+// After calling this method, the pointer should not be used as it may be
+// returned to other goroutines.
+func (p *Pointer[T]) PutBack(ptr *T) {
+	if onPutBack != nil {
+		onPutBack(ptr)
+	}
+	if ptr != nil {
+		p.pool.Put(ptr)
+	}
+}
+
+// ZeroAndPutBack zeroes the pointed-to value and returns the pointer to the pool for reuse.
 // The value pointed to by ptr is set to the zero value of type T, then the pointer
 // is returned to the pool.
 //
 // This method is safe to call with nil pointers (no-op).
 // After calling this method, the pointer should not be used as it may be
 // returned to other goroutines.
-//
-// Parameters:
-//   - ptr: the pointer to zero and return to the pool
-func (p *Pointer[T]) ClearAndPutBack(ptr *T) {
+func (p *Pointer[T]) ZeroAndPutBack(ptr *T) {
 	if onPutBack != nil {
 		onPutBack(ptr)
 	}

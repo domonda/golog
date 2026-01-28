@@ -109,9 +109,10 @@ func (w *TextWriter) CommitMessage() {
 	}
 
 	// Reset and return to pool
+	w.config = nil
 	w.sliceMode = sliceModeNone
 	w.buf = w.buf[:0]
-	textWriterPool.ClearAndPutBack(w)
+	textWriterPool.PutBack(w)
 }
 
 func (w *TextWriter) String() string {

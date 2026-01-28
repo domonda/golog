@@ -66,10 +66,20 @@ func (w *CallbackWriter) BeginMessage(config Config, timestamp time.Time, level 
 	w.text = text
 }
 
+func (w *CallbackWriter) reset() {
+	// First clear data then put back into the pool
+	w.attribs.Free()
+
+	// Then zero the writer
+	var zero CallbackWriter
+	*w = zero
+}
+
 func (w *CallbackWriter) CommitMessage() {
 	defer func() {
 		recover() // Recover from any panic in w.config.callback
-		callbackWriterPool.ClearAndPutBack(w)
+		w.reset()
+		callbackWriterPool.PutBack(w)
 	}()
 
 	w.config.callback(w.timestamp, w.level, w.prefix, w.text, w.attribs)

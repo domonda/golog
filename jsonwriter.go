@@ -89,8 +89,9 @@ func (w *JSONWriter) CommitMessage() {
 	}
 
 	// Reset and return to pool
+	w.config = nil
 	w.buf = w.buf[:0]
-	jsonWriterPool.ClearAndPutBack(w)
+	jsonWriterPool.PutBack(w)
 }
 
 func (w *JSONWriter) String() string {

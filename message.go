@@ -24,21 +24,34 @@ import (
 // Messages should not be reused after calling Log() or SubLogger()
 // as they are returned to an internal pool.
 type Message struct {
-	logger  *Logger
-	attribs Attribs
-	writers []Writer
-	level   Level
-	text    string // Used for LogAndPanic
+	logger       *Logger
+	attribs      Attribs
+	writers      []Writer
+	writersArray [4]Writer // Backing store for writers slice - avoids heap allocation for ≤4 writers
+	level        Level
+	text         string // Used for LogAndPanic
 }
 
 func newMessage(logger *Logger, attribs Attribs, writers []Writer, level Level, text string) *Message {
 	m := messagePool.GetOrNew()
 	m.logger = logger
 	m.attribs = attribs
-	m.writers = writers
+	if writers == nil {
+		m.writers = nil // attrib recorder case
+	} else {
+		// Use embedded array as backing store, append handles overflow to heap if >4
+		m.writers = append(m.writersArray[:0], writers...)
+	}
 	m.level = level
 	m.text = text
 	return m
+}
+
+func (m *Message) reset() {
+	m.attribs.Free()
+	// Zero the entire message (including writersArray, clearing writer refs for GC)
+	var zero Message
+	*m = zero
 }
 
 // IsActive returns true if the message is not nil.
@@ -65,15 +78,20 @@ func (m *Message) SubLogger() *Logger {
 		// and don't put the message back into the pool
 		return m.logger
 	}
-	// The message has ownership of the
-	// cloned parent logger attribs
+	// The message has ownership of the cloned parent logger attribs
 	// and those added by methods of the message.
+	// Transfer attribs ownership to sub-logger by direct assignment
+	// (no Clone needed since message will be reset and pooled).
 	subLog := &Logger{
 		config:  m.logger.config,
 		prefix:  m.logger.prefix,
-		attribs: m.attribs, // Give ownership of the message attribs to the sub-logger
+		attribs: m.attribs,
 	}
-	messagePool.ClearAndPutBack(m)
+	// Nil out attribs before reset() to prevent freeing
+	// the attribs that are now owned by subLog.
+	m.attribs = nil
+	m.reset()
+	messagePool.PutBack(m)
 	return subLog
 }
 
@@ -1340,10 +1358,8 @@ func (m *Message) Log() {
 	}
 
 	// Reset and return to pools
-	writersPool.ClearAndPutBack(m.writers)
-
-	m.attribs.Free()
-	messagePool.ClearAndPutBack(m)
+	m.reset()
+	messagePool.PutBack(m)
 }
 
 // LogAndPanic writes the complete log message
