@@ -6,19 +6,65 @@ Fast and flexible structured logging library for Go inspired by zerolog
 [![Go Reference](https://pkg.go.dev/badge/github.com/domonda/golog.svg)](https://pkg.go.dev/github.com/domonda/golog)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
+## Table of Contents
+
+- [Features](#features)
+- [Production Tested](#production-tested)
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+  - [Basic Usage](#basic-usage)
+  - [JSON Output](#json-output)
+  - [Structured Logging with All Data Types](#structured-logging-with-all-data-types)
+- [Log Levels](#log-levels)
+  - [Level-specific Methods](#level-specific-methods)
+- [Sub-loggers and Context](#sub-loggers-and-context)
+  - [Creating Sub-loggers](#creating-sub-loggers)
+  - [Context Integration](#context-integration)
+- [Multiple Writers and Filtering](#multiple-writers-and-filtering)
+- [Terminal Detection](#terminal-detection)
+- [Ready-to-Use Logger (`log` subpackage)](#ready-to-use-logger-log-subpackage)
+  - [Default Configuration](#default-configuration)
+  - [Customizing the Default Logger](#customizing-the-default-logger)
+  - [Available Package-Level Functions](#available-package-level-functions)
+- [Rotating Log Files](#rotating-log-files)
+  - [Multiple Writers with Rotation](#multiple-writers-with-rotation)
+- [Standard Library Integration (slog)](#standard-library-integration-slog)
+  - [Benefits of slog Integration](#benefits-of-slog-integration)
+- [HTTP Middleware](#http-middleware)
+- [Advanced Features](#advanced-features)
+  - [Custom Colorizers](#custom-colorizers)
+  - [Call Stack Logging](#call-stack-logging)
+  - [Redacting Sensitive Data](#redacting-sensitive-data)
+  - [Custom Levels](#custom-levels)
+  - [Level Filtering](#level-filtering)
+- [Performance](#performance)
+  - [Benchmarks](#benchmarks)
+- [Comparison with Other Logging Libraries](#comparison-with-other-logging-libraries)
+  - [Performance vs Flexibility Tradeoffs](#performance-vs-flexibility-tradeoffs)
+  - [Architectural Differences](#architectural-differences)
+  - [When to Choose golog](#when-to-choose-golog)
+  - [When to Choose Alternatives](#when-to-choose-alternatives)
+  - [Real-World Performance](#real-world-performance)
+- [API Reference](#api-reference)
+  - [Core Types](#core-types)
+  - [Writer Types](#writer-types)
+- [License](#license)
+
 ## Features
 
-- **High Performance**: Zero-allocation logging with memory pooling
-- **Structured Logging**: Type-safe field methods for all Go primitives
+- **High Performance**: Zero-allocation logging for JSON, text, and complex fields (error, time.Time)
+- **Structured Logging**: Type-safe field methods for all Go primitives including native time.Time and UUID
 - **Multiple Output Formats**: JSON and human-readable text output
-- **Configurable Log Levels**: TRACE, DEBUG, INFO, WARN, ERROR, FATAL
-- **Context Support**: Log attributes can be stored in and retrieved from context
+- **Terminal Auto-Detection**: Automatically switches between colored text (TTY) and JSON (non-TTY)
+- **Configurable Log Levels**: TRACE, DEBUG, INFO, WARN, ERROR, FATAL with flexible filtering
+- **Context Support**: Log attributes can be stored in and retrieved from context automatically
+- **Duplicate Key Prevention**: Prevents accidental duplicate keys in log output
 - **Colorized Output**: Beautiful colored console output with customizable colorizers
-- **Flexible Configuration**: Multiple writers, filters, and level configurations
+- **Multi-Writer Architecture**: Log to multiple destinations with different formats and filters
 - **Rotating Log Files**: Automatic file rotation based on size thresholds
 - **slog Integration**: Use as a backend for Go's standard log/slog package
-- **HTTP Middleware**: Built-in HTTP request/response logging
-- **UUID Support**: Native UUID logging support
+- **HTTP Middleware**: Built-in HTTP request/response logging with request ID propagation
+- **UUID Support**: Native UUID logging with zero allocations
 - **Call Stack Tracing**: Capture and log call stacks for debugging
 - **Memory Safety**: Nil-safe logger implementation prevents panics
 - **Sub-loggers**: Create child loggers with inherited attributes
@@ -41,8 +87,9 @@ go get github.com/domonda/golog
 package main
 
 import (
+    "errors"
     "os"
-    
+
     "github.com/domonda/golog"
 )
 
@@ -53,9 +100,9 @@ func main() {
         golog.AllLevelsActive,
         golog.NewTextWriterConfig(os.Stdout, nil, nil),
     )
-    
+
     log := golog.NewLogger(config)
-    
+
     // Simple logging
     log.Info("Hello, World!").Log()
     log.Error("Something went wrong").Err(errors.New("example error")).Log()
@@ -74,6 +121,8 @@ config := golog.NewConfig(
 
 log := golog.NewLogger(config)
 
+start := time.Now()
+// ... perform login ...
 log.Info("User login").
     Str("username", "john_doe").
     Str("ip", "192.168.1.1").
@@ -89,6 +138,9 @@ Output:
 ### Structured Logging with All Data Types
 
 ```go
+requestID := golog.UUIDv4()           // [16]byte UUID
+jsonBytes := []byte(`{"key":"value"}`) // Raw JSON
+
 log.Info("Processing request").
     Str("method", "POST").
     Str("path", "/api/users").
@@ -117,11 +169,11 @@ golog supports six standard log levels:
 
 ```go
 log.Trace("Entering function").Str("function", "processData").Log()
-log.Debug("Variable state").Int("counter", counter).Log()
+log.Debug("Variable state").Int("counter", 42).Log()
 log.Info("Operation completed").Log()
 log.Warn("Deprecated API used").Str("api", "/old/endpoint").Log()
 log.Error("Failed to connect").Err(err).Log()
-log.Fatal("Critical system failure").Log() // Calls panic after logging
+log.Fatal("Critical system failure").Log()
 ```
 
 ## Sub-loggers and Context
@@ -129,6 +181,8 @@ log.Fatal("Critical system failure").Log() // Calls panic after logging
 ### Creating Sub-loggers
 
 ```go
+requestID := golog.UUIDv4()
+
 // Create a sub-logger with common attributes
 subLog := log.With().
     Str("service", "user-management").
@@ -137,38 +191,47 @@ subLog := log.With().
 
 // All logs from subLog will include the above attributes
 subLog.Info("User created").Str("username", "john").Log()
-subLog.Error("User validation failed").Err(validationErr).Log()
+subLog.Error("User validation failed").Err(errors.New("invalid email")).Log()
 ```
 
 ### Context Integration
 
 ```go
 // Add attributes to context
-ctx = golog.ContextWithAttribs(ctx, 
-    golog.Str("correlation_id", correlationID),
-    golog.Str("user_id", userID),
+ctx = golog.ContextWithAttribs(ctx,
+    golog.NewString("correlation_id", "abc-123"),
+    golog.NewString("user_id", "user-456"),
 )
 
 // Create logger from context
 ctxLogger := log.WithCtx(ctx)
 ctxLogger.Info("Operation started").Log() // Includes context attributes
+
+// Or use the logger's InfoCtx method
+logger.InfoCtx(ctx, "Operation started").Log() // Includes context attributes
 ```
 
 ## Multiple Writers and Filtering
 
 ```go
+logFile, _ := os.Create("app.log")
+defer logFile.Close()
+
 // Log to multiple outputs with different formats
 config := golog.NewConfig(
     &golog.DefaultLevels,
     golog.AllLevelsActive,
     golog.NewTextWriterConfig(os.Stdout, nil, golog.NewStyledColorizer()),
-    golog.NewJSONWriterConfig(logFile, nil, golog.LevelFilterFrom(golog.DefaultLevels.Warn)),
+    // FilterOutBelow filters out less severe levels (lower numeric values)
+    // Warn=10, so this filters out Trace=-20, Debug=-10, Info=0
+    // Only Warn=10, Error=20, Fatal=30 will be logged to the file
+    golog.NewJSONWriterConfig(logFile, nil, golog.DefaultLevels.Warn.FilterOutBelow()),
 )
 
 log := golog.NewLogger(config)
 
 // This will appear in colored text on stdout and as JSON in the file (if WARN+)
-log.Error("Database connection failed").Err(err).Log()
+log.Error("Database connection failed").Err(errors.New("connection refused")).Log()
 ```
 
 ## Terminal Detection
@@ -180,8 +243,8 @@ config := golog.NewConfig(
     &golog.DefaultLevels,
     golog.AllLevelsActive,
     golog.DecideWriterConfigForTerminal(
-        golog.NewTextWriterConfig(os.Stdout, format, golog.NewStyledColorizer()), // Used when running in terminal
-        golog.NewJSONWriterConfig(os.Stdout, format),                             // Used when output is piped/redirected
+        golog.NewTextWriterConfig(os.Stdout, nil, golog.NewStyledColorizer()), // Used when running in terminal
+        golog.NewJSONWriterConfig(os.Stdout, nil),                             // Used when output is piped/redirected
     ),
 )
 
@@ -210,11 +273,15 @@ This feature is useful for:
 For quick setup, the `log` subpackage provides a pre-configured logger with sensible defaults:
 
 ```go
-import "github.com/domonda/golog/log"
+import (
+    "errors"
+
+    "github.com/domonda/golog/log"
+)
 
 func main() {
     log.Info("Application started").Log()
-    log.Error("Something went wrong").Err(err).Log()
+    log.Error("Something went wrong").Err(errors.New("example error")).Log()
     log.Debug("Debug information").Str("key", "value").Log()
 }
 ```
@@ -238,9 +305,11 @@ import "github.com/domonda/golog/log"
 
 func init() {
     // Change the minimum log level
+    // Info=0, so FilterOutBelow filters out Trace=-20 and Debug=-10
+    // Only Info=0, Warn=10, Error=20, Fatal=30 will be logged
     log.Config = golog.NewConfig(
         log.Levels,
-        log.Levels.Info.FilterOutBelow(), // Only INFO and above
+        log.Levels.Info.FilterOutBelow(),
         golog.DecideWriterConfigForTerminal(
             golog.NewTextWriterConfig(os.Stdout, &log.Format, &log.Colorizer),
             golog.NewJSONWriterConfig(os.Stdout, &log.Format),
@@ -263,11 +332,15 @@ log.Warn("message").Log()
 log.Error("message").Log()
 log.Fatal("message").Log()
 
-// With context
-log.InfoCtx(ctx, "message").Log()
+// With context - attributes added to context are automatically included
+ctx := golog.ContextWithAttribs(context.Background(),
+    golog.NewString("request_id", "req-123"),
+    golog.NewString("user_id", "user-456"),
+)
+log.InfoCtx(ctx, "processing request").Log() // Includes request_id and user_id
 
 // Formatted messages
-log.Infof("User %s logged in", username).Log()
+log.Infof("User %s logged in", "john_doe").Log()
 
 // Create sub-loggers
 subLog := log.With().Str("component", "auth").SubLogger()
@@ -413,10 +486,14 @@ config := golog.NewConfig(
 ### Call Stack Logging
 
 ```go
-log.Error("Panic recovered").
-    CallStack("stack").
-    Any("panic_value", panicValue).
-    Log()
+defer func() {
+    if r := recover(); r != nil {
+        log.Error("Panic recovered").
+            CallStack("stack").
+            Any("panic_value", r).
+            Log()
+    }
+}()
 ```
 
 ### Redacting Sensitive Data
@@ -467,17 +544,26 @@ customLevels := &golog.Levels{
 
 ### Level Filtering
 
-```go
-// Only log WARN and above
-filter := golog.LevelFilterFrom(golog.DefaultLevels.Warn)
+Log levels have numeric values where lower = more verbose, higher = more severe:
+`Trace=-20 < Debug=-10 < Info=0 < Warn=10 < Error=20 < Fatal=30`
 
-// Multiple filters
-filter := golog.JoinLevelFilters(
-    golog.LevelFilterFrom(golog.DefaultLevels.Debug),
-    golog.NewLevelFilterFunction(func(ctx context.Context, level golog.Level) bool {
-        // Custom filter logic
-        return shouldLog(ctx, level)
-    }),
+```go
+// FilterOutBelow filters out less severe levels (lower numeric values)
+// Warn=10, so this filters out Trace=-20, Debug=-10, Info=0
+// Result: only Warn, Error, Fatal are logged
+filter := golog.DefaultLevels.Warn.FilterOutBelow()
+
+// Filter out only DEBUG level (Debug=-10)
+debugFilter := golog.DefaultLevels.Debug.FilterOut()
+
+// Filter out everything except INFO (Info=0)
+infoOnlyFilter := golog.DefaultLevels.Info.FilterOutAllOther()
+
+// Combine multiple filters (filters are OR'd together)
+// This filters out both Trace and Debug
+combinedFilter := golog.JoinLevelFilters(
+    golog.DefaultLevels.Trace.FilterOut(),
+    golog.DefaultLevels.Debug.FilterOut(),
 )
 ```
 
