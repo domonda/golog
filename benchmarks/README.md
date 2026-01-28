@@ -197,7 +197,7 @@ With the native `Time` attrib type, golog now achieves zero allocations even whe
 - Faster than zap with fields: 353 vs 451 ns/op (4 fields), 493 vs 741 ns/op (10 fields)
 - Complex fields (error, time): 391 ns/op with 0 allocs vs zap's 475 ns/op with 1 alloc
 - Excellent disabled logging performance (42 ns/op, 0 allocs)
-- **Fastest text output** (394 ns/op, 0 allocs) with append-style formatting—faster than zap (514 ns/op) and slog (677 ns/op)
+- **Fastest text output** (394 ns/op, 0 allocs) faster than zap (514 ns/op) and slog (677 ns/op)
 - Flexible multi-writer architecture
 
 **slog's Standard Library Benefits**
