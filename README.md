@@ -527,9 +527,9 @@ golog is designed to strike a balance between performance and flexibility. While
 **zerolog: Extreme Minimalism**
 - Optimized for a single use case: fast JSON logging to a single output
 - Minimal abstraction layers result in the fastest raw JSON performance
-- Disabled log levels have near-zero overhead (~5 ns/op)
+- Disabled log levels have near-zero overhead (~6 ns/op)
 - Trade-off: Limited flexibility for complex logging scenarios
-- Trade-off: ConsoleWriter for text output is significantly slower (2365 ns/op vs 49 ns/op for JSON)
+- Trade-off: ConsoleWriter for text output is significantly slower (2745 ns/op vs 53 ns/op for JSON)
 
 **zap: Performance + Type Safety**
 - Typed `Field` structs provide compile-time safety
@@ -557,17 +557,17 @@ golog is the right choice when you need:
 
 ### When to Choose Alternatives
 
-- **zerolog**: When raw JSON logging speed is the only priority and you don't need multi-writer support, context integration, or text/console output (zerolog's ConsoleWriter is slow)
-- **zap**: When you prefer a variadic field API with compile-time type checking, or when you need fast text/console output
+- **zerolog**: When raw JSON logging speed is the only priority and you don't need multi-writer support, context integration, or text/console output (zerolog's ConsoleWriter is slow at 2745 ns/op)
+- **zap**: When you prefer a variadic field API with compile-time type checking
 - **slog**: When you want zero external dependencies and good-enough performance from the standard library
 
 ### Real-World Performance
 
-For most applications, the performance difference between logging libraries is negligible. At 261 ns/op for a simple JSON message, golog can handle nearly 4 million log messages per second on a single core. With structured fields, golog (370 ns/op) is now faster than zap (486 ns/op). The additional features golog provides—multi-writer support, context integration, and duplicate key prevention—often save more development time than the nanoseconds saved by faster alternatives.
+For most applications, the performance difference between logging libraries is negligible. At 243 ns/op for a simple JSON message, golog can handle over 4 million log messages per second on a single core. With structured fields, golog (351 ns/op) is faster than zap (461 ns/op). With complex fields including error and time.Time, golog achieves 369 ns/op with zero allocations, outperforming zap's 532 ns/op with 1 allocation. The additional features golog provides—multi-writer support, context integration, and duplicate key prevention—often save more development time than the nanoseconds saved by faster alternatives.
 
-**Note on text output**: For human-readable console/text output, golog (862 ns/op) outperforms zerolog's ConsoleWriter (2365 ns/op), which incurs significant overhead. If you need fast text logging for development, zap (455 ns/op), slog (625 ns/op), and golog are better choices than zerolog.
+**Note on text output**: For human-readable console/text output, golog (888 ns/op) outperforms zerolog's ConsoleWriter (2745 ns/op), which incurs significant overhead. If you need fast text logging for development, slog (677 ns/op), zap (731 ns/op), and golog are better choices than zerolog.
 
-The performance gap for JSON output becomes meaningful only in extreme high-throughput scenarios (100K+ logs/second sustained), where zerolog's 49 ns/op provides measurable benefits. For typical applications, golog's flexibility and rich feature set make it a more productive choice.
+The performance gap for JSON output becomes meaningful only in extreme high-throughput scenarios (100K+ logs/second sustained), where zerolog's 53 ns/op provides measurable benefits. For typical applications, golog's flexibility and rich feature set make it a more productive choice.
 
 ## API Reference
 

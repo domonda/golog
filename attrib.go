@@ -752,6 +752,95 @@ func (a *Errors) String() string {
 
 func (a *Errors) Len() int { return len(a.vals) }
 
+// Time
+
+type Time struct {
+	key string
+	val time.Time
+}
+
+func NewTime(key string, val time.Time) *Time {
+	a := timePool.GetOrNew()
+	a.key = key
+	a.val = val
+	return a
+}
+
+func (a *Time) Clone() Attrib {
+	return NewTime(a.key, a.val)
+}
+
+func (a *Time) Free() {
+	timePool.ZeroAndPutBack(a)
+}
+
+func (a *Time) Key() string         { return a.key }
+func (a *Time) Value() any          { return a.val }
+func (a *Time) ValueString() string { return a.val.Format(DefaultTimeFormat) }
+
+func (a *Time) Log(m *Message) {
+	m.Time(a.key, a.val)
+}
+
+func (a *Time) AppendJSON(buf []byte) []byte {
+	return encjson.AppendTime(encjson.AppendKey(buf, a.key), a.val, DefaultTimeFormat)
+}
+
+func (a *Time) String() string {
+	return fmt.Sprintf("Time{%q: %s}", a.key, a.val.Format(DefaultTimeFormat))
+}
+
+type Times struct {
+	key  string
+	vals []time.Time
+}
+
+func NewTimes(key string, vals []time.Time) *Times {
+	a := timesPool.GetOrNew()
+	a.key = key
+	a.vals = vals
+	return a
+}
+
+func NewTimesCopy(key string, vals []time.Time) *Times {
+	if vals == nil {
+		return NewTimes(key, nil)
+	}
+	times := make([]time.Time, len(vals))
+	copy(times, vals)
+	return NewTimes(key, times)
+}
+
+func (a *Times) Clone() Attrib {
+	return NewTimes(a.key, a.vals)
+}
+
+func (a *Times) Free() {
+	timesPool.ZeroAndPutBack(a)
+}
+
+func (a *Times) Key() string         { return a.key }
+func (a *Times) Value() any          { return a.vals }
+func (a *Times) ValueString() string { return fmt.Sprintf("%#v", a.vals) }
+
+func (a *Times) Log(m *Message) {
+	m.Times(a.key, a.vals)
+}
+
+func (a *Times) AppendJSON(buf []byte) []byte {
+	buf = encjson.AppendArrayStart(encjson.AppendKey(buf, a.key))
+	for _, val := range a.vals {
+		buf = encjson.AppendTime(buf, val, DefaultTimeFormat)
+	}
+	return encjson.AppendArrayEnd(buf)
+}
+
+func (a *Times) String() string {
+	return fmt.Sprintf("Times{%q: %s}", a.key, a.ValueString())
+}
+
+func (a *Times) Len() int { return len(a.vals) }
+
 // UUID
 
 type UUID struct {

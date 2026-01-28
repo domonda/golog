@@ -196,6 +196,19 @@ func (w *CallbackWriter) WriteError(val error) {
 	}
 }
 
+func (w *CallbackWriter) WriteTime(val time.Time) {
+	// Store as string since there's no Time attrib type
+	if w.isSlice {
+		a, _ := w.sliceAttrib.(*Times)
+		if a == nil {
+			w.sliceAttrib = NewTimes(w.key, nil)
+		}
+		a.vals = append(a.vals, val)
+	} else {
+		w.attribs = append(w.attribs, NewTime(w.key, val))
+	}
+}
+
 func (w *CallbackWriter) WriteUUID(val [16]byte) {
 	if w.isSlice {
 		a, _ := w.sliceAttrib.(*UUIDs)

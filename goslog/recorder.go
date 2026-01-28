@@ -29,9 +29,9 @@ type recorder struct {
 	Result []map[string]any
 
 	// Internal state for building the current message
-	key    string           // Current attribute key being written
-	slice  []any            // Current slice being built (when writing slice attributes)
-	values map[string]any   // Current message attributes being collected
+	key    string         // Current attribute key being written
+	slice  []any          // Current slice being built (when writing slice attributes)
+	values map[string]any // Current message attributes being collected
 }
 
 // WriterForNewMessage implements golog.WriterConfig.
@@ -167,6 +167,12 @@ func (w *recorder) WriteString(val string) {
 // The error is converted to its string representation.
 func (w *recorder) WriteError(val error) {
 	w.writeVal(val.Error())
+}
+
+// WriteTime implements golog.Writer.
+// The time is stored as-is.
+func (w *recorder) WriteTime(val time.Time) {
+	w.writeVal(val)
 }
 
 // WriteUUID implements golog.Writer.

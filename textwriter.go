@@ -216,6 +216,16 @@ func (w *TextWriter) WriteError(val error) {
 	}
 }
 
+func (w *TextWriter) WriteTime(val time.Time) {
+	w.writeSliceSep()
+	format := w.config.format.TimeFormat
+	if format == "" {
+		format = DefaultTimeFormat
+	}
+	str := w.config.colorizer.ColorizeString(strconv.Quote(val.Format(format)))
+	w.buf = append(w.buf, str...)
+}
+
 // func (f *TextFormatter) WriteBytes(val []byte) {
 // 	w.writeSliceSep()
 // 	hexVal := make([]byte, len(val)*2+2)
