@@ -78,65 +78,65 @@ Tests text/console output format instead of JSON.
 
 Results from Apple M2:
 
-```
+```text
 goos: darwin
 goarch: arm64
 cpu: Apple M2
 
-BenchmarkSimpleMessage/golog-8         	 7102312	       332 ns/op	       0 B/op	       0 allocs/op
-BenchmarkSimpleMessage/zerolog-8       	49966992	        55 ns/op	       0 B/op	       0 allocs/op
-BenchmarkSimpleMessage/zap-8           	 9829755	       258 ns/op	       0 B/op	       0 allocs/op
-BenchmarkSimpleMessage/slog-8          	 6435097	       377 ns/op	       0 B/op	       0 allocs/op
-BenchmarkSimpleMessage/logrus-8        	 2808298	       931 ns/op	     889 B/op	      20 allocs/op
+BenchmarkSimpleMessage/golog-8         	 6718255	       361 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSimpleMessage/zerolog-8       	48388234	        50 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSimpleMessage/zap-8           	10480406	       271 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSimpleMessage/slog-8          	 5122086	       415 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSimpleMessage/logrus-8        	 2659976	       951 ns/op	     889 B/op	      20 allocs/op
 
-BenchmarkWithFields/golog-8            	 4120438	       580 ns/op	       0 B/op	       0 allocs/op
-BenchmarkWithFields/zerolog-8          	17302664	       139 ns/op	       0 B/op	       0 allocs/op
-BenchmarkWithFields/zap-8              	 5856712	       423 ns/op	     256 B/op	       1 allocs/op
-BenchmarkWithFields/slog-8             	 2898668	      1011 ns/op	     208 B/op	       9 allocs/op
-BenchmarkWithFields/logrus-8           	 1242182	      1848 ns/op	    1938 B/op	      34 allocs/op
+BenchmarkWithFields/golog-8            	 3836474	       630 ns/op	       0 B/op	       0 allocs/op
+BenchmarkWithFields/zerolog-8          	15922156	       169 ns/op	       0 B/op	       0 allocs/op
+BenchmarkWithFields/zap-8              	 5587440	       420 ns/op	     256 B/op	       1 allocs/op
+BenchmarkWithFields/slog-8             	 2885796	       880 ns/op	     208 B/op	       9 allocs/op
+BenchmarkWithFields/logrus-8           	 1311690	      2095 ns/op	    1939 B/op	      34 allocs/op
 
-BenchmarkWithManyFields/golog-8        	 2927641	       862 ns/op	       0 B/op	       0 allocs/op
-BenchmarkWithManyFields/zerolog-8      	 9768268	       251 ns/op	       0 B/op	       0 allocs/op
-BenchmarkWithManyFields/zap-8          	 3715576	       666 ns/op	     704 B/op	       1 allocs/op
-BenchmarkWithManyFields/slog-8         	 1876573	      1344 ns/op	     448 B/op	       7 allocs/op
-BenchmarkWithManyFields/logrus-8       	  682230	      3553 ns/op	    3998 B/op	      53 allocs/op
+BenchmarkWithManyFields/golog-8        	 2711878	       897 ns/op	       0 B/op	       0 allocs/op
+BenchmarkWithManyFields/zerolog-8      	 8742198	       305 ns/op	       0 B/op	       0 allocs/op
+BenchmarkWithManyFields/zap-8          	 3425281	       797 ns/op	     704 B/op	       1 allocs/op
+BenchmarkWithManyFields/slog-8         	 1599747	      1431 ns/op	     448 B/op	       7 allocs/op
+BenchmarkWithManyFields/logrus-8       	  609901	      3735 ns/op	    3998 B/op	      53 allocs/op
 
-BenchmarkWithAccumulatedContext/golog-8         	 3293754	       750 ns/op	      24 B/op	       1 allocs/op
-BenchmarkWithAccumulatedContext/zerolog-8       	29672306	        82 ns/op	       0 B/op	       0 allocs/op
-BenchmarkWithAccumulatedContext/zap-8           	 7654128	       316 ns/op	     128 B/op	       1 allocs/op
-BenchmarkWithAccumulatedContext/slog-8          	 4430126	       542 ns/op	      48 B/op	       3 allocs/op
-BenchmarkWithAccumulatedContext/logrus-8        	 1363692	      1920 ns/op	    1882 B/op	      32 allocs/op
+BenchmarkWithAccumulatedContext/golog-8         	 3178636	       817 ns/op	      24 B/op	       1 allocs/op
+BenchmarkWithAccumulatedContext/zerolog-8       	28216980	        95 ns/op	       0 B/op	       0 allocs/op
+BenchmarkWithAccumulatedContext/zap-8           	 7035562	       335 ns/op	     128 B/op	       1 allocs/op
+BenchmarkWithAccumulatedContext/slog-8          	 3776694	       657 ns/op	      48 B/op	       3 allocs/op
+BenchmarkWithAccumulatedContext/logrus-8        	 1134702	      1951 ns/op	    1882 B/op	      32 allocs/op
 
-BenchmarkDisabled/golog-8              	59064141	        41 ns/op	       0 B/op	       0 allocs/op
-BenchmarkDisabled/zerolog-8            	615843734	         4 ns/op	       0 B/op	       0 allocs/op
-BenchmarkDisabled/zap-8                	81392488	        28 ns/op	     128 B/op	       1 allocs/op
-BenchmarkDisabled/slog-8               	53281710	        42 ns/op	      48 B/op	       3 allocs/op
-BenchmarkDisabled/logrus-8             	 9264979	       251 ns/op	     528 B/op	       6 allocs/op
+BenchmarkDisabled/golog-8              	59489443	        44 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDisabled/zerolog-8            	589367080	         4 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDisabled/zap-8                	80402796	        31 ns/op	     128 B/op	       1 allocs/op
+BenchmarkDisabled/slog-8               	55187426	        47 ns/op	      48 B/op	       3 allocs/op
+BenchmarkDisabled/logrus-8             	 9817848	       290 ns/op	     528 B/op	       6 allocs/op
 
-BenchmarkComplexFields/golog-8         	 2385823	      1175 ns/op	     128 B/op	       3 allocs/op
-BenchmarkComplexFields/zerolog-8       	17631834	       149 ns/op	       0 B/op	       0 allocs/op
-BenchmarkComplexFields/zap-8           	 4800626	       482 ns/op	     256 B/op	       1 allocs/op
-BenchmarkComplexFields/slog-8          	 2718924	       816 ns/op	     104 B/op	       6 allocs/op
-BenchmarkComplexFields/logrus-8        	 1000000	      2256 ns/op	    2022 B/op	      36 allocs/op
+BenchmarkComplexFields/golog-8         	 2319579	      1460 ns/op	     128 B/op	       3 allocs/op
+BenchmarkComplexFields/zerolog-8       	15298189	       144 ns/op	       0 B/op	       0 allocs/op
+BenchmarkComplexFields/zap-8           	 5022319	       478 ns/op	     256 B/op	       1 allocs/op
+BenchmarkComplexFields/slog-8          	 2607285	       887 ns/op	     104 B/op	       6 allocs/op
+BenchmarkComplexFields/logrus-8        	 1000000	      2063 ns/op	    2022 B/op	      36 allocs/op
 
-BenchmarkTextOutput/golog-8            	 2886493	       844 ns/op	     322 B/op	       7 allocs/op
-BenchmarkTextOutput/zerolog-8          	29559547	        83 ns/op	       0 B/op	       0 allocs/op
-BenchmarkTextOutput/zap-8              	 5292672	       503 ns/op	     192 B/op	       4 allocs/op
-BenchmarkTextOutput/slog-8             	 3744392	       628 ns/op	      48 B/op	       3 allocs/op
-BenchmarkTextOutput/logrus-8           	 1830582	      1344 ns/op	    1245 B/op	      21 allocs/op
+BenchmarkTextOutput/golog-8            	 2856213	       816 ns/op	     322 B/op	       7 allocs/op
+BenchmarkTextOutput/zerolog-8          	 1000000	      2283 ns/op	    1849 B/op	      46 allocs/op
+BenchmarkTextOutput/zap-8              	 5191342	       489 ns/op	     192 B/op	       4 allocs/op
+BenchmarkTextOutput/slog-8             	 3888598	       616 ns/op	      48 B/op	       3 allocs/op
+BenchmarkTextOutput/logrus-8           	 1821572	      1323 ns/op	    1245 B/op	      21 allocs/op
 ```
 
 ### Golog Allocation Summary
 
 | Scenario                       | ns/op   | B/op  | allocs/op |
 |--------------------------------|---------|-------|-----------|
-| Simple Message                 | 332     | 0     | 0         |
-| With Fields (4 fields)         | 580     | 0     | 0         |
-| Many Fields (10 fields)        | 862     | 0     | 0         |
-| Accumulated Context            | 750     | 24    | 1         |
-| Complex Fields (error, time)   | 1175    | 128   | 3         |
-| Text Output                    | 844     | 322   | 7         |
-| **Disabled Logging**           | **41**  | **0** | **0**     |
+| Simple Message                 | 361     | 0     | 0         |
+| With Fields (4 fields)         | 630     | 0     | 0         |
+| Many Fields (10 fields)        | 897     | 0     | 0         |
+| Accumulated Context            | 817     | 24    | 1         |
+| Complex Fields (error, time)   | 1460    | 128   | 3         |
+| Text Output                    | 816     | 322   | 7         |
+| **Disabled Logging**           | **44**  | **0** | **0**     |
 
 ### Library Allocation Comparison
 
@@ -155,16 +155,23 @@ BenchmarkTextOutput/logrus-8           	 1830582	      1344 ns/op	    1245 B/op	
 
 ## Performance Analysis
 
-### Speed Ranking (fastest to slowest)
-1. **zerolog** - Consistently the fastest across all scenarios
+### JSON Output Speed Ranking (fastest to slowest)
+1. **zerolog** - Fastest for JSON output across all scenarios
 2. **zap** - Excellent performance, especially with fields
 3. **golog** - Faster than slog in most scenarios, much better than logrus
 4. **slog** - Good performance from standard library
 5. **logrus** - Slowest of the tested libraries
 
+### Text/Console Output Speed Ranking (fastest to slowest)
+1. **zap** - Fastest for text output (489 ns/op)
+2. **slog** - Good text formatting performance (616 ns/op)
+3. **golog** - Competitive text output (816 ns/op)
+4. **logrus** - Moderate performance (1323 ns/op)
+5. **zerolog** - ConsoleWriter is significantly slower (2283 ns/op, 46 allocs)
+
 ### Memory Allocation Ranking (lowest to highest)
-1. **zerolog** - Zero allocations in most scenarios
-2. **golog** - Zero allocations for standard logging (0 B/op, 0 allocs/op)
+1. **zerolog** - Zero allocations for JSON output
+2. **golog** - Zero allocations for JSON logging (0 B/op, 0 allocs/op)
 3. **zap** - Minimal allocations (0-1 per log)
 4. **slog** - Variable allocations (0-9 per log depending on scenario)
 5. **logrus** - Highest allocations (889-3998 B/op)
@@ -172,27 +179,30 @@ BenchmarkTextOutput/logrus-8           	 1830582	      1344 ns/op	    1245 B/op	
 ### Key Observations
 
 **zerolog's Zero-Allocation Design**
-- Uses a fluent API with sync.Pool for zero allocations
-- Optimized for high-throughput scenarios
-- Fastest in all tested scenarios (55-251 ns/op)
+- Uses a fluent API with sync.Pool for zero allocations in JSON mode
+- Optimized for high-throughput JSON logging scenarios
+- Fastest for JSON output (50-305 ns/op)
+- **Important**: ConsoleWriter for text output is significantly slower (2283 ns/op) with 46 allocations per log entry—this is a known limitation of zerolog's text formatting
 
 **zap's Performance**
 - Excellent balance of speed and features
 - More allocations than zerolog but still minimal
-- Strong performance with complex fields (258-666 ns/op)
+- Strong performance with complex fields (271-797 ns/op)
+- **Best choice for text/console output** (489 ns/op)
 
 **golog's Zero-Allocation Design**
 - Zero allocations for standard JSON logging (0 B/op, 0 allocs/op)
-- Faster than slog: 332 vs 377 ns/op (simple), 580 vs 1011 ns/op (with fields)
-- Excellent disabled logging performance (41 ns/op, 0 allocs)
+- Faster than slog for JSON: 361 vs 415 ns/op (simple), 630 vs 880 ns/op (with fields)
+- Excellent disabled logging performance (44 ns/op, 0 allocs)
 - Uses embedded array in Message struct for writers slice
-- Some allocations for text output and complex fields (error formatting)
+- Competitive text output performance (816 ns/op)—faster than zerolog's ConsoleWriter
 - Flexible multi-writer architecture
 
 **slog's Standard Library Benefits**
 - No external dependencies
 - Good performance for a standard library solution
 - Built-in support in Go 1.21+
+- Solid text output performance (616 ns/op)
 
 **logrus Performance**
 - Mature library with wide adoption

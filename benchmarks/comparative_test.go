@@ -631,7 +631,7 @@ func BenchmarkTextOutput(b *testing.B) {
 	})
 
 	b.Run("zerolog", func(b *testing.B) {
-		logger := zerolog.New(io.Discard)
+		logger := zerolog.New(zerolog.ConsoleWriter{Out: io.Discard, NoColor: true})
 
 		b.ResetTimer()
 		b.ReportAllocs()
