@@ -144,6 +144,14 @@ func (w *JSONWriter) WriteError(val error) {
 	w.buf = encjson.AppendString(w.buf, val.Error())
 }
 
+func (w *JSONWriter) WriteTime(val time.Time) {
+	format := w.config.format.TimeFormat
+	if format == "" {
+		format = DefaultTimeFormat
+	}
+	w.buf = encjson.AppendTime(w.buf, val, format)
+}
+
 func (w *JSONWriter) WriteUUID(val [16]byte) {
 	w.buf = encjson.AppendUUID(w.buf, val)
 }

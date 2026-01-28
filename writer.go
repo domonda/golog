@@ -33,6 +33,7 @@ type Writer interface {
 	WriteFloat(float64)
 	WriteString(string)
 	WriteError(error)
+	WriteTime(time.Time)
 	WriteUUID([16]byte)
 	WriteJSON([]byte)
 	// WritePtr(uintptr)

@@ -53,6 +53,8 @@ func (NopWriter) WriteString(val string) {}
 
 func (NopWriter) WriteError(val error) {}
 
+func (NopWriter) WriteTime(val time.Time) {}
+
 func (NopWriter) WriteUUID(val [16]byte) {}
 
 func (NopWriter) WriteJSON(val []byte) {}

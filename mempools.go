@@ -27,6 +27,8 @@ var (
 	floatsPool  mempool.Pointer[Floats]
 	errorPool   mempool.Pointer[Error]
 	errorsPool  mempool.Pointer[Errors]
+	timePool    mempool.Pointer[Time]
+	timesPool   mempool.Pointer[Times]
 	uuidPool    mempool.Pointer[UUID]
 	uuidsPool   mempool.Pointer[UUIDs]
 	jsonPool    mempool.Pointer[JSON]
@@ -52,6 +54,8 @@ func DrainAllMemPools() {
 	floatsPool.Drain()
 	errorPool.Drain()
 	errorsPool.Drain()
+	timePool.Drain()
+	timesPool.Drain()
 	uuidPool.Drain()
 	uuidsPool.Drain()
 	jsonPool.Drain()

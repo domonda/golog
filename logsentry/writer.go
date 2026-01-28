@@ -254,6 +254,10 @@ func (w *Writer) WriteError(val error) {
 	w.writeVal(val.Error())
 }
 
+func (w *Writer) WriteTime(val time.Time) {
+	w.writeVal(val)
+}
+
 func (w *Writer) WriteUUID(val [16]byte) {
 	w.writeVal(golog.FormatUUID(val))
 }

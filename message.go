@@ -1071,22 +1071,55 @@ func (m *Message) Stringer(key string, val fmt.Stringer) *Message {
 	return m.Str(key, val.String())
 }
 
-// Time logs a time.Time by calling its String method,
+// Time logs a time.Time formatted using the configured TimeFormat,
 // or logs nil if val.IsZero().
 func (m *Message) Time(key string, val time.Time) *Message {
+	if m == nil || m.attribs.Has(key) {
+		return m
+	}
 	if val.IsZero() {
 		return m.Nil(key)
 	}
-	return m.Str(key, val.String())
+	if m.IsAttribRecorder() {
+		m.attribs.Add(NewTime(key, val))
+		return m
+	}
+	for _, w := range m.writers {
+		w.WriteKey(key)
+		w.WriteTime(val)
+	}
+	return m
 }
 
-// TimePtr logs a time.Time by calling its String method,
+// TimePtr logs a time.Time formatted using the configured TimeFormat,
 // or logs nil if val is nil or val.IsZero().
 func (m *Message) TimePtr(key string, val *time.Time) *Message {
 	if val == nil || val.IsZero() {
 		return m.Nil(key)
 	}
 	return m.Time(key, *val)
+}
+
+// Times logs a slice of time.Time formatted using the configured TimeFormat.
+func (m *Message) Times(key string, vals []time.Time) *Message {
+	if m == nil || m.attribs.Has(key) {
+		return m
+	}
+	if len(vals) == 0 {
+		return m.Nil(key)
+	}
+	if m.IsAttribRecorder() {
+		m.attribs.Add(NewTimesCopy(key, vals))
+		return m
+	}
+	for _, w := range m.writers {
+		w.WriteSliceKey(key)
+		for _, val := range vals {
+			w.WriteTime(val)
+		}
+		w.WriteSliceEnd()
+	}
+	return m
 }
 
 // Duration logs the passed duration as string
