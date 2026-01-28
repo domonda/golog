@@ -7,12 +7,19 @@ import (
 	"testing"
 	"time"
 
-	"github.com/domonda/golog"
 	"github.com/rs/zerolog"
 	"github.com/sirupsen/logrus"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+
+	"github.com/domonda/golog"
 )
+
+// cooldown pauses briefly between benchmarks to let the CPU cool down
+// and reduce thermal throttling effects on benchmark results.
+func cooldown() {
+	time.Sleep(200 * time.Millisecond)
+}
 
 // Common test data for consistent benchmarking
 var (
@@ -38,6 +45,8 @@ var (
 // BenchmarkSimpleMessage benchmarks logging a simple message without fields
 func BenchmarkSimpleMessage(b *testing.B) {
 	b.Run("golog", func(b *testing.B) {
+		cooldown()
+		cooldown()
 		logger := golog.NewLogger(golog.NewConfig(
 			&golog.DefaultLevels,
 			golog.AllLevelsActive,
@@ -53,6 +62,8 @@ func BenchmarkSimpleMessage(b *testing.B) {
 	})
 
 	b.Run("zerolog", func(b *testing.B) {
+		cooldown()
+		cooldown()
 		logger := zerolog.New(io.Discard)
 
 		b.ResetTimer()
@@ -64,6 +75,8 @@ func BenchmarkSimpleMessage(b *testing.B) {
 	})
 
 	b.Run("zap", func(b *testing.B) {
+		cooldown()
+		cooldown()
 		core := zapcore.NewCore(
 			zapcore.NewJSONEncoder(zap.NewProductionEncoderConfig()),
 			zapcore.AddSync(io.Discard),
@@ -80,6 +93,8 @@ func BenchmarkSimpleMessage(b *testing.B) {
 	})
 
 	b.Run("slog", func(b *testing.B) {
+		cooldown()
+		cooldown()
 		logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
 
 		b.ResetTimer()
@@ -91,6 +106,8 @@ func BenchmarkSimpleMessage(b *testing.B) {
 	})
 
 	b.Run("logrus", func(b *testing.B) {
+		cooldown()
+		cooldown()
 		logger := logrus.New()
 		logger.SetOutput(io.Discard)
 		logger.SetFormatter(&logrus.JSONFormatter{})
@@ -107,6 +124,8 @@ func BenchmarkSimpleMessage(b *testing.B) {
 // BenchmarkWithFields benchmarks logging with several structured fields
 func BenchmarkWithFields(b *testing.B) {
 	b.Run("golog", func(b *testing.B) {
+		cooldown()
+		cooldown()
 		logger := golog.NewLogger(golog.NewConfig(
 			&golog.DefaultLevels,
 			golog.AllLevelsActive,
@@ -127,6 +146,7 @@ func BenchmarkWithFields(b *testing.B) {
 	})
 
 	b.Run("zerolog", func(b *testing.B) {
+		cooldown()
 		logger := zerolog.New(io.Discard)
 
 		b.ResetTimer()
@@ -143,6 +163,7 @@ func BenchmarkWithFields(b *testing.B) {
 	})
 
 	b.Run("zap", func(b *testing.B) {
+		cooldown()
 		core := zapcore.NewCore(
 			zapcore.NewJSONEncoder(zap.NewProductionEncoderConfig()),
 			zapcore.AddSync(io.Discard),
@@ -164,6 +185,7 @@ func BenchmarkWithFields(b *testing.B) {
 	})
 
 	b.Run("slog", func(b *testing.B) {
+		cooldown()
 		logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
 
 		b.ResetTimer()
@@ -180,6 +202,7 @@ func BenchmarkWithFields(b *testing.B) {
 	})
 
 	b.Run("logrus", func(b *testing.B) {
+		cooldown()
 		logger := logrus.New()
 		logger.SetOutput(io.Discard)
 		logger.SetFormatter(&logrus.JSONFormatter{})
@@ -201,6 +224,7 @@ func BenchmarkWithFields(b *testing.B) {
 // BenchmarkWithManyFields benchmarks logging with many fields (10 fields)
 func BenchmarkWithManyFields(b *testing.B) {
 	b.Run("golog", func(b *testing.B) {
+		cooldown()
 		logger := golog.NewLogger(golog.NewConfig(
 			&golog.DefaultLevels,
 			golog.AllLevelsActive,
@@ -227,6 +251,7 @@ func BenchmarkWithManyFields(b *testing.B) {
 	})
 
 	b.Run("zerolog", func(b *testing.B) {
+		cooldown()
 		logger := zerolog.New(io.Discard)
 
 		b.ResetTimer()
@@ -249,6 +274,7 @@ func BenchmarkWithManyFields(b *testing.B) {
 	})
 
 	b.Run("zap", func(b *testing.B) {
+		cooldown()
 		core := zapcore.NewCore(
 			zapcore.NewJSONEncoder(zap.NewProductionEncoderConfig()),
 			zapcore.AddSync(io.Discard),
@@ -276,6 +302,7 @@ func BenchmarkWithManyFields(b *testing.B) {
 	})
 
 	b.Run("slog", func(b *testing.B) {
+		cooldown()
 		logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
 
 		b.ResetTimer()
@@ -298,6 +325,7 @@ func BenchmarkWithManyFields(b *testing.B) {
 	})
 
 	b.Run("logrus", func(b *testing.B) {
+		cooldown()
 		logger := logrus.New()
 		logger.SetOutput(io.Discard)
 		logger.SetFormatter(&logrus.JSONFormatter{})
@@ -325,6 +353,7 @@ func BenchmarkWithManyFields(b *testing.B) {
 // BenchmarkWithAccumulatedContext benchmarks logger with pre-configured context
 func BenchmarkWithAccumulatedContext(b *testing.B) {
 	b.Run("golog", func(b *testing.B) {
+		cooldown()
 		baseLogger := golog.NewLogger(golog.NewConfig(
 			&golog.DefaultLevels,
 			golog.AllLevelsActive,
@@ -348,6 +377,7 @@ func BenchmarkWithAccumulatedContext(b *testing.B) {
 	})
 
 	b.Run("zerolog", func(b *testing.B) {
+		cooldown()
 		logger := zerolog.New(io.Discard).With().
 			Str(testUserIDKey, testUserIDValue).
 			Str(testRequestIDKey, testRequestID).
@@ -365,6 +395,7 @@ func BenchmarkWithAccumulatedContext(b *testing.B) {
 	})
 
 	b.Run("zap", func(b *testing.B) {
+		cooldown()
 		core := zapcore.NewCore(
 			zapcore.NewJSONEncoder(zap.NewProductionEncoderConfig()),
 			zapcore.AddSync(io.Discard),
@@ -387,6 +418,7 @@ func BenchmarkWithAccumulatedContext(b *testing.B) {
 	})
 
 	b.Run("slog", func(b *testing.B) {
+		cooldown()
 		logger := slog.New(slog.NewJSONHandler(io.Discard, nil)).With(
 			testUserIDKey, testUserIDValue,
 			testRequestIDKey, testRequestID,
@@ -404,6 +436,7 @@ func BenchmarkWithAccumulatedContext(b *testing.B) {
 	})
 
 	b.Run("logrus", func(b *testing.B) {
+		cooldown()
 		baseLogger := logrus.New()
 		baseLogger.SetOutput(io.Discard)
 		baseLogger.SetFormatter(&logrus.JSONFormatter{})
@@ -427,6 +460,7 @@ func BenchmarkWithAccumulatedContext(b *testing.B) {
 // BenchmarkDisabled benchmarks the overhead when logging is disabled
 func BenchmarkDisabled(b *testing.B) {
 	b.Run("golog", func(b *testing.B) {
+		cooldown()
 		logger := golog.NewLogger(golog.NewConfig(
 			&golog.DefaultLevels,
 			golog.LevelFilterOutBelow(golog.DefaultLevels.Warn), // Only WARN and above
@@ -446,6 +480,7 @@ func BenchmarkDisabled(b *testing.B) {
 	})
 
 	b.Run("zerolog", func(b *testing.B) {
+		cooldown()
 		logger := zerolog.New(io.Discard).Level(zerolog.WarnLevel)
 
 		b.ResetTimer()
@@ -461,6 +496,7 @@ func BenchmarkDisabled(b *testing.B) {
 	})
 
 	b.Run("zap", func(b *testing.B) {
+		cooldown()
 		core := zapcore.NewCore(
 			zapcore.NewJSONEncoder(zap.NewProductionEncoderConfig()),
 			zapcore.AddSync(io.Discard),
@@ -481,6 +517,7 @@ func BenchmarkDisabled(b *testing.B) {
 	})
 
 	b.Run("slog", func(b *testing.B) {
+		cooldown()
 		logger := slog.New(slog.NewJSONHandler(io.Discard, &slog.HandlerOptions{
 			Level: slog.LevelWarn, // Only WARN and above
 		}))
@@ -498,6 +535,7 @@ func BenchmarkDisabled(b *testing.B) {
 	})
 
 	b.Run("logrus", func(b *testing.B) {
+		cooldown()
 		logger := logrus.New()
 		logger.SetOutput(io.Discard)
 		logger.SetFormatter(&logrus.JSONFormatter{})
@@ -519,6 +557,7 @@ func BenchmarkDisabled(b *testing.B) {
 // BenchmarkComplexFields benchmarks logging with complex types (errors, time)
 func BenchmarkComplexFields(b *testing.B) {
 	b.Run("golog", func(b *testing.B) {
+		cooldown()
 		logger := golog.NewLogger(golog.NewConfig(
 			&golog.DefaultLevels,
 			golog.AllLevelsActive,
@@ -539,6 +578,7 @@ func BenchmarkComplexFields(b *testing.B) {
 	})
 
 	b.Run("zerolog", func(b *testing.B) {
+		cooldown()
 		logger := zerolog.New(io.Discard)
 
 		b.ResetTimer()
@@ -555,6 +595,7 @@ func BenchmarkComplexFields(b *testing.B) {
 	})
 
 	b.Run("zap", func(b *testing.B) {
+		cooldown()
 		core := zapcore.NewCore(
 			zapcore.NewJSONEncoder(zap.NewProductionEncoderConfig()),
 			zapcore.AddSync(io.Discard),
@@ -576,6 +617,7 @@ func BenchmarkComplexFields(b *testing.B) {
 	})
 
 	b.Run("slog", func(b *testing.B) {
+		cooldown()
 		logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
 
 		b.ResetTimer()
@@ -592,6 +634,7 @@ func BenchmarkComplexFields(b *testing.B) {
 	})
 
 	b.Run("logrus", func(b *testing.B) {
+		cooldown()
 		logger := logrus.New()
 		logger.SetOutput(io.Discard)
 		logger.SetFormatter(&logrus.JSONFormatter{})
@@ -613,6 +656,7 @@ func BenchmarkComplexFields(b *testing.B) {
 // BenchmarkTextOutput benchmarks text (non-JSON) output format
 func BenchmarkTextOutput(b *testing.B) {
 	b.Run("golog", func(b *testing.B) {
+		cooldown()
 		logger := golog.NewLogger(golog.NewConfig(
 			&golog.DefaultLevels,
 			golog.AllLevelsActive,
@@ -631,6 +675,7 @@ func BenchmarkTextOutput(b *testing.B) {
 	})
 
 	b.Run("zerolog", func(b *testing.B) {
+		cooldown()
 		logger := zerolog.New(zerolog.ConsoleWriter{Out: io.Discard, NoColor: true})
 
 		b.ResetTimer()
@@ -645,6 +690,7 @@ func BenchmarkTextOutput(b *testing.B) {
 	})
 
 	b.Run("zap", func(b *testing.B) {
+		cooldown()
 		core := zapcore.NewCore(
 			zapcore.NewConsoleEncoder(zap.NewDevelopmentEncoderConfig()),
 			zapcore.AddSync(io.Discard),
@@ -664,6 +710,7 @@ func BenchmarkTextOutput(b *testing.B) {
 	})
 
 	b.Run("slog", func(b *testing.B) {
+		cooldown()
 		logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
 		b.ResetTimer()
@@ -678,6 +725,7 @@ func BenchmarkTextOutput(b *testing.B) {
 	})
 
 	b.Run("logrus", func(b *testing.B) {
+		cooldown()
 		logger := logrus.New()
 		logger.SetOutput(io.Discard)
 		logger.SetFormatter(&logrus.TextFormatter{})

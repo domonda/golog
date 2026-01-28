@@ -28,6 +28,7 @@ type TextWriterConfig struct {
 	format            *Format
 	colorizer         Colorizer
 	filter            LevelFilter
+	noColorizer       bool     // true when colorizer is NoColorizer (enables zero-allocation fast path)
 	paddedLevelsCache sync.Map // map[*Levels]*Levels - caches padded level names
 }
 
@@ -41,11 +42,13 @@ func NewTextWriterConfig(writer io.Writer, format *Format, colorizer Colorizer, 
 	if colorizer == nil {
 		colorizer = NoColorizer
 	}
+	_, isNoColorizer := colorizer.(noColorizer)
 	return &TextWriterConfig{
-		writer:    writer,
-		format:    format,
-		filter:    JoinLevelFilters(filters...),
-		colorizer: colorizer,
+		writer:      writer,
+		format:      format,
+		filter:      JoinLevelFilters(filters...),
+		colorizer:   colorizer,
+		noColorizer: isNoColorizer,
 	}
 }
 
@@ -75,8 +78,13 @@ type TextWriter struct {
 
 func (w *TextWriter) BeginMessage(config Config, timestamp time.Time, level Level, prefix, text string) {
 	// Write timestamp
-	timestampStr := timestamp.Format(w.config.format.TimestampFormat)
-	w.buf = append(w.buf, w.config.colorizer.ColorizeTimestamp(timestampStr)...)
+	if w.config.noColorizer {
+		// Fast path: append directly without allocation
+		w.buf = timestamp.AppendFormat(w.buf, w.config.format.TimestampFormat)
+	} else {
+		timestampStr := timestamp.Format(w.config.format.TimestampFormat)
+		w.buf = append(w.buf, w.config.colorizer.ColorizeTimestamp(timestampStr)...)
+	}
 	w.buf = append(w.buf, ' ')
 
 	// Write level
@@ -159,43 +167,72 @@ func (w *TextWriter) writeSliceSep() {
 
 func (w *TextWriter) WriteNil() {
 	w.writeSliceSep()
-	str := w.config.colorizer.ColorizeNil("nil")
-	w.buf = append(w.buf, str...)
+	if w.config.noColorizer {
+		w.buf = append(w.buf, "nil"...)
+	} else {
+		str := w.config.colorizer.ColorizeNil("nil")
+		w.buf = append(w.buf, str...)
+	}
 }
 
 func (w *TextWriter) WriteBool(val bool) {
 	w.writeSliceSep()
-	var str string
-	if val {
-		str = w.config.colorizer.ColorizeTrue("true")
+	if w.config.noColorizer {
+		if val {
+			w.buf = append(w.buf, "true"...)
+		} else {
+			w.buf = append(w.buf, "false"...)
+		}
 	} else {
-		str = w.config.colorizer.ColorizeFalse("false")
+		var str string
+		if val {
+			str = w.config.colorizer.ColorizeTrue("true")
+		} else {
+			str = w.config.colorizer.ColorizeFalse("false")
+		}
+		w.buf = append(w.buf, str...)
 	}
-	w.buf = append(w.buf, str...)
 }
 
 func (w *TextWriter) WriteInt(val int64) {
 	w.writeSliceSep()
-	str := w.config.colorizer.ColorizeInt(strconv.FormatInt(val, 10))
-	w.buf = append(w.buf, str...)
+	if w.config.noColorizer {
+		w.buf = strconv.AppendInt(w.buf, val, 10)
+	} else {
+		str := w.config.colorizer.ColorizeInt(strconv.FormatInt(val, 10))
+		w.buf = append(w.buf, str...)
+	}
 }
 
 func (w *TextWriter) WriteUint(val uint64) {
 	w.writeSliceSep()
-	str := w.config.colorizer.ColorizeUint(strconv.FormatUint(val, 10))
-	w.buf = append(w.buf, str...)
+	if w.config.noColorizer {
+		w.buf = strconv.AppendUint(w.buf, val, 10)
+	} else {
+		str := w.config.colorizer.ColorizeUint(strconv.FormatUint(val, 10))
+		w.buf = append(w.buf, str...)
+	}
 }
 
 func (w *TextWriter) WriteFloat(val float64) {
 	w.writeSliceSep()
-	str := w.config.colorizer.ColorizeFloat(strconv.FormatFloat(val, 'f', -1, 64))
-	w.buf = append(w.buf, str...)
+	if w.config.noColorizer {
+		w.buf = strconv.AppendFloat(w.buf, val, 'f', -1, 64)
+	} else {
+		str := w.config.colorizer.ColorizeFloat(strconv.FormatFloat(val, 'f', -1, 64))
+		w.buf = append(w.buf, str...)
+	}
 }
 
 func (w *TextWriter) WriteString(val string) {
 	w.writeSliceSep()
-	str := w.config.colorizer.ColorizeString(strconv.Quote(val))
-	w.buf = append(w.buf, str...)
+	if w.config.noColorizer {
+		// Fast path: append directly without allocation
+		w.buf = strconv.AppendQuote(w.buf, val)
+	} else {
+		str := w.config.colorizer.ColorizeString(strconv.Quote(val))
+		w.buf = append(w.buf, str...)
+	}
 }
 
 func (w *TextWriter) WriteError(val error) {
@@ -222,8 +259,15 @@ func (w *TextWriter) WriteTime(val time.Time) {
 	if format == "" {
 		format = DefaultTimeFormat
 	}
-	str := w.config.colorizer.ColorizeString(strconv.Quote(val.Format(format)))
-	w.buf = append(w.buf, str...)
+	if w.config.noColorizer {
+		// Fast path: append directly without allocation
+		w.buf = append(w.buf, '"')
+		w.buf = val.AppendFormat(w.buf, format)
+		w.buf = append(w.buf, '"')
+	} else {
+		str := w.config.colorizer.ColorizeString(strconv.Quote(val.Format(format)))
+		w.buf = append(w.buf, str...)
+	}
 }
 
 // func (f *TextFormatter) WriteBytes(val []byte) {
@@ -237,9 +281,12 @@ func (w *TextWriter) WriteTime(val time.Time) {
 
 func (w *TextWriter) WriteUUID(val [16]byte) {
 	w.writeSliceSep()
-
-	str := w.config.colorizer.ColorizeUUID(FormatUUID(val))
-	w.buf = append(w.buf, str...)
+	if w.config.noColorizer {
+		w.buf = AppendUUID(w.buf, val)
+	} else {
+		str := w.config.colorizer.ColorizeUUID(FormatUUID(val))
+		w.buf = append(w.buf, str...)
+	}
 }
 
 func (w *TextWriter) WriteJSON(val []byte) {
