@@ -24,31 +24,32 @@ import (
 // Messages should not be reused after calling Log() or SubLogger()
 // as they are returned to an internal pool.
 type Message struct {
-	logger  *Logger
-	attribs Attribs
-	writers []Writer
-	level   Level
-	text    string // Used for LogAndPanic
+	logger       *Logger
+	attribs      Attribs
+	writers      []Writer
+	writersArray [4]Writer // Backing store for writers slice - avoids heap allocation for ≤4 writers
+	level        Level
+	text         string // Used for LogAndPanic
 }
 
 func newMessage(logger *Logger, attribs Attribs, writers []Writer, level Level, text string) *Message {
 	m := messagePool.GetOrNew()
 	m.logger = logger
 	m.attribs = attribs
-	m.writers = writers
+	if writers == nil {
+		m.writers = nil // attrib recorder case
+	} else {
+		// Use embedded array as backing store, append handles overflow to heap if >4
+		m.writers = append(m.writersArray[:0], writers...)
+	}
 	m.level = level
 	m.text = text
 	return m
 }
 
 func (m *Message) reset() {
-	// First clear data then put back into the pool
 	m.attribs.Free()
-	if m.writers != nil {
-		writersPool.ClearAndPutBack(m.writers)
-	}
-
-	// Then zero the message
+	// Zero the entire message (including writersArray, clearing writer refs for GC)
 	var zero Message
 	*m = zero
 }

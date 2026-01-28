@@ -87,31 +87,25 @@ func TestMessage(t *testing.T) {
 	checkOutput(t, textOut, jsonOut, numMessages, exptectedTextMessage, exptectedJSONMessage)
 
 	exptectedMempoolOutput := `0:
-Allocated []golog.Writer len:0 cap:4
 Allocated *golog.TextWriter
 Allocated *golog.JSONWriter
 Allocated *golog.Message
 Returned *golog.TextWriter
 Returned *golog.JSONWriter
-Returned []golog.Writer
 Returned *golog.Message
 1:
-Reused []golog.Writer len:0 cap:2
 Reused *golog.TextWriter
 Reused *golog.JSONWriter
 Reused *golog.Message
 Returned *golog.TextWriter
 Returned *golog.JSONWriter
-Returned []golog.Writer
 Returned *golog.Message
 2:
-Reused []golog.Writer len:0 cap:2
 Reused *golog.TextWriter
 Reused *golog.JSONWriter
 Reused *golog.Message
 Returned *golog.TextWriter
 Returned *golog.JSONWriter
-Returned []golog.Writer
 Returned *golog.Message
 `
 	assert.Equal(t, exptectedMempoolOutput, mempoolOutput.String())
@@ -156,7 +150,6 @@ Allocated *golog.Strings
 Allocated *golog.Nil
 Returned *golog.Message
 0:
-Allocated []golog.Writer len:0 cap:4
 Allocated *golog.TextWriter
 Allocated *golog.JSONWriter
 Reused *golog.Message
@@ -170,10 +163,8 @@ Returned *golog.String
 Returned *golog.Strings
 Returned *golog.Nil
 Returned []golog.Attrib
-Returned []golog.Writer
 Returned *golog.Message
 1:
-Reused []golog.Writer len:0 cap:2
 Reused *golog.TextWriter
 Reused *golog.JSONWriter
 Reused *golog.Message
@@ -187,10 +178,8 @@ Returned *golog.String
 Returned *golog.Strings
 Returned *golog.Nil
 Returned []golog.Attrib
-Returned []golog.Writer
 Returned *golog.Message
 2:
-Reused []golog.Writer len:0 cap:2
 Reused *golog.TextWriter
 Reused *golog.JSONWriter
 Reused *golog.Message
@@ -204,7 +193,6 @@ Returned *golog.String
 Returned *golog.Strings
 Returned *golog.Nil
 Returned []golog.Attrib
-Returned []golog.Writer
 Returned *golog.Message
 RemoveAttribs:
 Returned *golog.String
@@ -271,7 +259,6 @@ Allocated *golog.Nil
 Reused *golog.Message
 Returned *golog.Message
 0:
-Allocated []golog.Writer len:0 cap:4
 Allocated *golog.TextWriter
 Allocated *golog.JSONWriter
 Reused *golog.Message
@@ -287,10 +274,8 @@ Returned *golog.String
 Returned *golog.Strings
 Returned *golog.Nil
 Returned []golog.Attrib
-Returned []golog.Writer
 Returned *golog.Message
 1:
-Reused []golog.Writer len:0 cap:2
 Reused *golog.TextWriter
 Reused *golog.JSONWriter
 Reused *golog.Message
@@ -306,7 +291,6 @@ Returned *golog.String
 Returned *golog.Strings
 Returned *golog.Nil
 Returned []golog.Attrib
-Returned []golog.Writer
 Returned *golog.Message
 RemoveAttribs:
 Returned *golog.UUID
@@ -370,7 +354,6 @@ Allocated *golog.Strings
 Allocated *golog.Nil
 Returned *golog.Message
 0:
-Allocated []golog.Writer len:0 cap:4
 Allocated *golog.TextWriter
 Allocated *golog.JSONWriter
 Reused *golog.Message
@@ -384,10 +367,8 @@ Returned *golog.String
 Returned *golog.Strings
 Returned *golog.Nil
 Returned []golog.Attrib
-Returned []golog.Writer
 Returned *golog.Message
 1:
-Reused []golog.Writer len:0 cap:2
 Reused *golog.TextWriter
 Reused *golog.JSONWriter
 Reused *golog.Message
@@ -401,10 +382,8 @@ Returned *golog.String
 Returned *golog.Strings
 Returned *golog.Nil
 Returned []golog.Attrib
-Returned []golog.Writer
 Returned *golog.Message
 2:
-Reused []golog.Writer len:0 cap:2
 Reused *golog.TextWriter
 Reused *golog.JSONWriter
 Reused *golog.Message
@@ -418,7 +397,6 @@ Returned *golog.String
 Returned *golog.Strings
 Returned *golog.Nil
 Returned []golog.Attrib
-Returned []golog.Writer
 Returned *golog.Message
 RemoveAttribs:
 Returned *golog.String
@@ -1150,4 +1128,30 @@ func TestMessage_TaggedStructFields(t *testing.T) {
 		assert.Contains(t, textOut.String(), `password="***REDACTED***"`)
 		assert.NotContains(t, textOut.String(), `secret`)
 	})
+}
+
+func TestMessageManyWriters(t *testing.T) {
+	timestamp, _ := time.Parse("2006-01-02 15:04:05", "2006-01-02 15:04:05")
+	ctx := ContextWithTimestamp(context.Background(), timestamp)
+
+	// Create 5 writers (exceeds writersArray[4] capacity)
+	var outputs [5]*bytes.Buffer
+	var writerConfigs []WriterConfig
+	for i := range 5 {
+		outputs[i] = bytes.NewBuffer(nil)
+		writerConfigs = append(writerConfigs, NewJSONWriterConfig(outputs[i], nil))
+	}
+
+	config := NewConfig(&DefaultLevels, AllLevelsActive, writerConfigs...)
+	log := NewLogger(config)
+
+	log.NewMessage(ctx, log.Config().InfoLevel(), "Test message").
+		Str("key", "value").
+		Log()
+
+	// Verify all 5 writers received the message
+	for i, out := range outputs {
+		assert.Contains(t, out.String(), `"message":"Test message"`, "writer %d", i)
+		assert.Contains(t, out.String(), `"key":"value"`, "writer %d", i)
+	}
 }

@@ -205,9 +205,12 @@ func (l *Logger) NewMessageAt(ctx context.Context, timestamp time.Time, level Le
 	if c := WriterConfigsFromContext(ctx); len(c) > 0 {
 		configs = uniqueNonNilWriterConfigs(append(configs, c...))
 	}
+	// Build writers in temporary slice (will be copied into Message's embedded array)
 	var writers []Writer
 	if len(configs) > 0 {
-		writers = writersPool.GetOrMake(0, len(configs))
+		// Use stack-allocated array for common case (≤4 writers)
+		var writersArray [4]Writer
+		writers = writersArray[:0]
 		for _, config := range configs {
 			if w := config.WriterForNewMessage(ctx, level); w != nil {
 				w.BeginMessage(l.config, timestamp, level, l.prefix, text)

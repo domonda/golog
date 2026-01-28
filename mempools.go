@@ -3,10 +3,7 @@ package golog
 import "github.com/domonda/golog/mempool"
 
 var (
-	messagePool mempool.Pointer[Message]
-	writersPool = mempool.Slice[Writer]{
-		MinCap: 4,
-	}
+	messagePool        mempool.Pointer[Message]
 	textWriterPool     mempool.Pointer[TextWriter]
 	jsonWriterPool     mempool.Pointer[JSONWriter]
 	callbackWriterPool mempool.Pointer[CallbackWriter]
@@ -37,7 +34,6 @@ var (
 
 func DrainAllMemPools() {
 	messagePool.Drain()
-	writersPool.Drain()
 	textWriterPool.Drain()
 	jsonWriterPool.Drain()
 	callbackWriterPool.Drain()
