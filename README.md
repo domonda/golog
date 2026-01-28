@@ -23,6 +23,10 @@ Fast and flexible structured logging library for Go inspired by zerolog
 - **Memory Safety**: Nil-safe logger implementation prevents panics
 - **Sub-loggers**: Create child loggers with inherited attributes
 
+## Production Tested
+
+golog has been used in production at [domonda](https://www.domonda.com) since 2023, powering mission-critical business applications with reliable, high-performance logging.
+
 ## Installation
 
 ```bash
