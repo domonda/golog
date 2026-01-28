@@ -6,6 +6,7 @@ import (
 	"io"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -23,10 +24,11 @@ var (
 )
 
 type TextWriterConfig struct {
-	writer    io.Writer
-	format    *Format
-	colorizer Colorizer
-	filter    LevelFilter
+	writer            io.Writer
+	format            *Format
+	colorizer         Colorizer
+	filter            LevelFilter
+	paddedLevelsCache sync.Map // map[*Levels]*Levels - caches padded level names
 }
 
 func NewTextWriterConfig(writer io.Writer, format *Format, colorizer Colorizer, filters ...LevelFilter) *TextWriterConfig {
@@ -80,7 +82,14 @@ func (w *TextWriter) BeginMessage(config Config, timestamp time.Time, level Leve
 	// Write level
 	levels := config.Levels()
 	if min, max := levels.NameLenRange(); min != max {
-		levels = levels.CopyWithRightPaddedNames() // TODO optimize performance
+		// Use cached padded levels if available, otherwise compute and cache
+		if cached, ok := w.config.paddedLevelsCache.Load(levels); ok {
+			levels = cached.(*Levels)
+		} else {
+			padded := levels.CopyWithRightPaddedNames()
+			w.config.paddedLevelsCache.Store(levels, padded)
+			levels = padded
+		}
 	}
 	str := w.config.colorizer.ColorizeLevel(levels, level)
 	w.buf = append(w.buf, '|')
