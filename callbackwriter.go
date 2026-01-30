@@ -128,7 +128,8 @@ func (w *CallbackWriter) WriteBool(val bool) {
 	if w.isSlice {
 		a, _ := w.sliceAttrib.(*Bools)
 		if a == nil {
-			w.sliceAttrib = NewBools(w.key, nil)
+			a = NewBools(w.key, nil)
+			w.sliceAttrib = a
 		}
 		a.vals = append(a.vals, val)
 	} else {
@@ -140,7 +141,8 @@ func (w *CallbackWriter) WriteInt(val int64) {
 	if w.isSlice {
 		a, _ := w.sliceAttrib.(*Ints)
 		if a == nil {
-			w.sliceAttrib = NewInts(w.key, nil)
+			a = NewInts(w.key, nil)
+			w.sliceAttrib = a
 		}
 		a.vals = append(a.vals, val)
 	} else {
@@ -152,7 +154,8 @@ func (w *CallbackWriter) WriteUint(val uint64) {
 	if w.isSlice {
 		a, _ := w.sliceAttrib.(*Uints)
 		if a == nil {
-			w.sliceAttrib = NewUints(w.key, nil)
+			a = NewUints(w.key, nil)
+			w.sliceAttrib = a
 		}
 		a.vals = append(a.vals, val)
 	} else {
@@ -164,7 +167,8 @@ func (w *CallbackWriter) WriteFloat(val float64) {
 	if w.isSlice {
 		a, _ := w.sliceAttrib.(*Floats)
 		if a == nil {
-			w.sliceAttrib = NewFloats(w.key, nil)
+			a = NewFloats(w.key, nil)
+			w.sliceAttrib = a
 		}
 		a.vals = append(a.vals, val)
 	} else {
@@ -176,7 +180,8 @@ func (w *CallbackWriter) WriteString(val string) {
 	if w.isSlice {
 		a, _ := w.sliceAttrib.(*Strings)
 		if a == nil {
-			w.sliceAttrib = NewStrings(w.key, nil)
+			a = NewStrings(w.key, nil)
+			w.sliceAttrib = a
 		}
 		a.vals = append(a.vals, val)
 	} else {
@@ -188,7 +193,8 @@ func (w *CallbackWriter) WriteError(val error) {
 	if w.isSlice {
 		a, _ := w.sliceAttrib.(*Errors)
 		if a == nil {
-			w.sliceAttrib = NewErrors(w.key, nil)
+			a = NewErrors(w.key, nil)
+			w.sliceAttrib = a
 		}
 		a.vals = append(a.vals, val)
 	} else {
@@ -197,11 +203,11 @@ func (w *CallbackWriter) WriteError(val error) {
 }
 
 func (w *CallbackWriter) WriteTime(val time.Time) {
-	// Store as string since there's no Time attrib type
 	if w.isSlice {
 		a, _ := w.sliceAttrib.(*Times)
 		if a == nil {
-			w.sliceAttrib = NewTimes(w.key, nil)
+			a = NewTimes(w.key, nil)
+			w.sliceAttrib = a
 		}
 		a.vals = append(a.vals, val)
 	} else {
@@ -213,7 +219,8 @@ func (w *CallbackWriter) WriteUUID(val [16]byte) {
 	if w.isSlice {
 		a, _ := w.sliceAttrib.(*UUIDs)
 		if a == nil {
-			w.sliceAttrib = NewUUIDs(w.key, nil)
+			a = NewUUIDs(w.key, nil)
+			w.sliceAttrib = a
 		}
 		a.vals = append(a.vals, val)
 	} else {
