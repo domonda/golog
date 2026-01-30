@@ -2,6 +2,7 @@ package logfile
 
 import (
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -379,4 +380,187 @@ func TestRotatingWriter_WithGolog(t *testing.T) {
 		jsonMessageCount += len(lines)
 	}
 	assert.Equal(t, totalMessages, jsonMessageCount, "should have all messages in JSON files")
+}
+
+// TestRotatingWriter_RecoveryAfterFileDeleted verifies the bug fix where
+// a failed rotation (e.g., file deleted externally) no longer leaves
+// rw.file pointing to a closed file descriptor. The writer should recover
+// by reopening the file path and remain functional for subsequent writes.
+func TestRotatingWriter_RecoveryAfterFileDeleted(t *testing.T) {
+	dir := fs.MustMakeTempDir()
+	t.Cleanup(func() { dir.RemoveRecursive() })
+
+	filePath := dir.Join("test.log").LocalPath()
+	writer, err := NewRotatingWriter(filePath, "", 0644, 100)
+	require.NoError(t, err)
+	defer writer.Close()
+
+	// Write some data below the rotation threshold
+	_, err = writer.Write([]byte(strings.Repeat("A", 50)))
+	require.NoError(t, err)
+
+	// Delete the file externally while the writer still has the fd open.
+	// On Unix, the fd remains valid but the directory entry is removed.
+	err = os.Remove(filePath)
+	require.NoError(t, err)
+
+	// Write enough to trigger rotation.
+	// rotate() will: close fd (ok), rename path (fails: ENOENT),
+	// reopen path (ok: O_CREATE), set rw.file to new file.
+	// Write returns the rename error, but the writer stays functional.
+	_, err = writer.Write([]byte(strings.Repeat("B", 60)))
+	require.Error(t, err, "write should return rename error from failed rotation")
+
+	// The writer must remain functional after the failed rotation
+	data := []byte("recovered\n")
+	n, err := writer.Write(data)
+	require.NoError(t, err, "writer should be functional after recovery")
+	assert.Equal(t, len(data), n)
+
+	require.NoError(t, writer.Sync())
+
+	content, err := os.ReadFile(filePath)
+	require.NoError(t, err)
+	assert.Equal(t, string(data), string(content))
+}
+
+func TestRotatingWriter_SameTimestampSuffix(t *testing.T) {
+	dir := fs.MustMakeTempDir()
+	t.Cleanup(func() { dir.RemoveRecursive() })
+
+	filePath := dir.Join("test.log").LocalPath()
+	// Day-precision format guarantees all rotations within this test
+	// produce the same timestamp string, exercising the numeric suffix logic.
+	writer, err := NewRotatingWriter(filePath, "2006-01-02", 0644, 10)
+	require.NoError(t, err)
+	defer writer.Close()
+
+	numRotations := 5
+	for i := range numRotations {
+		_, err := writer.Write([]byte(strings.Repeat("X", 20)))
+		require.NoError(t, err, "write %d failed", i)
+	}
+
+	require.NoError(t, writer.Sync())
+
+	files, err := dir.ListDirMax(-1, "test.log*")
+	require.NoError(t, err)
+	// 1 current file + numRotations rotated files
+	// (each write of 20 bytes >= rotateSize of 10, so every write rotates)
+	require.Equal(t, numRotations+1, len(files))
+
+	// Collect rotated file names (everything except "test.log")
+	today := time.Now().Format("2006-01-02")
+	expectedBase := "test.log." + today
+
+	rotatedNames := make(map[string]bool)
+	for _, f := range files {
+		if f.Name() != "test.log" {
+			rotatedNames[f.Name()] = true
+		}
+	}
+	assert.Equal(t, numRotations, len(rotatedNames))
+
+	// First rotation gets the base name, subsequent ones get .1, .2, ...
+	assert.True(t, rotatedNames[expectedBase], "should have base rotated file %s", expectedBase)
+	for i := 1; i < numRotations; i++ {
+		suffixed := expectedBase + "." + strconv.Itoa(i)
+		assert.True(t, rotatedNames[suffixed], "should have suffixed rotated file %s", suffixed)
+	}
+}
+
+func TestRotatingWriter_ExactBoundary(t *testing.T) {
+	dir := fs.MustMakeTempDir()
+	t.Cleanup(func() { dir.RemoveRecursive() })
+
+	filePath := dir.Join("test.log").LocalPath()
+	writer, err := NewRotatingWriter(filePath, "", 0644, 100)
+	require.NoError(t, err)
+	defer writer.Close()
+
+	// A single write of exactly rotateSize bytes should trigger rotation
+	data := []byte(strings.Repeat("A", 100))
+	n, err := writer.Write(data)
+	require.NoError(t, err)
+	assert.Equal(t, 100, n)
+
+	require.NoError(t, writer.Sync())
+
+	files, err := dir.ListDirMax(-1, "test.log*")
+	require.NoError(t, err)
+	assert.Equal(t, 2, len(files), "should have current + 1 rotated file at exact boundary")
+
+	// Current file should contain the data (written after rotation)
+	content, err := os.ReadFile(filePath)
+	require.NoError(t, err)
+	assert.Equal(t, string(data), string(content))
+}
+
+func TestRotatingWriter_WriteLargerThanRotateSize(t *testing.T) {
+	dir := fs.MustMakeTempDir()
+	t.Cleanup(func() { dir.RemoveRecursive() })
+
+	filePath := dir.Join("test.log").LocalPath()
+	writer, err := NewRotatingWriter(filePath, "", 0644, 50)
+	require.NoError(t, err)
+	defer writer.Close()
+
+	// Single write much larger than rotateSize.
+	// Rotation happens, then the entire message is written to the new file.
+	data := []byte(strings.Repeat("X", 200))
+	n, err := writer.Write(data)
+	require.NoError(t, err)
+	assert.Equal(t, 200, n)
+
+	require.NoError(t, writer.Sync())
+
+	content, err := os.ReadFile(filePath)
+	require.NoError(t, err)
+	assert.Equal(t, string(data), string(content))
+
+	// Rotated file should be empty (the original file was freshly created)
+	rotated, err := dir.ListDirMax(-1, "test.log.*")
+	require.NoError(t, err)
+	require.Equal(t, 1, len(rotated))
+
+	rotatedContent, err := os.ReadFile(rotated[0].LocalPath())
+	require.NoError(t, err)
+	assert.Empty(t, rotatedContent, "rotated file should be empty since original was fresh")
+}
+
+func TestRotatingWriter_RotatedFileContent(t *testing.T) {
+	dir := fs.MustMakeTempDir()
+	t.Cleanup(func() { dir.RemoveRecursive() })
+
+	filePath := dir.Join("test.log").LocalPath()
+	writer, err := NewRotatingWriter(filePath, "", 0644, 100)
+	require.NoError(t, err)
+	defer writer.Close()
+
+	// Write data that stays below the rotation threshold
+	data1 := []byte("first message\n")
+	_, err = writer.Write(data1)
+	require.NoError(t, err)
+
+	// This write pushes the accumulated size past rotateSize,
+	// so data1 ends up in the rotated file and data2 in the current file.
+	data2 := []byte(strings.Repeat("B", 90) + "\n")
+	_, err = writer.Write(data2)
+	require.NoError(t, err)
+
+	require.NoError(t, writer.Sync())
+
+	// Verify rotated file has data1
+	rotated, err := dir.ListDirMax(-1, "test.log.*")
+	require.NoError(t, err)
+	require.Equal(t, 1, len(rotated))
+
+	rotatedContent, err := os.ReadFile(rotated[0].LocalPath())
+	require.NoError(t, err)
+	assert.Equal(t, string(data1), string(rotatedContent), "rotated file should contain first message")
+
+	// Verify current file has data2
+	currentContent, err := os.ReadFile(filePath)
+	require.NoError(t, err)
+	assert.Equal(t, string(data2), string(currentContent), "current file should contain second message")
 }

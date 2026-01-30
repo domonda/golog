@@ -40,6 +40,7 @@ package logfile
 
 import (
 	"cmp"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -164,18 +165,17 @@ func (rw *RotatingWriter) rotate() error {
 		return fmt.Errorf("error closing rotating log file %q: %w", rw.filePath, err)
 	}
 
-	err = os.Rename(rw.filePath, rw.rotatedFilePath())
-	if err != nil {
-		return err
-	}
+	renameErr := os.Rename(rw.filePath, rw.rotatedFilePath())
 
-	file, size, err := openFile(rw.filePath, rw.filePerm)
-	if err != nil {
-		return err
+	// Always reopen the log file to keep the writer functional
+	// even if renaming failed
+	file, size, openErr := openFile(rw.filePath, rw.filePerm)
+	if openErr != nil {
+		return errors.Join(renameErr, openErr)
 	}
 	rw.file = file
 	rw.size = size
-	return nil
+	return renameErr
 }
 
 func (rw *RotatingWriter) rotatedFilePath() string {
