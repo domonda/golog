@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
-	"os"
 	"runtime/debug"
 	"strings"
 	"sync"
@@ -79,7 +78,7 @@ func (c *WriterConfig) WriterForNewMessage(ctx context.Context, level golog.Leve
 func (c *WriterConfig) FlushUnderlying() {
 	defer func() {
 		if r := recover(); r != nil {
-			_, _ = fmt.Fprintf(os.Stderr, "%v\n%s", r, debug.Stack())
+			golog.ErrorHandler(fmt.Errorf("logsentry.WriterConfig.FlushUnderlying recovered panic: %v\n%s", r, debug.Stack()))
 		}
 	}()
 
@@ -164,7 +163,7 @@ func (w *Writer) BeginMessage(config golog.Config, timestamp time.Time, level go
 func (w *Writer) CommitMessage() {
 	defer func() {
 		if r := recover(); r != nil {
-			_, _ = fmt.Fprintf(os.Stderr, "%v\n%s", r, debug.Stack())
+			golog.ErrorHandler(fmt.Errorf("logsentry.Writer.CommitMessage recovered panic: %v\n%s", r, debug.Stack()))
 		}
 
 		// Reset and return to pool

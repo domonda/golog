@@ -9,5 +9,5 @@ import (
 // error occured while writing the logs.
 // The default handler prints to stderr.
 var ErrorHandler = func(err error) {
-	fmt.Fprintln(os.Stderr, err)
+	_, _ = fmt.Fprintln(os.Stderr, err)
 }
