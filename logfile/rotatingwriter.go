@@ -147,6 +147,11 @@ func (rw *RotatingWriter) Write(msg []byte) (n int, err error) {
 	rw.mtx.Lock()
 	defer rw.mtx.Unlock()
 
+	// size is incremented optimistically before the write.
+	// If the write fails (e.g. disk full), size drifts ahead
+	// of the actual file size, causing earlier-than-needed rotations.
+	// This is acceptable because rotation itself resets size
+	// to the actual file size via stat, self-correcting the drift.
 	rw.size += int64(len(msg))
 	if rw.rotateSize > 0 && rw.size >= rw.rotateSize {
 		err := rw.rotate()
