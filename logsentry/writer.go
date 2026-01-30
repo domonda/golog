@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
+	"os"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"time"
@@ -75,6 +77,12 @@ func (c *WriterConfig) WriterForNewMessage(ctx context.Context, level golog.Leve
 }
 
 func (c *WriterConfig) FlushUnderlying() {
+	defer func() {
+		if r := recover(); r != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "%v\n%s", r, debug.Stack())
+		}
+	}()
+
 	c.hub.Flush(FlushTimeout)
 }
 
@@ -154,6 +162,21 @@ func (w *Writer) BeginMessage(config golog.Config, timestamp time.Time, level go
 // After sending the event, the Writer is reset and returned to the object
 // pool for reuse, ensuring efficient memory management.
 func (w *Writer) CommitMessage() {
+	defer func() {
+		if r := recover(); r != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "%v\n%s", r, debug.Stack())
+		}
+
+		// Reset and return to pool
+		w.message.Reset()
+		if w.values != nil {
+			valueMapPool.Put(w.values)
+			w.values = nil
+		}
+		w.slice = nil
+		w.config.writerPool.Put(w)
+	}()
+
 	// Flush w.message
 	if w.message.Len() > 0 {
 		event := sentry.NewEvent()
@@ -173,15 +196,6 @@ func (w *Writer) CommitMessage() {
 		}
 		w.config.hub.CaptureEvent(event)
 	}
-
-	// Reset and return to pool
-	w.message.Reset()
-	if w.values != nil {
-		valueMapPool.Put(w.values)
-		w.values = nil
-	}
-	w.slice = nil
-	w.config.writerPool.Put(w)
 }
 
 // filterFrames removes golog internal frames from stack traces to provide
