@@ -8,12 +8,15 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"os"
+	"os/exec"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/domonda/golog/mempool"
 )
@@ -1128,6 +1131,32 @@ func TestMessage_TaggedStructFields(t *testing.T) {
 		assert.Contains(t, textOut.String(), `password="***REDACTED***"`)
 		assert.NotContains(t, textOut.String(), `secret`)
 	})
+}
+
+// TestSubLoggerContextWithWriterConfigsFromContext tests that SubLoggerContext
+// does not create a self-referential DerivedConfig cycle when the context
+// contains additional WriterConfigs. A self-referential cycle causes infinite
+// recursion (stack overflow) when any level method like InfoLevel() is called.
+func TestSubLoggerContextWithWriterConfigsFromContext(t *testing.T) {
+	if os.Getenv("TEST_SUBLOGGER_CONTEXT_LOOP") == "1" {
+		config := newTestConfig(io.Discard, io.Discard)
+		log := NewLogger(config)
+		// Add a new WriterConfig to the context that is not already
+		// in the logger's config, so ConfigWithAdditionalWriterConfigs
+		// creates a new DerivedConfig instead of returning the parent.
+		extraWriter := NewJSONWriterConfig(io.Discard, nil)
+		ctx := ContextWithAdditionalWriterConfigs(t.Context(), extraWriter)
+		subLog, _ := log.With().Str("key", "value").SubLoggerContext(ctx)
+		// Calling Info triggers InfoLevel() on the config.
+		// With the bug, this causes infinite recursion and a stack overflow.
+		subLog.Info("test").Log()
+		return
+	}
+
+	cmd := exec.Command(os.Args[0], "-test.run=^TestSubLoggerContextWithWriterConfigsFromContext$", "-test.timeout=10s")
+	cmd.Env = append(os.Environ(), "TEST_SUBLOGGER_CONTEXT_LOOP=1")
+	output, err := cmd.CombinedOutput()
+	require.NoError(t, err, "SubLoggerContext with additional WriterConfigs from context caused stack overflow:\n%s", output)
 }
 
 func TestMessageManyWriters(t *testing.T) {
