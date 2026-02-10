@@ -109,14 +109,20 @@ func (m *Message) SubLoggerContext(ctx context.Context) (*Logger, context.Contex
 		return m.logger, m.attribs.AddToContext(ctx)
 	}
 
-	configsFromCtx := WriterConfigsFromContext(ctx)
-
 	ctxWithAttribs := m.attribs.AddToContext(ctx)
 	subLog := m.SubLogger() // Puts the message back into the pool
 
-	if len(configsFromCtx) > 0 {
-		origConfig := subLog.config // TODO optimize, don't copy
-		subLog.config = ConfigWithAdditionalWriterConfigs(&origConfig, configsFromCtx...)
+	if writerConfigsFromCtx := WriterConfigsFromContext(ctx); len(writerConfigsFromCtx) > 0 {
+		writerConfigs := subLog.config.WriterConfigs()
+		merged := mergeWriterConfigs(writerConfigs, writerConfigsFromCtx)
+		if len(merged) != len(writerConfigs) {
+			// Copy to take address or var before re-assign
+			origConfig := subLog.config
+			subLog.config = &DerivedConfig{
+				parent:        &origConfig,
+				writerConfigs: merged,
+			}
+		}
 	}
 
 	return subLog, ctxWithAttribs

@@ -98,12 +98,12 @@ func (l *Logger) WithLevelFilter(filter LevelFilter) *Logger {
 
 // WithAdditionalWriterConfigs returns a clone of the logger with additional writer configs.
 // Returns the logger unchanged if no configs are provided or if the logger is nil.
-func (l *Logger) WithAdditionalWriterConfigs(configs ...WriterConfig) *Logger {
-	if l == nil || len(configs) == 0 {
+func (l *Logger) WithAdditionalWriterConfigs(writerConfigs ...WriterConfig) *Logger {
+	if l == nil || len(writerConfigs) == 0 {
 		return l
 	}
 	return &Logger{
-		config:  ConfigWithAdditionalWriterConfigs(&l.config, configs...),
+		config:  ConfigWithAdditionalWriterConfigs(&l.config, writerConfigs...),
 		prefix:  l.prefix,
 		attribs: l.attribs.Clone(),
 	}
@@ -202,8 +202,8 @@ func (l *Logger) NewMessageAt(ctx context.Context, timestamp time.Time, level Le
 		return nil
 	}
 	configs := l.config.WriterConfigs()
-	if c := WriterConfigsFromContext(ctx); len(c) > 0 {
-		configs = uniqueNonNilWriterConfigs(append(configs, c...))
+	if ctxConfigs := WriterConfigsFromContext(ctx); len(ctxConfigs) > 0 {
+		configs = mergeWriterConfigs(configs, ctxConfigs)
 	}
 	// Build writers in temporary slice (will be copied into Message's embedded array)
 	var writers []Writer

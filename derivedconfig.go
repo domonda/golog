@@ -19,9 +19,9 @@ var _ Config = new(DerivedConfig)
 // if a log message should be written or not. If the DerivedConfig has no filter,
 // the filter of the parent Config will be used.
 type DerivedConfig struct {
-	parent           *Config
-	filter           *LevelFilter
-	addWriterConfigs []WriterConfig
+	parent        *Config
+	filter        *LevelFilter
+	writerConfigs []WriterConfig
 }
 
 // NewDerivedConfig creates a new DerivedConfig that wraps the parent config.
@@ -49,7 +49,7 @@ func NewDerivedConfigWithFilter(parent *Config, filters ...LevelFilter) *Derived
 }
 
 // ConfigWithAdditionalWriterConfigs returns a Config with the passed writer configs
-// added to the parent config.
+// merged with the parent config.
 //
 // Returns the parent config unchanged if:
 //   - no configs are passed, or
@@ -58,25 +58,21 @@ func NewDerivedConfigWithFilter(parent *Config, filters ...LevelFilter) *Derived
 // Returns a new DerivedConfig if any new unique writer configs are added.
 // Duplicate and nil configs are automatically removed.
 // Panics if parent is nil.
-func ConfigWithAdditionalWriterConfigs(parent *Config, configs ...WriterConfig) Config {
+func ConfigWithAdditionalWriterConfigs(parent *Config, writerConfigs ...WriterConfig) Config {
 	if parent == nil || *parent == nil {
 		panic("golog.DerivedConfig parent must not be nil") // Panic during setup is acceptable
 	}
-	if len(configs) == 0 {
+	if len(writerConfigs) == 0 {
 		return *parent
 	}
 	parentConfigs := (*parent).WriterConfigs()
-	// Combine parent and new configs, removing duplicates and nils.
-	// We compare lengths to detect if new unique writers were added:
-	// since we append to parentConfigs, if the deduplicated length
-	// equals the parent length, all added configs were duplicates.
-	combined := uniqueNonNilWriterConfigs(append(parentConfigs, configs...))
-	if len(combined) == len(parentConfigs) {
-		return *parent
+	merged := mergeWriterConfigs(parentConfigs, writerConfigs)
+	if len(merged) == len(parentConfigs) {
+		return *parent // Identical writer configs, return parent unchanged
 	}
 	return &DerivedConfig{
-		parent:           parent,
-		addWriterConfigs: combined,
+		parent:        parent,
+		writerConfigs: merged,
 	}
 }
 
@@ -90,9 +86,9 @@ func (c *DerivedConfig) Parent() Config {
 // If additional writer configs were set, returns those (which include the parent's).
 // Otherwise, returns the parent's writer configs.
 func (c *DerivedConfig) WriterConfigs() []WriterConfig {
-	if c.addWriterConfigs != nil {
+	if c.writerConfigs != nil {
 		// If DerivedConfig has its own writer configs, use them
-		return c.addWriterConfigs
+		return c.writerConfigs
 	}
 	// Else use the writer configs of the parent Config
 	return (*c.parent).WriterConfigs()

@@ -36,11 +36,10 @@ func ContextWithAdditionalWriterConfigs(ctx context.Context, configs ...WriterCo
 	if len(configs) == 0 {
 		return ctx
 	}
-	ctxConfigs := WriterConfigsFromContext(ctx)
-	if len(ctxConfigs) == 0 {
-		return context.WithValue(ctx, &writerConfigsCtxKey, configs)
+
+	if ctxConfigs := WriterConfigsFromContext(ctx); len(ctxConfigs) > 0 {
+		configs = mergeWriterConfigs(ctxConfigs, configs)
 	}
-	configs = uniqueNonNilWriterConfigs(append(ctxConfigs, configs...))
 	return context.WithValue(ctx, &writerConfigsCtxKey, configs)
 }
 
@@ -57,28 +56,80 @@ func WriterConfigsFromContext(ctx context.Context) []WriterConfig {
 // non-nil elements from w, preserving their original order.
 // Returns nil if w contains no non-nil elements.
 // Returns w unchanged if all elements are already unique and non-nil.
-func uniqueNonNilWriterConfigs(w []WriterConfig) (unique []WriterConfig) {
-	// Fast path checks if w can be returned as is
-	numUniqueNonNil := 0
-	for i, c := range w {
-		if c != nil && !slices.Contains(w[:i], c) {
-			numUniqueNonNil++
-		}
-	}
-	if numUniqueNonNil == 0 {
+func uniqueNonNilWriterConfigs(w []WriterConfig) []WriterConfig {
+	switch len(w) {
+	case 0:
 		return nil
-	}
-	if numUniqueNonNil == len(w) {
+	case 1:
+		if w[0] == nil {
+			return nil
+		}
 		return w
 	}
-	// Slow path to create a new slice with unique elements
-	unique = make([]WriterConfig, 0, numUniqueNonNil)
+	// Find first nil or duplicate element.
+	// Everything before it is guaranteed clean.
+	firstBad := -1
 	for i, c := range w {
-		if c != nil && !slices.Contains(w[:i], c) {
+		if c == nil || slices.Contains(w[:i], c) {
+			firstBad = i
+			break
+		}
+	}
+	if firstBad < 0 {
+		return w // Already clean
+	}
+	// Single pass: copy clean prefix, then filter the rest
+	unique := make([]WriterConfig, firstBad, len(w))
+	copy(unique, w[:firstBad])
+	for _, c := range w[firstBad:] {
+		if c != nil && !slices.Contains(unique, c) {
 			unique = append(unique, c)
 		}
 	}
+	if len(unique) == 0 {
+		return nil
+	}
 	return unique
+}
+
+// mergeWriterConfigs returns the unique, non-nil writer configs from both slices.
+// Returns a unchanged if it contains no nils or internal duplicates
+// and already contains all non-nil elements from b.
+func mergeWriterConfigs(a, b []WriterConfig) []WriterConfig {
+	if len(b) == 0 {
+		return uniqueNonNilWriterConfigs(a)
+	}
+	if len(a) == 0 {
+		return uniqueNonNilWriterConfigs(b)
+	}
+	// Check if b adds any new non-nil elements not already in a
+	hasNew := false
+	for _, c := range b {
+		if c != nil && !slices.Contains(a, c) {
+			hasNew = true
+			break
+		}
+	}
+	if !hasNew {
+		// b adds nothing new, just ensure a itself is clean
+		return uniqueNonNilWriterConfigs(a)
+	}
+	// Build merged result without intermediate append(a, b...) allocation
+	result := make([]WriterConfig, 0, len(a)+len(b))
+	for i, c := range a {
+		if c != nil && !slices.Contains(a[:i], c) {
+			result = append(result, c)
+		}
+	}
+	for _, c := range b {
+		if c != nil && !slices.Contains(result, c) {
+			result = append(result, c)
+		}
+	}
+	if len(result) == 0 {
+		return nil
+	}
+	return result
 }
 
 // flushUnderlying flushes any buffered data in writer by calling

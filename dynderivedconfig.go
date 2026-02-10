@@ -21,10 +21,10 @@ var _ Config = new(DynDerivedConfig)
 // if a log message should be written or not. If the DynDerivedConfig has no filter,
 // the filter of the parent Config will be used.
 type DynDerivedConfig struct {
-	parent           *Config
-	filter           *LevelFilter
-	addWriterConfigs []WriterConfig
-	mutex            sync.RWMutex
+	parent        *Config
+	filter        *LevelFilter
+	writerConfigs []WriterConfig
+	mutex         sync.RWMutex
 }
 
 // NewDynDerivedConfig creates a new DynDerivedConfig that wraps the parent config.
@@ -86,9 +86,9 @@ func (c *DynDerivedConfig) SetFilter(filters ...LevelFilter) {
 func (c *DynDerivedConfig) SetAdditionalWriterConfigs(configs ...WriterConfig) {
 	c.mutex.Lock()
 	if len(configs) == 0 {
-		c.addWriterConfigs = nil
+		c.writerConfigs = nil
 	} else {
-		c.addWriterConfigs = uniqueNonNilWriterConfigs(append((*c.parent).WriterConfigs(), configs...))
+		c.writerConfigs = mergeWriterConfigs((*c.parent).WriterConfigs(), configs)
 	}
 	c.mutex.Unlock()
 }
@@ -100,9 +100,9 @@ func (c *DynDerivedConfig) WriterConfigs() []WriterConfig {
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
 
-	if c.addWriterConfigs != nil {
+	if c.writerConfigs != nil {
 		// If DynDerivedConfig has its own writer configs, use them
-		return c.addWriterConfigs
+		return c.writerConfigs
 	}
 	// Else use the writer configs of the parent Config
 	return (*c.parent).WriterConfigs()
