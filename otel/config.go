@@ -6,7 +6,6 @@ package otel
 
 import (
 	"context"
-	"time"
 
 	"go.opentelemetry.io/otel/log"
 )
@@ -18,11 +17,11 @@ var (
 	// Defaults to log.SeverityError to ensure unknown levels are treated as errors.
 	UnknownSeverity = log.SeverityError
 
-	// FlushTimeout specifies how long to wait when flushing log records
-	// before giving up. This is used when the application is shutting down
-	// to ensure pending records are exported before termination.
-	// Defaults to 5 seconds.
-	FlushTimeout time.Duration = 5 * time.Second
+	// UnknownSeverityText is the text used when a golog.Level cannot be mapped
+	// to a known OTel severity. This typically happens with custom log levels
+	// that don't match the standard golog levels (TRACE, DEBUG, INFO, WARN, ERROR, FATAL).
+	// Defaults to "ERROR" to ensure unknown levels are treated as errors.
+	UnknownSeverityText = "ERROR"
 
 	// withoutLoggingCtxKey is used as a context key to mark contexts that should
 	// not send log messages to OpenTelemetry.

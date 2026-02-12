@@ -43,6 +43,9 @@ type WriterConfig struct {
 // "github.com/domonda/golog/otel".
 // Any KeyValue pairs passed as attrs will be added to every log record.
 func NewWriterConfig(provider log.LoggerProvider, format *golog.Format, filter golog.LevelFilter, attrs ...log.KeyValue) *WriterConfig {
+	if format == nil {
+		panic("otel.NewWriterConfig: format must not be nil")
+	}
 	return &WriterConfig{
 		logger: provider.Logger("github.com/domonda/golog/otel"),
 		format: format,
@@ -118,7 +121,7 @@ func (w *Writer) BeginMessage(config golog.Config, timestamp time.Time, level go
 		w.severityText = "TRACE"
 	default:
 		w.severity = UnknownSeverity
-		w.severityText = ""
+		w.severityText = UnknownSeverityText
 	}
 
 	if prefix != "" {
@@ -205,6 +208,10 @@ func (w *Writer) WriteString(val string) {
 }
 
 func (w *Writer) WriteError(val error) {
+	if val == nil {
+		w.WriteNil()
+		return
+	}
 	w.writeValue(log.StringValue(val.Error()))
 }
 
