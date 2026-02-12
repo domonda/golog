@@ -141,6 +141,10 @@ func (w *JSONWriter) WriteString(val string) {
 }
 
 func (w *JSONWriter) WriteError(val error) {
+	if val == nil {
+		w.WriteNil()
+		return
+	}
 	w.buf = encjson.AppendString(w.buf, val.Error())
 }
 

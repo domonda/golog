@@ -276,6 +276,21 @@ func TestTextWriter_WriteValues(t *testing.T) {
 		assert.Contains(t, output, `name="John"`)
 	})
 
+	t.Run("WriteError nil", func(t *testing.T) {
+		buf := bytes.NewBuffer(nil)
+		config := NewTextWriterConfig(buf, format, NoColorizer)
+		logConfig := NewConfig(&DefaultLevels, AllLevelsActive, config)
+
+		writer := config.WriterForNewMessage(context.Background(), DefaultLevels.Info)
+		writer.BeginMessage(logConfig, timestamp, DefaultLevels.Info, "", "test")
+		writer.WriteKey("error")
+		writer.WriteError(nil)
+		writer.CommitMessage()
+
+		output := buf.String()
+		assert.Contains(t, output, "error=nil")
+	})
+
 	t.Run("WriteError single line", func(t *testing.T) {
 		buf := bytes.NewBuffer(nil)
 		config := NewTextWriterConfig(buf, format, NoColorizer)
