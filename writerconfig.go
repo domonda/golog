@@ -143,7 +143,7 @@ func flushUnderlying(writer any) {
 
 // IsTerminal returns true if the current process is attached to a terminal.
 func IsTerminal() bool {
-	return term.IsTerminal(int(os.Stdout.Fd()))
+	return term.IsTerminal(int(os.Stdout.Fd())) //#nosec G115 -- file descriptor fits in int
 }
 
 // DecideWriterConfigForTerminal returns terminalWriter
