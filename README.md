@@ -28,6 +28,7 @@ Fast and feature-rich structured logging library for Go
   - [Available Package-Level Functions](#available-package-level-functions)
 - [Rotating Log Files](#rotating-log-files)
   - [Multiple Writers with Rotation](#multiple-writers-with-rotation)
+- [OpenTelemetry Integration](#opentelemetry-integration)
 - [Standard Library Integration (slog)](#standard-library-integration-slog)
   - [Benefits of slog Integration](#benefits-of-slog-integration)
 - [HTTP Middleware](#http-middleware)
@@ -403,6 +404,49 @@ log := golog.NewLogger(config)
 ```
 
 See the [logfile package documentation](logfile/README.md) for more details.
+
+## OpenTelemetry Integration
+
+Export golog messages as OpenTelemetry log records via the `otel` submodule. Works with any OTLP-compatible backend (Google Cloud, Grafana, Datadog, etc.).
+
+```go
+import (
+    "go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp"
+    "go.opentelemetry.io/otel/log"
+    sdklog "go.opentelemetry.io/otel/sdk/log"
+
+    "github.com/domonda/golog"
+    logotel "github.com/domonda/golog/otel"
+)
+
+// Set up OTel SDK provider
+exporter, _ := otlploghttp.New(ctx)
+provider := sdklog.NewLoggerProvider(
+    sdklog.WithProcessor(sdklog.NewBatchProcessor(exporter)),
+)
+defer provider.Shutdown(ctx)
+
+// Create golog writer backed by OTel
+otelWriter := logotel.NewWriterConfig(
+    provider,
+    golog.NewDefaultFormat(),
+    golog.AllLevelsActive,
+    log.String("service", "my-app"),
+)
+
+// Use alongside other writers
+config := golog.NewConfig(
+    &golog.DefaultLevels,
+    golog.AllLevelsActive,
+    golog.NewTextWriterConfig(os.Stdout, nil, nil), // console output
+    otelWriter,                                      // OTel export
+)
+
+logger := golog.NewLogger(config)
+logger.Info("Request processed").Str("path", "/api/users").Log()
+```
+
+golog levels are mapped to OTel severities: TRACE, DEBUG, INFO, WARN, ERROR, FATAL. See the [otel package documentation](otel/README.md) for type conversion details and local testing with a dockerized OTel Collector.
 
 ## Standard Library Integration (slog)
 
