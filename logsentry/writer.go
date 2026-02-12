@@ -56,6 +56,12 @@ type WriterConfig struct {
 // NewWriterConfig returns a new WriterConfig for a sentry.Hub.
 // Any values passed as extra will be added to every log messsage.
 func NewWriterConfig(hub *sentry.Hub, format *golog.Format, filter golog.LevelFilter, valsAsMsg bool, extra map[string]any) *WriterConfig {
+	if hub == nil {
+		panic("logsentry.NewWriterConfig: hub must not be nil")
+	}
+	if format == nil {
+		panic("logsentry.NewWriterConfig: format must not be nil")
+	}
 	return &WriterConfig{
 		hub:       hub,
 		format:    format,
@@ -185,7 +191,7 @@ func (w *Writer) CommitMessage() {
 		event.Fingerprint = []string{event.Message}
 		maps.Copy(event.Extra, w.config.extra)
 		maps.Copy(event.Extra, w.values)
-		if w.config.hub.Client().Options().AttachStacktrace {
+		if client := w.config.hub.Client(); client != nil && client.Options().AttachStacktrace {
 			stackTrace := sentry.NewStacktrace()
 			stackTrace.Frames = filterFrames(stackTrace.Frames)
 			event.Threads = []sentry.Thread{{
@@ -264,6 +270,10 @@ func (w *Writer) WriteString(val string) {
 }
 
 func (w *Writer) WriteError(val error) {
+	if val == nil {
+		w.WriteNil()
+		return
+	}
 	w.writeVal(val.Error())
 }
 
