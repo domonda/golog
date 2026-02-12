@@ -190,6 +190,10 @@ func (w *CallbackWriter) WriteString(val string) {
 }
 
 func (w *CallbackWriter) WriteError(val error) {
+	if val == nil {
+		w.WriteNil()
+		return
+	}
 	if w.isSlice {
 		a, _ := w.sliceAttrib.(*Errors)
 		if a == nil {

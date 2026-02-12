@@ -166,6 +166,10 @@ func (w *recorder) WriteString(val string) {
 // WriteError implements golog.Writer.
 // The error is converted to its string representation.
 func (w *recorder) WriteError(val error) {
+	if val == nil {
+		w.WriteNil()
+		return
+	}
 	w.writeVal(val.Error())
 }
 

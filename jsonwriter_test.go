@@ -295,6 +295,23 @@ func TestJSONWriter_WriteValues(t *testing.T) {
 		assert.Equal(t, "John", result["name"])
 	})
 
+	t.Run("WriteError nil", func(t *testing.T) {
+		buf := bytes.NewBuffer(nil)
+		config := NewJSONWriterConfig(buf, format)
+		logConfig := NewConfig(&DefaultLevels, AllLevelsActive, config)
+
+		writer := config.WriterForNewMessage(context.Background(), DefaultLevels.Info)
+		writer.BeginMessage(logConfig, timestamp, DefaultLevels.Info, "", "test")
+		writer.WriteKey("error")
+		writer.WriteError(nil)
+		writer.CommitMessage()
+
+		var result map[string]any
+		err := json.Unmarshal(buf.Bytes(), &result)
+		require.NoError(t, err)
+		assert.Equal(t, nil, result["error"])
+	})
+
 	t.Run("WriteError", func(t *testing.T) {
 		buf := bytes.NewBuffer(nil)
 		config := NewJSONWriterConfig(buf, format)

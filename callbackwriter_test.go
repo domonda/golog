@@ -1,10 +1,34 @@
 package golog
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"testing"
 	"time"
 )
+
+func TestCallbackWriter_WriteError_nil(t *testing.T) {
+	var gotAttribs Attribs
+	config := NewCallbackWriterConfig(func(timestamp time.Time, level Level, prefix, text string, attribs Attribs) {
+		gotAttribs = attribs.Clone()
+	})
+	logConfig := NewConfig(&DefaultLevels, AllLevelsActive, config)
+
+	timestamp, _ := time.Parse("2006-01-02 15:04:05", "2006-01-02 15:04:05")
+	writer := config.WriterForNewMessage(context.Background(), DefaultLevels.Info)
+	writer.BeginMessage(logConfig, timestamp, DefaultLevels.Info, "", "test")
+	writer.WriteKey("error")
+	writer.WriteError(nil)
+	writer.CommitMessage()
+
+	if len(gotAttribs) != 1 {
+		t.Fatalf("expected 1 attrib, got %d", len(gotAttribs))
+	}
+	if _, ok := gotAttribs[0].(*Nil); !ok {
+		t.Errorf("expected *Nil attrib, got %T", gotAttribs[0])
+	}
+}
 
 func ExampleCallbackWriter() {
 	config := NewConfig(

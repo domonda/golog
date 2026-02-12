@@ -236,6 +236,10 @@ func (w *TextWriter) WriteString(val string) {
 }
 
 func (w *TextWriter) WriteError(val error) {
+	if val == nil {
+		w.WriteNil()
+		return
+	}
 	w.writeSliceSep()
 
 	lines := strings.Split(val.Error(), "\n")
