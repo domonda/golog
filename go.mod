@@ -9,7 +9,7 @@ require (
 	github.com/muesli/termenv v0.16.0
 	github.com/stretchr/testify v1.11.1
 	github.com/ungerik/go-fs v0.0.0-20260118110456-0ae82a14cadb
-	golang.org/x/term v0.39.0
+	golang.org/x/term v0.40.0
 )
 
 require (
@@ -54,8 +54,8 @@ require (
 	golang.org/x/mod v0.32.0 // indirect
 	golang.org/x/net v0.49.0 // indirect
 	golang.org/x/sync v0.19.0 // indirect
-	golang.org/x/sys v0.40.0 // indirect
-	golang.org/x/text v0.33.0 // indirect
+	golang.org/x/sys v0.41.0 // indirect
+	golang.org/x/text v0.34.0 // indirect
 	golang.org/x/tools v0.41.0 // indirect
 	google.golang.org/genai v1.43.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260128011058-8636f8732409 // indirect
