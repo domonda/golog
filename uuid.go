@@ -135,7 +135,7 @@ func IsNilUUID(id [16]byte) bool {
 var assignAsUUID = reflect.ValueOf(func(uuid [16]byte) [16]byte { return uuid })
 
 func isUUID(v reflect.Value) bool {
-	if !v.Type().AssignableTo(reflect.TypeOf([16]byte{})) {
+	if !v.Type().AssignableTo(reflect.TypeFor[[16]byte]()) {
 		return false
 	}
 	uuid := assignAsUUID.Call([]reflect.Value{v})[0].Interface().([16]byte)
@@ -143,7 +143,7 @@ func isUUID(v reflect.Value) bool {
 }
 
 func asUUID(v reflect.Value) (uuid [16]byte, ok bool) {
-	if !v.Type().AssignableTo(reflect.TypeOf([16]byte{})) {
+	if !v.Type().AssignableTo(reflect.TypeFor[[16]byte]()) {
 		return [16]byte{}, false
 	}
 

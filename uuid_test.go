@@ -8,7 +8,7 @@ import (
 )
 
 func TestNewUUID(t *testing.T) {
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		id := UUIDv4()
 		idString := FormatUUID(id)
 		t.Run(idString, func(t *testing.T) {
