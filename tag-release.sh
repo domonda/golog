@@ -4,7 +4,7 @@
 SCRIPT_DIR=$(cd -P -- $(dirname -- "$0") && pwd -P)
 cd $SCRIPT_DIR
 
-MODULE_PATHS=("" "goslog/" "logsentry/")
+MODULE_PATHS=("" "goslog/" "logsentry/" "otel/")
 
 # Show current tags and usage if no arguments provided
 if [ -z "$1" ]; then
