@@ -1,4 +1,14 @@
-go 1.24.0
+go 1.24.9
+
+// Pins below are the newest tagged releases that still declare go 1.24.x in go.mod
+// (field GoVersion from: go list -m -json <path>@<ver>). Newer tags require go 1.25+.
+// They prevent MVS from selecting a toolchain that forces go 1.25 when running
+// go mod tidy. Re-resolve with scripts/resolve_go124_versions.py when upgrading deps.
+replace (
+	golang.org/x/sys => golang.org/x/sys v0.41.0
+	golang.org/x/term => golang.org/x/term v0.40.0
+	golang.org/x/text => golang.org/x/text v0.34.0
+)
 
 use (
 	.
