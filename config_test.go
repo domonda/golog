@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -122,4 +123,38 @@ func TestConfig_LevelMethods(t *testing.T) {
 	assert.Equal(t, DefaultLevels.Info, config.InfoLevel())
 	assert.Equal(t, DefaultLevels.Debug, config.DebugLevel())
 	assert.Equal(t, DefaultLevels.Trace, config.TraceLevel())
+}
+
+func TestConfig_TimeZone(t *testing.T) {
+	buf := bytes.NewBuffer(nil)
+	writer := NewTextWriterConfig(buf, nil, nil)
+
+	t.Run("NewConfig returns nil time zone", func(t *testing.T) {
+		config := NewConfig(&DefaultLevels, AllLevelsActive, writer)
+		assert.Nil(t, config.TimeZone())
+	})
+
+	t.Run("NewConfigWithTimeZone with nil time zone", func(t *testing.T) {
+		config := NewConfigWithTimeZone(&DefaultLevels, nil, AllLevelsActive, writer)
+		assert.Nil(t, config.TimeZone())
+	})
+
+	t.Run("NewConfigWithTimeZone with explicit time zone", func(t *testing.T) {
+		tz, err := time.LoadLocation("Europe/Vienna")
+		require.NoError(t, err)
+		config := NewConfigWithTimeZone(&DefaultLevels, tz, AllLevelsActive, writer)
+		assert.Same(t, tz, config.TimeZone())
+	})
+
+	t.Run("NewConfigWithTimeZone panics with nil levels", func(t *testing.T) {
+		assert.PanicsWithValue(t, "golog.Config needs Levels", func() {
+			NewConfigWithTimeZone(nil, time.UTC, AllLevelsActive, writer)
+		})
+	})
+
+	t.Run("NewConfigWithTimeZone panics with no writers", func(t *testing.T) {
+		assert.PanicsWithValue(t, "golog.Config needs a Writer", func() {
+			NewConfigWithTimeZone(&DefaultLevels, time.UTC, AllLevelsActive)
+		})
+	})
 }

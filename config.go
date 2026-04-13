@@ -2,6 +2,7 @@ package golog
 
 import (
 	"context"
+	"time"
 )
 
 // FilterHTTPHeaders holds names of HTTP headers
@@ -38,12 +39,27 @@ type Config interface {
 	InfoLevel() Level
 	DebugLevel() Level
 	TraceLevel() Level
+	// TimeZone returns the time zone into which all logged
+	// timestamps and [time.Time] attributes should be converted.
+	// A nil return value means that no conversion is performed
+	// and times are logged in their original time zone.
+	TimeZone() *time.Location
 }
 
 // NewConfig creates a new Config with the given levels, filter, and writer configs.
 // Panics if levels is nil or no writers are provided.
 // Duplicate and nil writers are automatically removed.
 func NewConfig(levels *Levels, filter LevelFilter, writers ...WriterConfig) Config {
+	return NewConfigWithTimeZone(levels, nil, filter, writers...)
+}
+
+// NewConfigWithTimeZone creates a new Config with the given levels, time zone,
+// filter, and writer configs.
+// If timezone is not nil, all logged timestamps and [time.Time] attributes
+// will be converted into that time zone.
+// Panics if levels is nil or no writers are provided.
+// Duplicate and nil writers are automatically removed.
+func NewConfigWithTimeZone(levels *Levels, timezone *time.Location, filter LevelFilter, writers ...WriterConfig) Config {
 	if levels == nil {
 		panic("golog.Config needs Levels")
 	}
@@ -52,16 +68,18 @@ func NewConfig(levels *Levels, filter LevelFilter, writers ...WriterConfig) Conf
 		panic("golog.Config needs a Writer")
 	}
 	return &config{
-		levels:  levels,
-		filter:  filter,
-		writers: writers,
+		levels:   levels,
+		timezone: timezone,
+		filter:   filter,
+		writers:  writers,
 	}
 }
 
 type config struct {
-	levels  *Levels
-	filter  LevelFilter
-	writers []WriterConfig
+	levels   *Levels
+	timezone *time.Location
+	filter   LevelFilter
+	writers  []WriterConfig
 }
 
 func (c *config) WriterConfigs() []WriterConfig {
@@ -98,4 +116,8 @@ func (c *config) DebugLevel() Level {
 
 func (c *config) TraceLevel() Level {
 	return c.levels.Trace
+}
+
+func (c *config) TimeZone() *time.Location {
+	return c.timezone
 }

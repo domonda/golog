@@ -423,6 +423,53 @@ func TestJSONWriter_String(t *testing.T) {
 	})
 }
 
+func TestJSONWriter_TimeZoneConversion(t *testing.T) {
+	// 10:30 UTC is 11:30 in Europe/Vienna during January (UTC+1)
+	timestamp := time.Date(2024, 1, 15, 10, 30, 0, 0, time.UTC)
+	vienna, err := time.LoadLocation("Europe/Vienna")
+	require.NoError(t, err)
+
+	format := &Format{
+		TimestampFormat: "2006-01-02 15:04:05 -0700",
+		TimestampKey:    "time",
+		LevelKey:        "level",
+		MessageKey:      "message",
+		TimeFormat:      "2006-01-02 15:04:05 -0700",
+	}
+
+	t.Run("no time zone keeps original", func(t *testing.T) {
+		buf := bytes.NewBuffer(nil)
+		writerCfg := NewJSONWriterConfig(buf, format)
+		logConfig := NewConfig(&DefaultLevels, AllLevelsActive, writerCfg)
+
+		writer := writerCfg.WriterForNewMessage(context.Background(), DefaultLevels.Info)
+		writer.BeginMessage(logConfig, timestamp, DefaultLevels.Info, "", "test")
+		writer.WriteKey("at")
+		writer.WriteTime(timestamp)
+		writer.CommitMessage()
+
+		output := buf.String()
+		assert.Contains(t, output, `"time":"2024-01-15 10:30:00 +0000"`)
+		assert.Contains(t, output, `"at":"2024-01-15 10:30:00 +0000"`)
+	})
+
+	t.Run("config with time zone converts timestamp and time fields", func(t *testing.T) {
+		buf := bytes.NewBuffer(nil)
+		writerCfg := NewJSONWriterConfig(buf, format)
+		logConfig := NewConfigWithTimeZone(&DefaultLevels, vienna, AllLevelsActive, writerCfg)
+
+		writer := writerCfg.WriterForNewMessage(context.Background(), DefaultLevels.Info)
+		writer.BeginMessage(logConfig, timestamp, DefaultLevels.Info, "", "test")
+		writer.WriteKey("at")
+		writer.WriteTime(timestamp)
+		writer.CommitMessage()
+
+		output := buf.String()
+		assert.Contains(t, output, `"time":"2024-01-15 11:30:00 +0100"`)
+		assert.Contains(t, output, `"at":"2024-01-15 11:30:00 +0100"`)
+	})
+}
+
 func TestJSONWriterInterface(t *testing.T) {
 	// Verify interface compliance
 	var _ Writer = &JSONWriter{}

@@ -72,11 +72,18 @@ func (c *TextWriterConfig) FlushUnderlying() {
 
 type TextWriter struct {
 	config    *TextWriterConfig
+	timezone  *time.Location
 	sliceMode sliceMode
 	buf       []byte
 }
 
 func (w *TextWriter) BeginMessage(config Config, timestamp time.Time, level Level, prefix, text string) {
+	// Convert timestamp to the configured time zone, if any
+	w.timezone = config.TimeZone()
+	if w.timezone != nil {
+		timestamp = timestamp.In(w.timezone)
+	}
+
 	// Write timestamp
 	if w.config.noColorizer {
 		// Fast path: append directly without allocation
@@ -127,6 +134,7 @@ func (w *TextWriter) CommitMessage() {
 
 	// Reset and return to pool
 	w.config = nil
+	w.timezone = nil
 	w.sliceMode = sliceModeNone
 	w.buf = w.buf[:0]
 	textWriterPool.PutBack(w)
@@ -262,6 +270,9 @@ func (w *TextWriter) WriteTime(val time.Time) {
 	format := w.config.format.TimeFormat
 	if format == "" {
 		format = DefaultTimeFormat
+	}
+	if w.timezone != nil {
+		val = val.In(w.timezone)
 	}
 	if w.config.noColorizer {
 		// Fast path: append directly without allocation

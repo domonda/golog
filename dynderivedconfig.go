@@ -3,6 +3,7 @@ package golog
 import (
 	"context"
 	"sync"
+	"time"
 )
 
 // Ensure that DynDerivedConfig implements Config
@@ -157,4 +158,9 @@ func (c *DynDerivedConfig) DebugLevel() Level {
 // TraceLevel returns the trace level from the parent Config.
 func (c *DynDerivedConfig) TraceLevel() Level {
 	return c.Parent().TraceLevel()
+}
+
+// TimeZone returns the time zone from the parent Config.
+func (c *DynDerivedConfig) TimeZone() *time.Location {
+	return c.Parent().TimeZone()
 }

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -57,6 +58,19 @@ func TestDerivedConfig(t *testing.T) {
 		derived := NewDerivedConfig(&parentConfig)
 		ctx := context.Background()
 		assert.True(t, derived.IsActive(ctx, DefaultLevels.Debug))
+	})
+
+	t.Run("inherits parent time zone", func(t *testing.T) {
+		vienna, err := time.LoadLocation("Europe/Vienna")
+		require.NoError(t, err)
+
+		parentWithTZ := NewConfigWithTimeZone(&DefaultLevels, vienna, AllLevelsActive, NewTextWriterConfig(buf, nil, nil))
+		derived := NewDerivedConfig(&parentWithTZ)
+		assert.Same(t, vienna, derived.TimeZone())
+
+		plainParent := NewConfig(&DefaultLevels, AllLevelsActive, NewTextWriterConfig(buf, nil, nil))
+		derivedNil := NewDerivedConfig(&plainParent)
+		assert.Nil(t, derivedNil.TimeZone())
 	})
 }
 

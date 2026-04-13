@@ -53,11 +53,18 @@ func (c *JSONWriterConfig) FlushUnderlying() {
 ///////////////////////////////////////////////////////////////////////////////
 
 type JSONWriter struct {
-	config *JSONWriterConfig
-	buf    []byte
+	config   *JSONWriterConfig
+	timezone *time.Location
+	buf      []byte
 }
 
 func (w *JSONWriter) BeginMessage(config Config, timestamp time.Time, level Level, prefix, text string) {
+	// Convert timestamp to the configured time zone, if any
+	w.timezone = config.TimeZone()
+	if w.timezone != nil {
+		timestamp = timestamp.In(w.timezone)
+	}
+
 	w.buf = append(w.buf, '{')
 
 	if w.config.format.TimestampKey != "" {
@@ -95,6 +102,7 @@ func (w *JSONWriter) CommitMessage() {
 
 	// Reset and return to pool
 	w.config = nil
+	w.timezone = nil
 	w.buf = w.buf[:0]
 	jsonWriterPool.PutBack(w)
 }
@@ -152,6 +160,9 @@ func (w *JSONWriter) WriteTime(val time.Time) {
 	format := w.config.format.TimeFormat
 	if format == "" {
 		format = DefaultTimeFormat
+	}
+	if w.timezone != nil {
+		val = val.In(w.timezone)
 	}
 	w.buf = encjson.AppendTime(w.buf, val, format)
 }

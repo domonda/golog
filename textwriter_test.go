@@ -472,6 +472,78 @@ func TestTextWriter_WithColorizer(t *testing.T) {
 	})
 }
 
+func TestTextWriter_TimeZoneConversion(t *testing.T) {
+	// 10:30 UTC is 12:30 in Europe/Vienna during January (UTC+1)
+	timestamp := time.Date(2024, 1, 15, 10, 30, 0, 0, time.UTC)
+	vienna, err := time.LoadLocation("Europe/Vienna")
+	require.NoError(t, err)
+
+	t.Run("no time zone keeps original", func(t *testing.T) {
+		buf := bytes.NewBuffer(nil)
+		format := &Format{
+			TimestampFormat: "2006-01-02 15:04:05 -0700",
+			TimeFormat:      "2006-01-02 15:04:05 -0700",
+		}
+		writerCfg := NewTextWriterConfig(buf, format, NoColorizer)
+		logConfig := NewConfig(&DefaultLevels, AllLevelsActive, writerCfg)
+
+		writer := writerCfg.WriterForNewMessage(context.Background(), DefaultLevels.Info)
+		writer.BeginMessage(logConfig, timestamp, DefaultLevels.Info, "", "test")
+		writer.WriteKey("at")
+		writer.WriteTime(timestamp)
+		writer.CommitMessage()
+
+		output := buf.String()
+		assert.Contains(t, output, "2024-01-15 10:30:00 +0000")
+		assert.Contains(t, output, `at="2024-01-15 10:30:00 +0000"`)
+	})
+
+	t.Run("config with time zone converts timestamp and time fields", func(t *testing.T) {
+		buf := bytes.NewBuffer(nil)
+		format := &Format{
+			TimestampFormat: "2006-01-02 15:04:05 -0700",
+			TimeFormat:      "2006-01-02 15:04:05 -0700",
+		}
+		writerCfg := NewTextWriterConfig(buf, format, NoColorizer)
+		logConfig := NewConfigWithTimeZone(&DefaultLevels, vienna, AllLevelsActive, writerCfg)
+
+		writer := writerCfg.WriterForNewMessage(context.Background(), DefaultLevels.Info)
+		writer.BeginMessage(logConfig, timestamp, DefaultLevels.Info, "", "test")
+		writer.WriteKey("at")
+		writer.WriteTime(timestamp)
+		writer.CommitMessage()
+
+		output := buf.String()
+		assert.Contains(t, output, "2024-01-15 11:30:00 +0100")
+		assert.Contains(t, output, `at="2024-01-15 11:30:00 +0100"`)
+	})
+
+	t.Run("pooled writer resets time zone after commit", func(t *testing.T) {
+		bufTZ := bytes.NewBuffer(nil)
+		format := &Format{
+			TimestampFormat: "2006-01-02 15:04:05 -0700",
+		}
+		writerCfgTZ := NewTextWriterConfig(bufTZ, format, NoColorizer)
+		logConfigTZ := NewConfigWithTimeZone(&DefaultLevels, vienna, AllLevelsActive, writerCfgTZ)
+
+		w1 := writerCfgTZ.WriterForNewMessage(context.Background(), DefaultLevels.Info)
+		w1.BeginMessage(logConfigTZ, timestamp, DefaultLevels.Info, "", "tz")
+		w1.CommitMessage()
+
+		// Re-use the same writer pool with a config that has no time zone set
+		bufNoTZ := bytes.NewBuffer(nil)
+		writerCfgNoTZ := NewTextWriterConfig(bufNoTZ, format, NoColorizer)
+		logConfigNoTZ := NewConfig(&DefaultLevels, AllLevelsActive, writerCfgNoTZ)
+
+		w2 := writerCfgNoTZ.WriterForNewMessage(context.Background(), DefaultLevels.Info)
+		w2.BeginMessage(logConfigNoTZ, timestamp, DefaultLevels.Info, "", "no-tz")
+		w2.CommitMessage()
+
+		assert.Contains(t, bufTZ.String(), "2024-01-15 11:30:00 +0100")
+		assert.Contains(t, bufNoTZ.String(), "2024-01-15 10:30:00 +0000")
+	})
+}
+
 func TestTextWriterInterface(t *testing.T) {
 	// Verify interface compliance
 	var _ Writer = &TextWriter{}

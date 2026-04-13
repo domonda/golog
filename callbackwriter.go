@@ -48,6 +48,7 @@ func (c *CallbackWriterConfig) FlushUnderlying() {}
 type CallbackWriter struct {
 	config      *CallbackWriterConfig
 	levels      *Levels
+	timezone    *time.Location
 	timestamp   time.Time
 	level       Level
 	prefix      string
@@ -60,6 +61,10 @@ type CallbackWriter struct {
 
 func (w *CallbackWriter) BeginMessage(config Config, timestamp time.Time, level Level, prefix, text string) {
 	w.levels = config.Levels()
+	w.timezone = config.TimeZone()
+	if w.timezone != nil {
+		timestamp = timestamp.In(w.timezone)
+	}
 	w.timestamp = timestamp
 	w.level = level
 	w.prefix = prefix
@@ -207,6 +212,9 @@ func (w *CallbackWriter) WriteError(val error) {
 }
 
 func (w *CallbackWriter) WriteTime(val time.Time) {
+	if w.timezone != nil {
+		val = val.In(w.timezone)
+	}
 	if w.isSlice {
 		a, _ := w.sliceAttrib.(*Times)
 		if a == nil {

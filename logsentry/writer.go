@@ -116,6 +116,7 @@ func (c *WriterConfig) FlushUnderlying() {
 //	// and extra data: {"query": sql, "error": err.Error()}
 type Writer struct {
 	config    *WriterConfig
+	timezone  *time.Location
 	timestamp time.Time
 	level     sentry.Level
 	message   strings.Builder
@@ -125,6 +126,10 @@ type Writer struct {
 }
 
 func (w *Writer) BeginMessage(config golog.Config, timestamp time.Time, level golog.Level, prefix, text string) {
+	w.timezone = config.TimeZone()
+	if w.timezone != nil {
+		timestamp = timestamp.In(w.timezone)
+	}
 	w.timestamp = timestamp
 
 	levels := config.Levels()
@@ -179,6 +184,7 @@ func (w *Writer) CommitMessage() {
 			w.values = nil
 		}
 		w.slice = nil
+		w.timezone = nil
 		w.config.writerPool.Put(w)
 	}()
 
@@ -278,6 +284,9 @@ func (w *Writer) WriteError(val error) {
 }
 
 func (w *Writer) WriteTime(val time.Time) {
+	if w.timezone != nil {
+		val = val.In(w.timezone)
+	}
 	w.writeVal(val)
 }
 

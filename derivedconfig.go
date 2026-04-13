@@ -2,6 +2,7 @@ package golog
 
 import (
 	"context"
+	"time"
 )
 
 // Ensure that DerivedConfig implements Config
@@ -140,4 +141,9 @@ func (c *DerivedConfig) DebugLevel() Level {
 // TraceLevel returns the trace level from the parent Config.
 func (c *DerivedConfig) TraceLevel() Level {
 	return (*c.parent).TraceLevel()
+}
+
+// TimeZone returns the time zone from the parent Config.
+func (c *DerivedConfig) TimeZone() *time.Location {
+	return (*c.parent).TimeZone()
 }
