@@ -173,6 +173,26 @@ func TestTimestampFromContextOrNow(t *testing.T) {
 		assert.False(t, ts.Before(before), "timestamp should not be before test start")
 		assert.False(t, ts.After(after), "timestamp should not be after test end")
 	})
+
+	t.Run("accepts a Timestamp value via the generic branch", func(t *testing.T) {
+		expected := time.Date(2024, 1, 15, 10, 30, 0, 0, time.UTC)
+		ctx := ContextWithTimestamp(context.Background(), Timestamp{Time: expected})
+
+		assert.Equal(t, expected, TimestampFromContext(ctx), "TimestampFromContext should return the underlying time.Time")
+		assert.Equal(t, expected, TimestampFromContextOrNow(ctx), "TimestampFromContextOrNow should return the underlying time.Time")
+	})
+
+	t.Run("zero Timestamp via the generic branch falls back to now", func(t *testing.T) {
+		ctx := ContextWithTimestamp(context.Background(), Timestamp{})
+		before := time.Now()
+		ts := TimestampFromContextOrNow(ctx)
+		after := time.Now()
+
+		assert.True(t, TimestampFromContext(ctx).IsZero(), "stored zero Timestamp should round-trip as zero time.Time")
+		assert.False(t, ts.IsZero(), "stored zero Timestamp should fall back to time.Now via OrNow")
+		assert.False(t, ts.Before(before), "timestamp should not be before test start")
+		assert.False(t, ts.After(after), "timestamp should not be after test end")
+	})
 }
 
 func TestLevelDeciderInterface(t *testing.T) {

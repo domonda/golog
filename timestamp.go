@@ -52,14 +52,14 @@ var TimestampFormats = []string{
 	"2006/01/02 15:04:05",        // Go stdlib log package default
 	time.RFC3339Nano,             // 2006-01-02T15:04:05.999999999Z07:00
 	"2006-01-02 15:04:05Z07:00",  // 2006-01-02 15:04:05 with timezone
-	"2006-01-02 15:04:05",        // 2006-01-02 15:04:05 local / no timezone
+	"2006-01-02 15:04:05",        // 2006-01-02 15:04:05 UTC / no timezone (time.Parse uses UTC for zoneless layouts)
 	"02/Jan/2006:15:04:05 -0700", // Apache / NGINX Common Log Format
 	time.RFC1123Z,                // Mon, 02 Jan 2006 15:04:05 -0700
 	time.RFC1123,                 // Mon, 02 Jan 2006 15:04:05 MST
 	time.Stamp,                   // Jan _2 15:04:05        (syslog, no year)
 	"20060102T150405Z0700",       // compact ISO 8601 basic with timezone
 	"20060102T150405Z",           // compact ISO 8601 basic UTC
-	"20060102T150405",            // compact ISO 8601 basic, no timezone
+	"20060102T150405",            // compact ISO 8601 basic, UTC / no timezone
 }
 
 // ParseTimestamp parses s using the layouts in [TimestampFormats] in order.
@@ -87,8 +87,8 @@ func (t *Timestamp) SetNull() {
 }
 
 // Set overwrites the wrapped time.Time.
-func (t *Timestamp) Set(time time.Time) {
-	t.Time = time
+func (t *Timestamp) Set(value time.Time) {
+	t.Time = value
 }
 
 // MarshalJSON formats the Timestamp as a JSON string
