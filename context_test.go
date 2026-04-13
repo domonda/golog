@@ -149,14 +149,14 @@ func TestTimestamp(t *testing.T) {
 	t.Run("returns timestamp from context when set", func(t *testing.T) {
 		expected := time.Date(2024, 1, 15, 10, 30, 0, 0, time.UTC)
 		ctx := ContextWithTimestamp(context.Background(), expected)
-		ts := Timestamp(ctx)
+		ts := TimestampFromContextOrNow(ctx)
 		assert.Equal(t, expected, ts)
 	})
 
 	t.Run("returns current time when no timestamp set", func(t *testing.T) {
 		ctx := context.Background()
 		before := time.Now()
-		ts := Timestamp(ctx)
+		ts := TimestampFromContextOrNow(ctx)
 		after := time.Now()
 
 		assert.False(t, ts.Before(before), "timestamp should not be before test start")

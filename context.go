@@ -61,28 +61,43 @@ func (b BoolLevelDecider) IsActive(context.Context, Level) bool {
 	return bool(b)
 }
 
-var timestampCtxKey int
+type timestampCtxKey struct{}
 
-// ContextWithTimestamp returns a new context with the passed timestamp
-// added to the parent.
-// Logger methods with a context will use the timestamp from the context
-// instead of the current time.
-func ContextWithTimestamp(parent context.Context, timestamp time.Time) context.Context {
-	return context.WithValue(parent, &timestampCtxKey, timestamp)
+// ContextWithTimestamp returns a new context derived from parent that
+// carries the passed timestamp. Logger methods that accept a context
+// will use this timestamp instead of [time.Now] when emitting log
+// records, so the same value can be used across an entire request
+// or transaction.
+//
+// The timestamp may be passed as either a [time.Time] or a [Timestamp];
+// in both cases the underlying time.Time is stored in the context.
+// A zero timestamp is stored as-is and will be returned by
+// [TimestampFromContext], but [TimestampFromContextOrNow] will treat
+// it as "not set" and fall back to the current time.
+func ContextWithTimestamp[T time.Time | Timestamp](parent context.Context, timestamp T) context.Context {
+	if timestamp, ok := any(timestamp).(Timestamp); ok {
+		return context.WithValue(parent, timestampCtxKey{}, timestamp.Time)
+	}
+	return context.WithValue(parent, timestampCtxKey{}, timestamp)
 }
 
-// TimestampFromContext returns the timestamp from the passed context
-// or a zero time if no timestamp was set.
+// TimestampFromContext returns the timestamp previously stored in ctx
+// by [ContextWithTimestamp], or the zero [time.Time] if none was set.
+// Use [TimestampFromContextOrNow] if you want the current time as a
+// fallback instead of the zero value.
 func TimestampFromContext(ctx context.Context) time.Time {
-	timestamp, _ := ctx.Value(&timestampCtxKey).(time.Time)
-	return timestamp
+	if t, ok := ctx.Value(timestampCtxKey{}).(time.Time); ok {
+		return t
+	}
+	return time.Time{}
 }
 
-// Timestamp returns the timestamp from the passed context
-// or the current time if no timestamp was set.
-func Timestamp(ctx context.Context) time.Time {
-	if timestamp, ok := ctx.Value(&timestampCtxKey).(time.Time); ok {
-		return timestamp
+// TimestampFromContextOrNow returns the timestamp previously stored in
+// ctx by [ContextWithTimestamp], or the result of [time.Now] if no
+// timestamp was set or the stored timestamp is the zero value.
+func TimestampFromContextOrNow(ctx context.Context) time.Time {
+	if t := TimestampFromContext(ctx); !t.IsZero() {
+		return t
 	}
 	return time.Now()
 }
