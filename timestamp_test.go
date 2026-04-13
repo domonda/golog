@@ -2,13 +2,15 @@ package golog
 
 import (
 	"encoding/json"
+	"errors"
+	"strings"
 	"testing"
 	"time"
 )
 
 func TestNewTimestamp(t *testing.T) {
 	before := time.Now()
-	ts := NewTimestamp()
+	ts := TimestampNow()
 	after := time.Now()
 
 	if ts.IsNull() {
@@ -63,26 +65,190 @@ func TestTimestamp_MarshalJSON_Null(t *testing.T) {
 }
 
 func TestTimestamp_Scan(t *testing.T) {
-	want := time.Date(2026, 4, 13, 12, 0, 0, 0, time.UTC)
+	rfc := "2006-01-02T15:04:05Z"
+	wantRFC, err := ParseTimestamp(rfc)
+	if err != nil {
+		t.Fatalf("ParseTimestamp(%q): %v", rfc, err)
+	}
+	fixed := time.Date(2026, 4, 13, 12, 0, 0, 0, time.UTC)
 
-	var ts Timestamp
-	if err := ts.Scan(want); err != nil {
-		t.Fatalf("Scan(time.Time): %v", err)
-	}
-	if !ts.Time.Equal(want) {
-		t.Errorf("after Scan(%v): Time = %v", want, ts.Time)
-	}
+	t.Run("nil SQL NULL clears to zero", func(t *testing.T) {
+		ts := Timestamp{Time: fixed}
+		if err := ts.Scan(nil); err != nil {
+			t.Fatalf("Scan(nil): %v", err)
+		}
+		if !ts.IsNull() {
+			t.Errorf("IsNull() = false, want true (got %v)", ts.Time)
+		}
+	})
 
-	ts = Timestamp{Time: want}
-	if err := ts.Scan(nil); err != nil {
-		t.Fatalf("Scan(nil): %v", err)
-	}
-	if !ts.IsNull() {
-		t.Error("after Scan(nil): IsNull() = false, want true")
-	}
+	t.Run("time.Time assigns directly", func(t *testing.T) {
+		var ts Timestamp
+		if err := ts.Scan(fixed); err != nil {
+			t.Fatalf("Scan(time.Time): %v", err)
+		}
+		if !ts.Time.Equal(fixed) {
+			t.Errorf("got %v, want %v", ts.Time, fixed)
+		}
+	})
 
-	if err := ts.Scan("2006-01-02"); err == nil {
-		t.Error("Scan(string): expected error, got nil")
+	t.Run("int64 Unix epoch seconds", func(t *testing.T) {
+		var ts Timestamp
+		const sec int64 = 1136239445
+		if err := ts.Scan(sec); err != nil {
+			t.Fatalf("Scan(int64): %v", err)
+		}
+		want := time.Unix(sec, 0)
+		if !ts.Time.Equal(want) {
+			t.Errorf("got %v, want %v", ts.Time, want)
+		}
+	})
+
+	t.Run("int64 zero is Unix epoch", func(t *testing.T) {
+		var ts Timestamp
+		if err := ts.Scan(int64(0)); err != nil {
+			t.Fatalf("Scan(int64(0)): %v", err)
+		}
+		if !ts.Time.Equal(time.Unix(0, 0)) {
+			t.Errorf("got %v, want Unix epoch", ts.Time)
+		}
+	})
+
+	t.Run("string uses ParseTimestamp", func(t *testing.T) {
+		var ts Timestamp
+		if err := ts.Scan(rfc); err != nil {
+			t.Fatalf("Scan(string): %v", err)
+		}
+		if !ts.Time.Equal(wantRFC.Time) {
+			t.Errorf("got %v, want %v", ts.Time, wantRFC.Time)
+		}
+	})
+
+	t.Run("string empty is error from ParseTimestamp", func(t *testing.T) {
+		var ts Timestamp
+		err := ts.Scan("")
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		if !strings.Contains(err.Error(), "golog.Timestamp: Scan:") {
+			t.Errorf("error %q should mention Scan", err.Error())
+		}
+		_, parseErr := ParseTimestamp("")
+		if parseErr == nil {
+			t.Fatal(`ParseTimestamp("") must fail`)
+		}
+		if inner := errors.Unwrap(err); inner == nil || inner.Error() != parseErr.Error() {
+			t.Errorf("unwrap = %v, want %v", inner, parseErr)
+		}
+	})
+
+	t.Run("string unparseable returns wrapped error", func(t *testing.T) {
+		var ts Timestamp
+		err := ts.Scan("2006-01-02")
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		if !strings.Contains(err.Error(), "golog.Timestamp: Scan:") {
+			t.Errorf("error %q should mention Scan", err.Error())
+		}
+		_, wantErr := ParseTimestamp("2006-01-02")
+		if wantErr == nil {
+			t.Fatal("ParseTimestamp should fail for date-only string")
+		}
+		if inner := errors.Unwrap(err); inner == nil || inner.Error() != wantErr.Error() {
+			t.Errorf("Scan error = %v, want unwrap matching ParseTimestamp: %v", err, wantErr)
+		}
+	})
+
+	t.Run("[]byte uses ParseTimestamp", func(t *testing.T) {
+		var ts Timestamp
+		if err := ts.Scan([]byte(rfc)); err != nil {
+			t.Fatalf("Scan([]byte): %v", err)
+		}
+		if !ts.Time.Equal(wantRFC.Time) {
+			t.Errorf("got %v, want %v", ts.Time, wantRFC.Time)
+		}
+	})
+
+	t.Run("[]byte empty is error from ParseTimestamp", func(t *testing.T) {
+		var ts Timestamp
+		err := ts.Scan([]byte{})
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		if !strings.Contains(err.Error(), "golog.Timestamp: Scan:") {
+			t.Errorf("got %v", err)
+		}
+	})
+
+	t.Run("nil byte slice is empty string to ParseTimestamp", func(t *testing.T) {
+		var ts Timestamp
+		var nilBytes []byte
+		err := ts.Scan(nilBytes)
+		if err == nil {
+			t.Fatal("expected error")
+		}
+	})
+
+	t.Run("[]byte unparseable returns wrapped error", func(t *testing.T) {
+		var ts Timestamp
+		err := ts.Scan([]byte("totally invalid"))
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		if !strings.Contains(err.Error(), "golog.Timestamp: Scan:") {
+			t.Errorf("error %q should mention Scan", err.Error())
+		}
+	})
+
+	t.Run("unsupported types use default branch", func(t *testing.T) {
+		badValues := []any{
+			int(42),
+			uint64(1),
+			float64(1.5),
+			true,
+			struct{}{},
+			[]string{"x"},
+		}
+		for _, v := range badValues {
+			var ts Timestamp
+			err := ts.Scan(v)
+			if err == nil {
+				t.Errorf("Scan(%T) expected error, got nil", v)
+				continue
+			}
+			if !strings.Contains(err.Error(), "failed to scan") {
+				t.Errorf("Scan(%T): %v — want failed to scan message", v, err)
+			}
+		}
+	})
+}
+
+func TestTimestamp_Scan_nilReceiverPanics(t *testing.T) {
+	defer func() {
+		if recover() == nil {
+			t.Error("expected panic when Scan is called on nil *Timestamp")
+		}
+	}()
+	var ts *Timestamp
+	_ = ts.Scan(nil)
+}
+
+func TestParseTimestamp_Formats(t *testing.T) {
+	ref := time.Date(2006, 1, 2, 15, 4, 5, 123456789, time.UTC)
+	for _, layout := range TimestampFormats {
+		s := ref.Format(layout)
+		want, err := time.Parse(layout, s)
+		if err != nil {
+			t.Fatalf("time.Parse(%q, formatted): %v", layout, err)
+		}
+		got, err := ParseTimestamp(s)
+		if err != nil {
+			t.Fatalf("ParseTimestamp(%q) layout %q: %v", s, layout, err)
+		}
+		if !got.Time.Equal(want) {
+			t.Errorf("layout %q: got %v, want %v", layout, got.Time, want)
+		}
 	}
 }
 

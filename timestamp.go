@@ -2,10 +2,17 @@ package golog
 
 import (
 	"bytes"
+	"database/sql"
 	"database/sql/driver"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"time"
+)
+
+var (
+	_ sql.Scanner   = (*Timestamp)(nil)
+	_ driver.Valuer = Timestamp{}
 )
 
 // Timestamp wraps a [time.Time] with JSON, SQL and nullability
@@ -25,14 +32,15 @@ type Timestamp struct {
 	time.Time
 }
 
-// NewTimestamp returns a Timestamp wrapping the current time
+// TimestampNow returns a Timestamp wrapping the current time
 // as returned by [time.Now].
-func NewTimestamp() Timestamp {
+func TimestampNow() Timestamp {
 	return Timestamp{Time: time.Now()}
 }
 
-// TimestampFormats are the layouts tried in order by
-// [Timestamp.UnmarshalJSON] when parsing a JSON string.
+// TimestampFormats are the layouts tried in order by [ParseTimestamp],
+// (*Timestamp).UnmarshalJSON for JSON strings, and string/[]byte values
+// in (*Timestamp).Scan.
 //
 // Go's time.Parse silently accepts a fractional second
 // suffix (e.g. ".123", ".123456789") after the seconds
@@ -40,10 +48,11 @@ func NewTimestamp() Timestamp {
 // single layout without fractional seconds covers all
 // precisions for that shape.
 var TimestampFormats = []string{
+	"2006-01-02 15:04:05.000",    // golog standard format returned by NewDefaultFormat
+	"2006/01/02 15:04:05",        // Go stdlib log package default
 	time.RFC3339Nano,             // 2006-01-02T15:04:05.999999999Z07:00
 	"2006-01-02 15:04:05Z07:00",  // 2006-01-02 15:04:05 with timezone
 	"2006-01-02 15:04:05",        // 2006-01-02 15:04:05 local / no timezone
-	"2006/01/02 15:04:05",        // Go stdlib log package default
 	"02/Jan/2006:15:04:05 -0700", // Apache / NGINX Common Log Format
 	time.RFC1123Z,                // Mon, 02 Jan 2006 15:04:05 -0700
 	time.RFC1123,                 // Mon, 02 Jan 2006 15:04:05 MST
@@ -51,6 +60,19 @@ var TimestampFormats = []string{
 	"20060102T150405Z0700",       // compact ISO 8601 basic with timezone
 	"20060102T150405Z",           // compact ISO 8601 basic UTC
 	"20060102T150405",            // compact ISO 8601 basic, no timezone
+}
+
+// ParseTimestamp parses s using the layouts in [TimestampFormats] in order.
+func ParseTimestamp(s string) (Timestamp, error) {
+	if s == "" {
+		return Timestamp{}, fmt.Errorf("golog: failed to parse empty timestamp string")
+	}
+	for _, layout := range TimestampFormats {
+		if parsed, err := time.Parse(layout, s); err == nil {
+			return Timestamp{Time: parsed}, nil
+		}
+	}
+	return Timestamp{}, fmt.Errorf("golog: failed to parse %q with any layout in golog.TimestampFormats", s)
 }
 
 // IsNull returns true if the Timestamp is null,
@@ -85,8 +107,7 @@ func (t Timestamp) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON parses a JSON value into the Timestamp.
 // A JSON null leaves the Timestamp zero.
 // A JSON number is interpreted as Unix epoch seconds.
-// A JSON string is parsed by trying each layout in
-// [TimestampFormats] until one succeeds.
+// A JSON string is parsed with [ParseTimestamp].
 func (t *Timestamp) UnmarshalJSON(data []byte) error {
 	data = bytes.TrimSpace(data)
 	if len(data) == 0 || bytes.Equal(data, []byte("null")) {
@@ -94,30 +115,29 @@ func (t *Timestamp) UnmarshalJSON(data []byte) error {
 		return nil
 	}
 
-	if data[0] != '"' {
-		sec, err := strconv.ParseInt(string(data), 10, 64)
-		if err != nil {
-			return fmt.Errorf("golog.Timestamp: cannot parse %s as Unix epoch seconds: %w", data, err)
+	if data[0] == '"' {
+		var s string
+		if err := json.Unmarshal(data, &s); err != nil {
+			return fmt.Errorf("golog.Timestamp: JSON string: %w", err)
 		}
-		t.Time = time.Unix(sec, 0)
+		parsed, err := ParseTimestamp(s)
+		if err != nil {
+			return err
+		}
+		*t = parsed
 		return nil
 	}
 
-	if len(data) < 2 || data[len(data)-1] != '"' {
-		return fmt.Errorf("golog.Timestamp: invalid JSON string %s", data)
+	sec, err := strconv.ParseInt(string(data), 10, 64)
+	if err != nil {
+		return fmt.Errorf("golog.Timestamp: failed to parse %s as Unix epoch seconds: %w", data, err)
 	}
-	s := string(data[1 : len(data)-1])
-
-	for _, layout := range TimestampFormats {
-		if parsed, err := time.Parse(layout, s); err == nil {
-			t.Time = parsed
-			return nil
-		}
-	}
-	return fmt.Errorf("golog.Timestamp: cannot parse %q as timestamp", s)
+	t.Time = time.Unix(sec, 0)
+	return nil
 }
 
-// Scan implements the database/sql.Scanner interface.
+// Scan implements [sql.Scanner] for database reads. It accepts nil (SQL NULL),
+// [time.Time], string, or []byte. String and byte slices are parsed with [ParseTimestamp].
 func (t *Timestamp) Scan(value any) error {
 	switch v := value.(type) {
 	case nil:
@@ -128,8 +148,28 @@ func (t *Timestamp) Scan(value any) error {
 		t.Time = v
 		return nil
 
+	case int64:
+		t.Time = time.Unix(v, 0)
+		return nil
+
+	case string:
+		parsed, err := ParseTimestamp(v)
+		if err != nil {
+			return fmt.Errorf("golog.Timestamp: Scan: %w", err)
+		}
+		*t = parsed
+		return nil
+
+	case []byte:
+		parsed, err := ParseTimestamp(string(v))
+		if err != nil {
+			return fmt.Errorf("golog.Timestamp: Scan: %w", err)
+		}
+		*t = parsed
+		return nil
+
 	default:
-		return fmt.Errorf("can't scan %T as golog.Timestamp", value)
+		return fmt.Errorf("failed to scan %T as golog.Timestamp", v)
 	}
 }
 

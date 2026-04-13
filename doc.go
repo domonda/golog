@@ -103,9 +103,9 @@ Structured JSON logging for machine parsing:
 		golog.NewJSONWriterConfig(os.Stdout, nil),
 	)
 
-Output:
+Output (matches [NewDefaultFormat]: [Format.TimestampKey] and [Format.TimestampFormat]; instant shown as UTC):
 
-	{"timestamp":"2024-01-15T10:30:45Z","level":"INFO","message":"User login","username":"john_doe"}
+	{"time":"2024-01-15 10:30:45.000","level":"INFO","message":"User login","username":"john_doe"}
 
 ## Text Output
 
@@ -116,6 +116,22 @@ Human-readable text output with optional colors:
 		golog.AllLevelsActive,
 		golog.NewTextWriterConfig(os.Stdout, nil, golog.NewStyledColorizer()),
 	)
+
+## Message timestamp formats
+
+[NewDefaultFormat] sets three related fields: [Format.TimestampKey] is `"time"`,
+[Format.TimestampFormat] is `"2006-01-02 15:04:05.000"`, and [Format.TimeFormat] is
+[DefaultTimeFormat] ([time.RFC3339Nano]).
+
+The **log line** timestamp (the event time from context, written at the start of each
+record) is formatted with [Format.TimestampFormat] in both JSON and text writers
+([JSONWriter], [TextWriter]). Layouts follow Go’s reference time; see [time.Time.Format].
+
+[Format.TimeFormat] applies only to structured [time.Time] attributes on messages (for
+example fields added with [Message.Time]), not to that log-line timestamp.
+
+To parse timestamp strings from logs or databases, use [ParseTimestamp] or [Timestamp]
+(JSON and [sql.Scanner]); they try each layout in [TimestampFormats] in order.
 
 ## Multiple Writers
 
