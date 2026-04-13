@@ -37,6 +37,7 @@ Fast and feature-rich structured logging library for Go
   - [Redacting Sensitive Data](#redacting-sensitive-data)
   - [Custom Levels](#custom-levels)
   - [Level Filtering](#level-filtering)
+  - [Parsing Log Timestamps](#parsing-log-timestamps)
 - [Performance](#performance)
   - [Benchmarks](#benchmarks)
 - [Comparison with Other Logging Libraries](#comparison-with-other-logging-libraries)
@@ -130,9 +131,9 @@ log.Info("User login").
     Log()
 ```
 
-Output:
+Output (matches `NewDefaultFormat`: `"time"` key, `"2006-01-02 15:04:05.000"` layout):
 ```json
-{"timestamp":"2024-01-15T10:30:45Z","level":"INFO","message":"User login","username":"john_doe","ip":"192.168.1.1","login_time":"150ms"}
+{"time":"2024-01-15 10:30:45.000","level":"INFO","message":"User login","username":"john_doe","ip":"192.168.1.1","login_time":"150ms"}
 ```
 
 ### Structured Logging with All Data Types
@@ -567,6 +568,47 @@ combinedFilter := golog.JoinLevelFilters(
 )
 ```
 
+### Parsing Log Timestamps
+
+Use `golog.Timestamp` when you need to read log timestamps back out of JSON, a database column,
+or any other place where the format varies. It wraps `time.Time` with JSON, `sql.Scanner`,
+`driver.Valuer`, and null semantics, and parses a wide range of common layouts out of the box:
+
+```go
+// JSON unmarshal: accepts RFC3339(+nano), golog's own
+// "2006-01-02 15:04:05.000", Apache/NGINX CLF, RFC1123(Z),
+// syslog Stamp, compact ISO 8601, Go log default, or a JSON
+// number interpreted as Unix epoch seconds. JSON null is zero.
+type logLine struct {
+    Time    golog.Timestamp `json:"time"`
+    Level   string          `json:"level"`
+    Message string          `json:"message"`
+}
+
+// Directly parse a string with any supported layout:
+ts, err := golog.ParseTimestamp("2024-01-15 10:30:45.000")
+
+// Plug into database/sql — SQL NULL maps to the zero value:
+var ts golog.Timestamp
+err = db.QueryRow("SELECT logged_at FROM events WHERE id = $1", id).Scan(&ts)
+if ts.IsNull() {
+    // column was NULL
+}
+```
+
+The accepted layouts live in the exported `golog.TimestampFormats` slice, so you can extend
+or replace it before use if your log source needs extra layouts. `MarshalJSON` always emits
+`DefaultTimeFormat` (`time.RFC3339Nano`), or `null` when the value is zero.
+
+For storing the current request's event time in `context.Context`, use
+`golog.ContextWithTimestamp(ctx, t)` together with `golog.TimestampFromContextOrNow(ctx)`
+(returns `time.Now()` when no timestamp is stored or the stored value is zero).
+
+> **Upgrading from earlier versions:** the old `golog.Timestamp(ctx context.Context) time.Time`
+> helper has been renamed to `golog.TimestampFromContextOrNow(ctx)` to free the `Timestamp`
+> identifier for the new type. `ContextWithTimestamp` is now generic over
+> `time.Time | golog.Timestamp`.
+
 ## Performance
 
 golog is designed for high performance:
@@ -665,6 +707,8 @@ The performance gap for JSON output becomes meaningful only in extreme high-thro
 - **WriterConfig**: Output writer configuration
 - **Level**: Log level type
 - **LevelFilter**: Level filtering interface
+- **Format**: Layout config for timestamp keys, timestamp layouts, level keys, message keys, and structured `time.Time` attributes
+- **Timestamp**: `time.Time` wrapper with JSON, `database/sql.Scanner`/`driver.Valuer`, and null semantics, tuned for parsing log timestamps in many common formats
 
 ### Writer Types
 

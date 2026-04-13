@@ -169,7 +169,7 @@ func (t *Timestamp) Scan(value any) error {
 		return nil
 
 	default:
-		return fmt.Errorf("failed to scan %T as golog.Timestamp", v)
+		return fmt.Errorf("golog.Timestamp: failed to scan %T", v)
 	}
 }
 

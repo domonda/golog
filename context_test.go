@@ -145,7 +145,7 @@ func TestTimestampFromContext(t *testing.T) {
 	})
 }
 
-func TestTimestamp(t *testing.T) {
+func TestTimestampFromContextOrNow(t *testing.T) {
 	t.Run("returns timestamp from context when set", func(t *testing.T) {
 		expected := time.Date(2024, 1, 15, 10, 30, 0, 0, time.UTC)
 		ctx := ContextWithTimestamp(context.Background(), expected)
@@ -159,6 +159,17 @@ func TestTimestamp(t *testing.T) {
 		ts := TimestampFromContextOrNow(ctx)
 		after := time.Now()
 
+		assert.False(t, ts.Before(before), "timestamp should not be before test start")
+		assert.False(t, ts.After(after), "timestamp should not be after test end")
+	})
+
+	t.Run("returns current time when stored timestamp is zero", func(t *testing.T) {
+		ctx := ContextWithTimestamp(context.Background(), time.Time{})
+		before := time.Now()
+		ts := TimestampFromContextOrNow(ctx)
+		after := time.Now()
+
+		assert.False(t, ts.IsZero(), "stored zero should fall back to time.Now, not return zero")
 		assert.False(t, ts.Before(before), "timestamp should not be before test start")
 		assert.False(t, ts.After(after), "timestamp should not be after test end")
 	})
