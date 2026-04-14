@@ -10,7 +10,6 @@ import (
 	"go/token"
 	"net/http"
 	"reflect"
-	"strings"
 	"time"
 	"unicode/utf8"
 )
@@ -385,24 +384,56 @@ func (m *Message) tryWriteInterface(w Writer, val reflect.Value) (written bool) 
 	return false
 }
 
-// StructFields calls Any(fieldName, fieldValue) for every exported struct field.
-// Fields with the tag `golog:"redact"` will have their value replaced with "***REDACTED***".
+// StructFields logs each exported field of strct whose struct tag matches,
+// in order, one of "golog", "log", "json". The first tag present on a field
+// determines both the log key and which modifiers apply; other tags on the
+// same field are ignored.
+//
+// Fields with no tag from that list are not logged. To log a field under its
+// Go field name, give it an empty tag value such as `json:""` or `golog:""`.
+//
+// Supported modifiers (comma-separated after the name):
+//   - omitempty — suppress the field when its value is empty per
+//     encoding/json semantics (false, 0, nil pointer/interface, empty
+//     array/slice/map/string).
+//   - omitzero — suppress when the value is zero. Calls IsZero() bool if
+//     the type implements it (so time.Time{} is suppressed), else falls
+//     back to reflect.Value.IsZero().
+//   - omitnull — suppress when the value is null. Calls IsNull() bool if
+//     the type implements it (so zero golog.Timestamp is suppressed),
+//     else falls back to omitzero semantics.
+//   - redact (also spelled "redacted") — replace the value with
+//     "***REDACTED***" in the log output. Suppression modifiers win over
+//     redact: `json:",redact,omitempty"` on an empty string emits nothing,
+//     not the redaction marker.
+//
+// Unknown modifier tokens are ignored silently, matching encoding/json's
+// forward-compat posture.
+//
+// Breaking change vs. earlier versions: the bare form `golog:"redact"`
+// no longer triggers redaction — under the new unified parser it would
+// name the field "redact" in the log. Migrate to `golog:",redact"`.
 func (m *Message) StructFields(strct any) *Message {
 	if m == nil || strct == nil {
 		return m
 	}
-	m.structFields(reflect.ValueOf(strct), "")
+	m.structFields(reflect.ValueOf(strct), "golog", "log", "json")
 	return m
 }
 
-// TaggedStructFields calls Any(fieldTag, fieldValue) for every exported struct field
-// that has the passed keyTag with the tag value not being empty or "-".
-// Tag values are only considered until the first comma character,
-// so `tag:"hello_world,omitempty"` will result in the fieldTag "hello_world".
-// Fields with the following tags will be ignored: `keyTag:"-"`, `keyTag:""` `keyTag:",xxx"`
-// where keyTag is the passed keyTag parameter.
-// Fields with the tag `golog:"redact"` will have their value replaced with "***REDACTED***"
-// (unless keyTag is "golog", in which case the tag value is used as the field key).
+// TaggedStructFields logs each exported field of strct that carries the
+// given keyTag. It follows the same tag-value grammar and modifier set as
+// [Message.StructFields]; see that method's documentation for details.
+//
+// Fields without the keyTag are not logged. Fields where the keyTag value is
+// exactly "-" are skipped. A tag value with an empty name segment (e.g.
+// `json:""` or `json:",omitempty"`) falls back to the Go field name, matching
+// encoding/json.Marshal.
+//
+// Passing the empty string as keyTag is a wildcard: every exported field is
+// logged under its Go field name, regardless of whether it carries any
+// struct tag. This restores the pre-tag-driven "log every exported field"
+// behavior for callers that want it — `TaggedStructFields(s, "")`.
 func (m *Message) TaggedStructFields(strct any, keyTag string) *Message {
 	if m == nil || strct == nil {
 		return m
@@ -411,7 +442,7 @@ func (m *Message) TaggedStructFields(strct any, keyTag string) *Message {
 	return m
 }
 
-func (m *Message) structFields(v reflect.Value, keyTag string) {
+func (m *Message) structFields(v reflect.Value, keyTags ...string) {
 	for v.Kind() == reflect.Pointer {
 		if v.IsNil() {
 			return
@@ -421,27 +452,63 @@ func (m *Message) structFields(v reflect.Value, keyTag string) {
 	t := v.Type()
 	for i := 0; i < t.NumField(); i++ {
 		field := t.Field(i)
-		switch {
-		case field.Anonymous:
-			m.structFields(v.Field(i), keyTag)
-		case token.IsExported(field.Name):
-			var (
-				key   = field.Name
-				value = v.Field(i).Interface()
-			)
-			if keyTag != "golog" && strings.TrimSpace(field.Tag.Get("golog")) == "redact" {
-				value = "***REDACTED***"
-			}
-			if keyTag != "" {
-				key = field.Tag.Get(keyTag)
-				key, _, _ = strings.Cut(key, ",")
-				key = strings.TrimSpace(key)
-				if key == "" || key == "-" {
-					continue
-				}
-			}
-			m.Any(key, value)
+
+		if field.Anonymous {
+			m.structFields(v.Field(i), keyTags...)
+			continue
 		}
+		if !token.IsExported(field.Name) {
+			continue
+		}
+
+		// Find the first keyTag that "matches" this field. Lookup (not
+		// Get) so that an explicit empty tag value like `json:""` counts
+		// as present.
+		//
+		// An empty string in keyTags is a wildcard: it matches every
+		// exported field with an empty raw tag value (which the caller
+		// later substitutes with the Go field name). This gives callers
+		// a way to dump a struct wholesale under Go field names, e.g.
+		// `TaggedStructFields(s, "")` for log-everything, or
+		// `structFields(v, "json", "")` for "prefer json tag, fall back
+		// to Go field name".
+		var rawTag string
+		var found bool
+		for _, kt := range keyTags {
+			if kt == "" {
+				found = true
+				rawTag = ""
+				break
+			}
+			if tv, ok := field.Tag.Lookup(kt); ok {
+				rawTag = tv
+				found = true
+				break
+			}
+		}
+		if !found {
+			continue
+		}
+
+		d := parseStructFieldDirectives(rawTag)
+		if d.skip {
+			continue
+		}
+		if d.key == "" {
+			d.key = field.Name
+		}
+
+		fv := v.Field(i)
+		if shouldOmitStructField(fv, d) {
+			continue
+		}
+
+		if d.redact {
+			m.Str(d.key, "***REDACTED***")
+			continue
+		}
+
+		m.Any(d.key, fv.Interface())
 	}
 }
 

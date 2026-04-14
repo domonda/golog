@@ -48,6 +48,39 @@ func newTestLoggerWithPrefix(prefix string) (log *Logger, textOut, jsonOut *byte
 	return NewLoggerWithPrefix(newTestConfig(textOut, jsonOut), prefix), textOut, jsonOut
 }
 
+// tf is a per-field spec for [buildTestStruct].
+type tf struct {
+	name  string
+	tag   string
+	value any
+}
+
+// buildTestStruct assembles an instance of a runtime-generated struct from
+// the given field specs. Tests use it to put golog-specific json tag
+// modifiers (redact, omitnull, etc.) on a struct without triggering static
+// analyzers that inspect AST-level struct tag literals (go vet's structtag
+// and staticcheck's SA5008). Tags live in runtime [reflect.StructField]
+// values, so no analyzer has anything to parse statically.
+//
+// Each field's type is taken from its value's dynamic type, so pass a zero
+// value of the intended field type (e.g. `Timestamp{}` or `(*string)(nil)`)
+// when the field should start zero.
+func buildTestStruct(fields ...tf) any {
+	specs := make([]reflect.StructField, len(fields))
+	for i, f := range fields {
+		specs[i] = reflect.StructField{
+			Name: f.name,
+			Type: reflect.TypeOf(f.value),
+			Tag:  reflect.StructTag(f.tag),
+		}
+	}
+	v := reflect.New(reflect.StructOf(specs)).Elem()
+	for i, f := range fields {
+		v.Field(i).Set(reflect.ValueOf(f.value))
+	}
+	return v.Interface()
+}
+
 func checkOutput(t *testing.T, textOut, jsonOut *bytes.Buffer, numMessages int, exptectedTextLine, exptectedJSONLine string) {
 	t.Helper()
 
@@ -779,10 +812,13 @@ func TestMessage_StructFields(t *testing.T) {
 		textOut.Reset()
 		jsonOut.Reset()
 
+		// Fields use an empty json tag to fall back to the Go field name
+		// under the new tag-driven rules for StructFields.
 		type BasicStruct struct {
-			Name    string
-			Age     int
-			Active  bool
+			Name    string `json:""`
+			Age     int    `json:""`
+			Active  bool   `json:""`
+			Skipped string // no tag → not logged under the new rules
 			private string //nolint:unused
 		}
 
@@ -790,6 +826,7 @@ func TestMessage_StructFields(t *testing.T) {
 			Name:    "John",
 			Age:     30,
 			Active:  true,
+			Skipped: "should_not_appear",
 			private: "hidden",
 		}
 
@@ -800,6 +837,8 @@ func TestMessage_StructFields(t *testing.T) {
 		assert.Contains(t, textOut.String(), `Name="John"`)
 		assert.Contains(t, textOut.String(), `Age=30`)
 		assert.Contains(t, textOut.String(), `Active=true`)
+		assert.NotContains(t, textOut.String(), `Skipped`)
+		assert.NotContains(t, textOut.String(), `should_not_appear`)
 		assert.NotContains(t, textOut.String(), `private`)
 		assert.NotContains(t, textOut.String(), `hidden`)
 	})
@@ -808,11 +847,13 @@ func TestMessage_StructFields(t *testing.T) {
 		textOut.Reset()
 		jsonOut.Reset()
 
+		// Canonical form for redact is now `golog:",redact"`: empty name
+		// falls back to the Go field name, `redact` is a modifier.
 		type UserWithSecrets struct {
-			Username string
-			Password string `golog:"redact"`
-			APIKey   string `golog:"redact"`
-			Email    string
+			Username string `golog:""`
+			Password string `golog:",redact"`
+			APIKey   string `golog:",redact"`
+			Email    string `golog:""`
 		}
 
 		u := UserWithSecrets{
@@ -843,12 +884,12 @@ func TestMessage_StructFields(t *testing.T) {
 		jsonOut.Reset()
 
 		type Embedded struct {
-			EmbeddedField string
+			EmbeddedField string `json:""`
 		}
 
 		type OuterStruct struct {
 			Embedded
-			OuterField string
+			OuterField string `json:""`
 		}
 
 		s := OuterStruct{
@@ -869,7 +910,7 @@ func TestMessage_StructFields(t *testing.T) {
 		jsonOut.Reset()
 
 		type SimpleStruct struct {
-			Value string
+			Value string `json:""`
 		}
 
 		s := &SimpleStruct{Value: "pointer_value"}
@@ -898,6 +939,280 @@ func TestMessage_StructFields(t *testing.T) {
 		// Should not contain any field from the struct
 		assert.NotContains(t, textOut.String(), `Value=`)
 	})
+
+	t.Run("untagged struct logs nothing", func(t *testing.T) {
+		textOut.Reset()
+		jsonOut.Reset()
+
+		// Fields with none of the default keyTags (golog, log, json) are
+		// skipped entirely. This is intentional — differs from encoding/json.
+		type NoTagsStruct struct {
+			A string
+			B int
+			C bool
+		}
+
+		s := NoTagsStruct{A: "x", B: 1, C: true}
+
+		log.NewMessage(ctx, infoLevel, "Msg").
+			StructFields(s).
+			Log()
+
+		assert.NotContains(t, textOut.String(), `A=`)
+		assert.NotContains(t, textOut.String(), `B=`)
+		assert.NotContains(t, textOut.String(), `C=`)
+	})
+
+	t.Run("multi-keyTag fallback order", func(t *testing.T) {
+		textOut.Reset()
+		jsonOut.Reset()
+
+		// StructFields prefers golog, then log, then json for naming.
+		type MixedTags struct {
+			A string `golog:"aa"`
+			B string `log:"bb"`
+			C string `json:"cc"`
+			D string `log:"dd_log" json:"dd_json"` // log wins over json
+			E string `golog:"ee_golog" json:"ee_json"` // golog wins over json
+		}
+
+		s := MixedTags{A: "a_val", B: "b_val", C: "c_val", D: "d_val", E: "e_val"}
+
+		log.NewMessage(ctx, infoLevel, "Msg").
+			StructFields(s).
+			Log()
+
+		assert.Contains(t, textOut.String(), `aa="a_val"`)
+		assert.Contains(t, textOut.String(), `bb="b_val"`)
+		assert.Contains(t, textOut.String(), `cc="c_val"`)
+		assert.Contains(t, textOut.String(), `dd_log="d_val"`)
+		assert.NotContains(t, textOut.String(), `dd_json`)
+		assert.Contains(t, textOut.String(), `ee_golog="e_val"`)
+		assert.NotContains(t, textOut.String(), `ee_json`)
+	})
+
+	t.Run("winning tag controls modifiers", func(t *testing.T) {
+		textOut.Reset()
+		jsonOut.Reset()
+
+		// golog wins for naming, so json's omitempty is silently discarded.
+		// The field is emitted even though its value is empty.
+		type Mixed struct {
+			A string `golog:"a" json:"b,omitempty"`
+		}
+
+		s := Mixed{A: ""}
+
+		log.NewMessage(ctx, infoLevel, "Msg").
+			StructFields(s).
+			Log()
+
+		assert.Contains(t, textOut.String(), `a=""`)
+		assert.NotContains(t, textOut.String(), `b=`)
+	})
+
+	t.Run("golog dash skips the field", func(t *testing.T) {
+		textOut.Reset()
+		jsonOut.Reset()
+
+		type DashedStruct struct {
+			Kept    string `golog:""`
+			Skipped string `golog:"-"`
+		}
+
+		s := DashedStruct{Kept: "k", Skipped: "s"}
+
+		log.NewMessage(ctx, infoLevel, "Msg").
+			StructFields(s).
+			Log()
+
+		assert.Contains(t, textOut.String(), `Kept="k"`)
+		assert.NotContains(t, textOut.String(), `Skipped`)
+	})
+
+	t.Run("omitempty in golog tag", func(t *testing.T) {
+		textOut.Reset()
+		jsonOut.Reset()
+
+		type E struct {
+			Str   string            `golog:",omitempty"`
+			Int   int               `golog:",omitempty"`
+			Bool  bool              `golog:",omitempty"`
+			Slice []int             `golog:",omitempty"`
+			Map   map[string]string `golog:",omitempty"`
+			Ptr   *string           `golog:",omitempty"`
+		}
+
+		log.NewMessage(ctx, infoLevel, "Msg").
+			StructFields(E{}).
+			Log()
+
+		// All zero values → all skipped.
+		assert.NotContains(t, textOut.String(), `Str=`)
+		assert.NotContains(t, textOut.String(), `Int=`)
+		assert.NotContains(t, textOut.String(), `Bool=`)
+		assert.NotContains(t, textOut.String(), `Slice=`)
+		assert.NotContains(t, textOut.String(), `Map=`)
+		assert.NotContains(t, textOut.String(), `Ptr=`)
+
+		textOut.Reset()
+		jsonOut.Reset()
+
+		strPtr := "p"
+		log.NewMessage(ctx, infoLevel, "Msg").
+			StructFields(E{
+				Str:   "s",
+				Int:   1,
+				Bool:  true,
+				Slice: []int{1},
+				Map:   map[string]string{"k": "v"},
+				Ptr:   &strPtr,
+			}).
+			Log()
+
+		// All non-zero → all present.
+		assert.Contains(t, textOut.String(), `Str="s"`)
+		assert.Contains(t, textOut.String(), `Int=1`)
+		assert.Contains(t, textOut.String(), `Bool=true`)
+		assert.Contains(t, textOut.String(), `Slice=`)
+		assert.Contains(t, textOut.String(), `Map=`)
+		assert.Contains(t, textOut.String(), `Ptr=`)
+	})
+
+	t.Run("omitzero suppresses time.Time via IsZero method", func(t *testing.T) {
+		textOut.Reset()
+		jsonOut.Reset()
+
+		type Z struct {
+			When time.Time `golog:",omitzero"`
+		}
+
+		log.NewMessage(ctx, infoLevel, "Msg").
+			StructFields(Z{}).
+			Log()
+
+		// zero time.Time has IsZero()==true → suppressed
+		assert.NotContains(t, textOut.String(), `When=`)
+
+		textOut.Reset()
+		jsonOut.Reset()
+
+		log.NewMessage(ctx, infoLevel, "Msg").
+			StructFields(Z{When: time.Date(2026, 4, 14, 0, 0, 0, 0, time.UTC)}).
+			Log()
+
+		assert.Contains(t, textOut.String(), `When=`)
+	})
+
+	t.Run("omitnull suppresses zero golog.Timestamp via IsNull method", func(t *testing.T) {
+		textOut.Reset()
+		jsonOut.Reset()
+
+		type N struct {
+			When Timestamp `golog:",omitnull"`
+		}
+
+		log.NewMessage(ctx, infoLevel, "Msg").
+			StructFields(N{}).
+			Log()
+
+		// zero Timestamp has IsNull()==true → suppressed
+		assert.NotContains(t, textOut.String(), `When=`)
+
+		textOut.Reset()
+		jsonOut.Reset()
+
+		log.NewMessage(ctx, infoLevel, "Msg").
+			StructFields(N{When: Timestamp{Time: time.Date(2026, 4, 14, 0, 0, 0, 0, time.UTC)}}).
+			Log()
+
+		assert.Contains(t, textOut.String(), `When=`)
+	})
+
+	t.Run("omitnull falls back to omitzero when no IsNull method", func(t *testing.T) {
+		textOut.Reset()
+		jsonOut.Reset()
+
+		// time.Time has IsZero() but no IsNull() — omitnull falls back to
+		// the omitzero path and suppresses the zero value.
+		type F struct {
+			When time.Time `golog:",omitnull"`
+		}
+
+		log.NewMessage(ctx, infoLevel, "Msg").
+			StructFields(F{}).
+			Log()
+
+		assert.NotContains(t, textOut.String(), `When=`)
+	})
+
+	t.Run("nil pointer fields do not panic with omit modifiers", func(t *testing.T) {
+		textOut.Reset()
+		jsonOut.Reset()
+
+		// Regression: without the nil-pointer short-circuit in
+		// shouldOmitStructField and isZeroValueForOmitzero, a nil
+		// *Timestamp with ,omitnull or a nil *time.Time with ,omitzero
+		// panics because the value-receiver IsNull / IsZero method
+		// auto-dereferences the nil pointer. Both must now be suppressed
+		// silently.
+		type Event struct {
+			ProcessedAt *time.Time `golog:",omitzero"`
+			DeletedAt   *Timestamp `golog:",omitnull"`
+			UpdatedAt   *time.Time `golog:",omitnull"` // omitnull → omitzero fallback on nil
+		}
+
+		assert.NotPanics(t, func() {
+			log.NewMessage(ctx, infoLevel, "Msg").
+				StructFields(Event{}).
+				Log()
+		}, "nil pointer fields with omit modifiers must not panic")
+
+		assert.NotContains(t, textOut.String(), `ProcessedAt=`)
+		assert.NotContains(t, textOut.String(), `DeletedAt=`)
+		assert.NotContains(t, textOut.String(), `UpdatedAt=`)
+
+		// Non-nil pointer to a non-zero value must still log.
+		textOut.Reset()
+		jsonOut.Reset()
+		t1 := time.Date(2026, 4, 14, 0, 0, 0, 0, time.UTC)
+		ts := Timestamp{Time: t1}
+		log.NewMessage(ctx, infoLevel, "Msg").
+			StructFields(Event{ProcessedAt: &t1, DeletedAt: &ts, UpdatedAt: &t1}).
+			Log()
+		assert.Contains(t, textOut.String(), `ProcessedAt=`)
+		assert.Contains(t, textOut.String(), `DeletedAt=`)
+		assert.Contains(t, textOut.String(), `UpdatedAt=`)
+	})
+
+	t.Run("omitempty wins over redact for empty values", func(t *testing.T) {
+		textOut.Reset()
+		jsonOut.Reset()
+
+		// Empty field with both redact and omitempty is suppressed, not
+		// emitted with ***REDACTED***. Suppression wins — matches
+		// encoding/json omitempty precedence.
+		type R struct {
+			Token string `golog:",redact,omitempty"`
+		}
+
+		log.NewMessage(ctx, infoLevel, "Msg").
+			StructFields(R{Token: ""}).
+			Log()
+
+		assert.NotContains(t, textOut.String(), `Token=`)
+		assert.NotContains(t, textOut.String(), `REDACTED`)
+
+		textOut.Reset()
+		jsonOut.Reset()
+
+		log.NewMessage(ctx, infoLevel, "Msg").
+			StructFields(R{Token: "secret"}).
+			Log()
+
+		assert.Contains(t, textOut.String(), `Token="***REDACTED***"`)
+		assert.NotContains(t, textOut.String(), `secret`)
+	})
 }
 
 func TestMessage_TaggedStructFields(t *testing.T) {
@@ -914,9 +1229,11 @@ func TestMessage_TaggedStructFields(t *testing.T) {
 		type JSONTaggedStruct struct {
 			UserName string `json:"user_name"`
 			UserAge  int    `json:"user_age"`
-			NoTag    string
+			NoTag    string // no json tag at all → skipped under the new rules
 			Ignored  string `json:"-"`
-			Empty    string `json:""`
+			// Empty json tag value → encoding/json.Marshal parity:
+			// fall back to the Go field name ("Empty") as the log key.
+			Empty string `json:""`
 		}
 
 		s := JSONTaggedStruct{
@@ -933,13 +1250,12 @@ func TestMessage_TaggedStructFields(t *testing.T) {
 
 		assert.Contains(t, textOut.String(), `user_name="John"`)
 		assert.Contains(t, textOut.String(), `user_age=30`)
+		assert.Contains(t, textOut.String(), `Empty="empty_value"`) // json.Marshal parity: empty tag → Go field name
 		assert.NotContains(t, textOut.String(), `UserName`)
 		assert.NotContains(t, textOut.String(), `NoTag`)
 		assert.NotContains(t, textOut.String(), `no_tag_value`)
 		assert.NotContains(t, textOut.String(), `Ignored`)
 		assert.NotContains(t, textOut.String(), `ignored_value`)
-		assert.NotContains(t, textOut.String(), `Empty`)
-		assert.NotContains(t, textOut.String(), `empty_value`)
 	})
 
 	t.Run("json tag with options", func(t *testing.T) {
@@ -969,17 +1285,17 @@ func TestMessage_TaggedStructFields(t *testing.T) {
 		textOut.Reset()
 		jsonOut.Reset()
 
-		type SecureStruct struct {
-			Username string `json:"username"`
-			Password string `json:"password" golog:"redact"`
-			Token    string `json:"token" golog:"redact"`
-		}
-
-		s := SecureStruct{
-			Username: "admin",
-			Password: "super_secret",
-			Token:    "tok_xyz789",
-		}
+		// Under the unified rules modifiers come from the winning tag,
+		// so when TaggedStructFields is called with "json" the redact
+		// modifier must live inside the json tag. "redacted" is accepted
+		// as a synonym for "redact". The struct type is built at runtime
+		// via buildTestStruct so that golog-specific modifiers never live
+		// in static struct tag literals (see buildTestStruct doc).
+		s := buildTestStruct(
+			tf{"Username", `json:"username"`, "admin"},
+			tf{"Password", `json:"password,redact"`, "super_secret"},
+			tf{"Token", `json:"token,redacted"`, "tok_xyz789"},
+		)
 
 		log.NewMessage(ctx, infoLevel, "Msg").
 			TaggedStructFields(s, "json").
@@ -1087,49 +1403,233 @@ func TestMessage_TaggedStructFields(t *testing.T) {
 		assert.NotContains(t, textOut.String(), `=`)
 	})
 
-	t.Run("whitespace in tag value", func(t *testing.T) {
+	// Whitespace trimming in tag values is exercised exhaustively at the
+	// parser level in TestParseStructFieldDirectives. Struct tags with
+	// leading or trailing spaces would trigger `go vet`'s structtag check,
+	// so we do not test whitespace-in-tag-value via real struct tags here.
+
+	t.Run("json omitempty parity", func(t *testing.T) {
 		textOut.Reset()
 		jsonOut.Reset()
 
-		type WhitespaceTagStruct struct {
-			Field1 string `json:"  field_one  "`
-			Field2 string `json:"   "`
-		}
-
-		s := WhitespaceTagStruct{
-			Field1: "value1",
-			Field2: "value2",
+		type OE struct {
+			Present string `json:"present,omitempty"`
+			Missing string `json:"missing,omitempty"`
 		}
 
 		log.NewMessage(ctx, infoLevel, "Msg").
-			TaggedStructFields(s, "json").
+			TaggedStructFields(OE{Present: "hi", Missing: ""}, "json").
 			Log()
 
-		// Trimmed tag value should be used, empty tag after trim should be ignored
-		assert.Contains(t, textOut.String(), `field_one="value1"`)
-		assert.NotContains(t, textOut.String(), `Field2`)
-		assert.NotContains(t, textOut.String(), `value2`)
+		assert.Contains(t, textOut.String(), `present="hi"`)
+		assert.NotContains(t, textOut.String(), `missing`)
 	})
 
-	t.Run("redact with whitespace", func(t *testing.T) {
+	t.Run("json omitempty with empty name falls back to field name", func(t *testing.T) {
 		textOut.Reset()
 		jsonOut.Reset()
 
-		type WhitespaceRedactStruct struct {
-			Password string `json:"password" golog:" redact "`
-		}
-
-		s := WhitespaceRedactStruct{
-			Password: "secret",
+		type OEF struct {
+			Present string `json:",omitempty"`
+			Missing string `json:",omitempty"`
 		}
 
 		log.NewMessage(ctx, infoLevel, "Msg").
-			TaggedStructFields(s, "json").
+			TaggedStructFields(OEF{Present: "hi", Missing: ""}, "json").
 			Log()
 
-		// Should still redact even with whitespace around "redact"
-		assert.Contains(t, textOut.String(), `password="***REDACTED***"`)
+		// Present falls back to field name "Present" and is emitted.
+		// Missing falls back to "Missing" but omitempty suppresses it.
+		assert.Contains(t, textOut.String(), `Present="hi"`)
+		assert.NotContains(t, textOut.String(), `Missing`)
+	})
+
+	t.Run("json omitzero with time.Time", func(t *testing.T) {
+		textOut.Reset()
+		jsonOut.Reset()
+
+		type OZ struct {
+			When time.Time `json:"when,omitzero"`
+		}
+
+		log.NewMessage(ctx, infoLevel, "Msg").
+			TaggedStructFields(OZ{}, "json").
+			Log()
+		assert.NotContains(t, textOut.String(), `when=`)
+
+		textOut.Reset()
+		jsonOut.Reset()
+
+		log.NewMessage(ctx, infoLevel, "Msg").
+			TaggedStructFields(OZ{When: time.Date(2026, 4, 14, 0, 0, 0, 0, time.UTC)}, "json").
+			Log()
+		assert.Contains(t, textOut.String(), `when=`)
+	})
+
+	t.Run("json omitnull with Timestamp", func(t *testing.T) {
+		textOut.Reset()
+		jsonOut.Reset()
+
+		log.NewMessage(ctx, infoLevel, "Msg").
+			TaggedStructFields(
+				buildTestStruct(tf{"At", `json:"at,omitnull"`, Timestamp{}}),
+				"json",
+			).
+			Log()
+		assert.NotContains(t, textOut.String(), `at=`)
+
+		textOut.Reset()
+		jsonOut.Reset()
+
+		log.NewMessage(ctx, infoLevel, "Msg").
+			TaggedStructFields(
+				buildTestStruct(tf{
+					"At", `json:"at,omitnull"`,
+					Timestamp{Time: time.Date(2026, 4, 14, 0, 0, 0, 0, time.UTC)},
+				}),
+				"json",
+			).
+			Log()
+		assert.Contains(t, textOut.String(), `at=`)
+	})
+
+	t.Run("json omitnull falls back to omitzero when no IsNull method", func(t *testing.T) {
+		textOut.Reset()
+		jsonOut.Reset()
+
+		log.NewMessage(ctx, infoLevel, "Msg").
+			TaggedStructFields(
+				buildTestStruct(tf{"When", `json:"when,omitnull"`, time.Time{}}),
+				"json",
+			).
+			Log()
+		assert.NotContains(t, textOut.String(), `when=`)
+	})
+
+	t.Run("redact omitempty precedence in json tag", func(t *testing.T) {
+		textOut.Reset()
+		jsonOut.Reset()
+
+		log.NewMessage(ctx, infoLevel, "Msg").
+			TaggedStructFields(
+				buildTestStruct(tf{"Token", `json:"token,redact,omitempty"`, ""}),
+				"json",
+			).
+			Log()
+		assert.NotContains(t, textOut.String(), `token=`)
+		assert.NotContains(t, textOut.String(), `REDACTED`)
+
+		textOut.Reset()
+		jsonOut.Reset()
+
+		log.NewMessage(ctx, infoLevel, "Msg").
+			TaggedStructFields(
+				buildTestStruct(tf{"Token", `json:"token,redact,omitempty"`, "secret"}),
+				"json",
+			).
+			Log()
+		assert.Contains(t, textOut.String(), `token="***REDACTED***"`)
 		assert.NotContains(t, textOut.String(), `secret`)
+	})
+
+	t.Run("json dash with trailing modifier is literal name", func(t *testing.T) {
+		textOut.Reset()
+		jsonOut.Reset()
+
+		// `json:"-,omitempty"` means the literal field name "-" with the
+		// omitempty modifier — matches encoding/json.Marshal. Only a bare
+		// `json:"-"` with no comma skips.
+		type DashNames struct {
+			Literal string `json:"-,omitempty"`
+			Normal  string `json:"normal"`
+		}
+
+		log.NewMessage(ctx, infoLevel, "Msg").
+			TaggedStructFields(DashNames{Literal: "kept", Normal: "n"}, "json").
+			Log()
+
+		assert.Contains(t, textOut.String(), `-="kept"`)
+		assert.Contains(t, textOut.String(), `normal="n"`)
+
+		textOut.Reset()
+		jsonOut.Reset()
+
+		log.NewMessage(ctx, infoLevel, "Msg").
+			TaggedStructFields(DashNames{Literal: "", Normal: "n"}, "json").
+			Log()
+
+		// Empty literal "-" field → omitempty suppresses it.
+		assert.NotContains(t, textOut.String(), `-=`)
+		assert.Contains(t, textOut.String(), `normal="n"`)
+	})
+
+	t.Run("empty keyTag is wildcard that logs every exported field by Go name", func(t *testing.T) {
+		textOut.Reset()
+		jsonOut.Reset()
+
+		// `TaggedStructFields(s, "")` is the escape hatch for "log every
+		// exported field by its Go name", regardless of whether the field
+		// carries a struct tag. This restores the pre-tag-driven
+		// StructFields behavior for callers that want it.
+		type Wild struct {
+			A string
+			B int
+			C bool
+			d string //nolint:unused
+		}
+
+		log.NewMessage(ctx, infoLevel, "Msg").
+			TaggedStructFields(Wild{A: "x", B: 1, C: true, d: "hidden"}, "").
+			Log()
+
+		assert.Contains(t, textOut.String(), `A="x"`)
+		assert.Contains(t, textOut.String(), `B=1`)
+		assert.Contains(t, textOut.String(), `C=true`)
+		assert.NotContains(t, textOut.String(), `d=`)
+		assert.NotContains(t, textOut.String(), `hidden`)
+	})
+
+	t.Run("empty keyTag ignores struct tags on the fields", func(t *testing.T) {
+		textOut.Reset()
+		jsonOut.Reset()
+
+		// Empty keyTag is a wildcard: it short-circuits the tag lookup
+		// and uses the Go field name even when the field HAS a tag like
+		// `json:"aaa"`. This is the semantic "log every field, no
+		// renames".
+		type Named struct {
+			Foo string `json:"aaa"`
+			Bar int    `json:"bbb,omitempty"`
+		}
+
+		log.NewMessage(ctx, infoLevel, "Msg").
+			TaggedStructFields(Named{Foo: "v", Bar: 0}, "").
+			Log()
+
+		assert.Contains(t, textOut.String(), `Foo="v"`)
+		// Bar is zero, but the empty-keyTag wildcard has no modifiers,
+		// so omitempty from the json tag does NOT apply.
+		assert.Contains(t, textOut.String(), `Bar=0`)
+		assert.NotContains(t, textOut.String(), `aaa`)
+		assert.NotContains(t, textOut.String(), `bbb`)
+	})
+
+	t.Run("unknown modifier is ignored silently", func(t *testing.T) {
+		textOut.Reset()
+		jsonOut.Reset()
+
+		// Tag string is built at runtime so no analyzer can pattern-match
+		// a compile-time `json:"..."` literal containing "wibble".
+		unknownTag := fmt.Sprintf(`json:%q`, "x,wibble,omitempty")
+
+		log.NewMessage(ctx, infoLevel, "Msg").
+			TaggedStructFields(
+				buildTestStruct(tf{"X", unknownTag, "val"}),
+				"json",
+			).
+			Log()
+
+		assert.Contains(t, textOut.String(), `x="val"`)
 	})
 }
 
