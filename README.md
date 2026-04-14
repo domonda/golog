@@ -34,7 +34,7 @@ Fast and feature-rich structured logging library for Go
 - [Advanced Features](#advanced-features)
   - [Custom Colorizers](#custom-colorizers)
   - [Call Stack Logging](#call-stack-logging)
-  - [Redacting Sensitive Data](#redacting-sensitive-data)
+  - [Struct Field Logging: Tags and Modifiers](#struct-field-logging-tags-and-modifiers)
   - [Custom Levels](#custom-levels)
   - [Level Filtering](#level-filtering)
   - [Parsing Log Timestamps](#parsing-log-timestamps)
@@ -55,6 +55,7 @@ Fast and feature-rich structured logging library for Go
 
 - **High Performance**: Zero-allocation logging for JSON, text, and complex fields (error, time.Time)
 - **Structured Logging**: Type-safe field methods for all Go primitives including native time.Time and UUID
+- **Tag-driven Struct Logging**: `StructFields` and `TaggedStructFields` honor `golog`, `log`, and `json` tags with `omitempty`, `omitzero`, `omitnull`, and `redact` modifiers. `encoding/json`-compatible where applicable
 - **Multiple Output Formats**: JSON and human-readable text output
 - **Terminal Auto-Detection**: Automatically switches between colored text (TTY) and JSON (non-TTY)
 - **Configurable Log Levels**: TRACE, DEBUG, INFO, WARN, ERROR, FATAL with flexible filtering
@@ -497,30 +498,95 @@ defer func() {
 }()
 ```
 
-### Redacting Sensitive Data
+### Struct Field Logging: Tags and Modifiers
 
-Use the `golog:"redact"` struct tag to automatically redact sensitive fields when logging structs:
+`StructFields` and `TaggedStructFields` walk a struct via reflection and log
+each matching field as an attribute. They are driven entirely by struct tags,
+with modifiers that mirror `encoding/json.Marshal` semantics plus a handful of
+golog-specific additions.
+
+#### Tag resolution
+
+`StructFields(s)` looks for tags in this order — **first match wins**:
+
+1. `golog:"..."`
+2. `log:"..."`
+3. `json:"..."`
+
+Only the first tag present on a field is consulted. Other tags on the same field
+are ignored. Fields with **none** of those tags are skipped entirely (this is a
+deliberate difference from `encoding/json.Marshal`, which would use the Go field
+name: golog errs on the side of not leaking untagged internal fields into logs).
+
+`TaggedStructFields(s, "json")` does the same with a single caller-chosen tag.
+
+**Wildcard escape hatch:** passing the empty string as the key tag,
+`TaggedStructFields(s, "")`, matches every exported field with no rename and no
+modifiers — every field is logged under its Go name, struct tags ignored. Use
+this when you want to dump a struct wholesale and you don't care about per-field
+tags. (`StructFields(s)` deliberately stays strict tag-driven; the wildcard is
+opt-in.)
+
+#### Tag value grammar
+
+Each tag value is `name,mod1,mod2,...`:
+
+| Tag value                    | Log key       | Notes                                     |
+|------------------------------|---------------|-------------------------------------------|
+| `"field_name"`               | `field_name`  | explicit name                             |
+| `""`                         | Go field name | empty → fall back to field name            |
+| `",omitempty"`               | Go field name | empty name with modifier → fall back       |
+| `"-"` (bare, no comma)       | *skipped*     | only the bare form skips                  |
+| `"-,..."` (comma follows)    | `-`           | literal field name `-` + modifiers        |
+
+Whitespace around the name and each modifier is trimmed. Unknown modifier
+tokens are ignored silently, so `json:"name,omitnull"` is a valid tag for both
+`encoding/json.Marshal` (which ignores `omitnull`) and golog (which honors it).
+
+#### Modifiers
+
+| Modifier    | Suppress when…                                                                 |
+|-------------|---------------------------------------------------------------------------------|
+| `omitempty` | `false`, `0`, nil pointer/interface, empty array/slice/map/string. Exactly matches `encoding/json.Marshal`. Does **not** catch zero structs or `time.Time{}`. |
+| `omitzero`  | The type's `IsZero() bool` method returns true, **or** the value is the Go zero value (via `reflect.Value.IsZero`). Catches `time.Time{}` and any zero struct. Strict superset of `encoding/json`'s Go 1.24 `omitzero`. Both value-receiver and pointer-receiver `IsZero` methods are honored. |
+| `omitnull`  | The type's `IsNull() bool` method returns true. Falls back to `omitzero` semantics when the type has no `IsNull` method. Use for nullable wrappers (`golog.Timestamp`, `sql.NullString`, `uu.NullableID`) where "null" is richer than "all bytes zero". Both value-receiver and pointer-receiver `IsNull` methods are honored. |
+| `redact`    | (not a suppression modifier) — replaces the value with `"***REDACTED***"` before it reaches the writer. Also spelled `redacted`. Suppression modifiers win over redact: `json:",redact,omitempty"` on an empty string emits nothing, not the marker. |
+
+Modifiers OR together — any passing check suppresses the field.
+
+#### Complete example
 
 ```go
 type User struct {
-    ID       int    `json:"id"`
-    Username string `json:"username"`
-    Password string `json:"password" golog:"redact"`
-    APIKey   string `json:"api_key"  golog:"redact"`
+    ID        int             `json:"id"`
+    Name      string          `json:"name,omitempty"`
+    APIKey    string          `json:",redact"`
+    CreatedAt time.Time       `json:"created_at,omitzero"`
+    DeletedAt golog.Timestamp `json:"deleted_at,omitnull"`
+    Internal  string          // no json/log/golog tag → never logged
 }
 
 user := User{
-    ID:       123,
-    Username: "john_doe",
-    Password: "secret123",
-    APIKey:   "sk-abc123",
+    ID:        123,
+    Name:      "john_doe",
+    APIKey:    "sk-abc123",
+    CreatedAt: time.Now(),
+    // DeletedAt left as zero Timestamp
+    Internal:  "debug-only",
 }
 
-log.Info("User logged in").StructFields(user).Log()
-// Output: ... id=123 username="john_doe" password="***REDACTED***" api_key="***REDACTED***"
+log.Info("user").TaggedStructFields(user, "json").Log()
+// Output: ... id=123 name="john_doe" APIKey="***REDACTED***" created_at="2026-04-14T..."
+// (DeletedAt suppressed by omitnull, Internal never considered.)
 ```
 
-The `golog:"redact"` tag works with both `StructFields()` and `TaggedStructFields()` methods.
+> **Breaking changes in this release**
+>
+> - `golog:"redact"` (bare, single token) **no longer triggers redaction** — under the unified parser it names the field `"redact"`. Migrate to `golog:",redact"` (or combine with other modifiers: `golog:",redact,omitempty"`).
+> - `StructFields(s)` on an untagged struct now logs **nothing**. Previously it logged every exported field by its Go name. The cleanest replacement is `TaggedStructFields(s, "")`, the wildcard escape hatch documented above. Per-field, you can also add an empty tag like `json:""` or `golog:""` to opt in.
+> - `TaggedStructFields(s, "json")` with `json:""` now logs the field (Go field name), previously it skipped. This is `encoding/json.Marshal` parity.
+
+`omitnull` vs `omitzero`, concretely: `sql.NullString{Valid: false, String: ""}` and `sql.NullString{Valid: true, String: ""}` are both the reflect zero value, but only the first is actually null. `omitnull` with a proper `IsNull` method distinguishes the two; `omitzero` cannot.
 
 ### Custom Levels
 
