@@ -45,6 +45,13 @@ type Format struct {
 	// [Message.Time]). If empty, [DefaultTimeFormat] is used. It does not affect the
 	// log line timestamp ([Format.TimestampFormat]).
 	TimeFormat string
+
+	// Location, when not nil, converts every formatted time value to this
+	// location via [time.Time.In] before formatting. It applies to both the
+	// log line timestamp ([Format.TimestampFormat]) and structured [time.Time]
+	// attributes ([Format.TimeFormat]). When nil, times are formatted in their
+	// original location.
+	Location *time.Location
 }
 
 // NewDefaultFormat returns a pointer to a [Format] with common defaults:
@@ -55,9 +62,11 @@ type Format struct {
 //	PrefixFmt:       "%s: %s"
 //	MessageKey:      "message"
 //	TimeFormat:      [DefaultTimeFormat] (RFC3339Nano)
+//	Location:        nil (times keep their original location)
 //
 // Writers use this when no custom [Format] is supplied. Copy and modify fields to build
-// a custom layout (for example a different [Format.TimestampFormat] or JSON field names).
+// a custom layout (for example a different [Format.TimestampFormat], JSON field names,
+// or a [Format.Location] to render every time value in a fixed timezone).
 func NewDefaultFormat() *Format {
 	return &Format{
 		TimestampKey:    "time",

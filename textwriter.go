@@ -77,6 +77,9 @@ type TextWriter struct {
 }
 
 func (w *TextWriter) BeginMessage(config Config, timestamp time.Time, level Level, prefix, text string) {
+	if w.config.format.Location != nil {
+		timestamp = timestamp.In(w.config.format.Location)
+	}
 	// Write timestamp
 	if w.config.noColorizer {
 		// Fast path: append directly without allocation
@@ -262,6 +265,9 @@ func (w *TextWriter) WriteTime(val time.Time) {
 	format := w.config.format.TimeFormat
 	if format == "" {
 		format = DefaultTimeFormat
+	}
+	if w.config.format.Location != nil {
+		val = val.In(w.config.format.Location)
 	}
 	if w.config.noColorizer {
 		// Fast path: append directly without allocation

@@ -130,6 +130,11 @@ record) is formatted with [Format.TimestampFormat] in both JSON and text writers
 [Format.TimeFormat] applies only to structured [time.Time] attributes on messages (for
 example fields added with [Message.Time]), not to that log-line timestamp.
 
+Set [Format.Location] to a [*time.Location] (e.g. [time.UTC] or one returned by
+[time.LoadLocation]) to render every formatted time value, both the log line timestamp
+and structured [time.Time] attributes, in that timezone via [time.Time.In]. When
+nil, times are formatted in their original location.
+
 To parse timestamp strings from logs or databases, use [ParseTimestamp] or [Timestamp]
 (JSON and [sql.Scanner]); they try each layout in [TimestampFormats] in order.
 

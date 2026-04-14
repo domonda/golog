@@ -61,6 +61,9 @@ func (w *JSONWriter) BeginMessage(config Config, timestamp time.Time, level Leve
 	w.buf = append(w.buf, '{')
 
 	if w.config.format.TimestampKey != "" {
+		if w.config.format.Location != nil {
+			timestamp = timestamp.In(w.config.format.Location)
+		}
 		w.buf = encjson.AppendKey(w.buf, w.config.format.TimestampKey)
 		w.buf = encjson.AppendTime(w.buf, timestamp, w.config.format.TimestampFormat)
 	}
@@ -152,6 +155,9 @@ func (w *JSONWriter) WriteTime(val time.Time) {
 	format := w.config.format.TimeFormat
 	if format == "" {
 		format = DefaultTimeFormat
+	}
+	if w.config.format.Location != nil {
+		val = val.In(w.config.format.Location)
 	}
 	w.buf = encjson.AppendTime(w.buf, val, format)
 }

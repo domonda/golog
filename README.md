@@ -37,6 +37,7 @@ Fast and feature-rich structured logging library for Go
   - [Struct Field Logging: Tags and Modifiers](#struct-field-logging-tags-and-modifiers)
   - [Custom Levels](#custom-levels)
   - [Level Filtering](#level-filtering)
+  - [Logging in a Fixed Timezone](#logging-in-a-fixed-timezone)
   - [Parsing Log Timestamps](#parsing-log-timestamps)
 - [Performance](#performance)
   - [Benchmarks](#benchmarks)
@@ -634,6 +635,26 @@ combinedFilter := golog.JoinLevelFilters(
 )
 ```
 
+### Logging in a Fixed Timezone
+
+Set `Format.Location` to render every formatted time value, both the log line
+timestamp and structured `time.Time` attributes, in a fixed timezone. The writer
+calls `time.Time.In` on each value before formatting, so the underlying instant
+is preserved. Leave it nil (the default) to keep each value's original location.
+
+```go
+tokyo, _ := time.LoadLocation("Asia/Tokyo")
+
+format := golog.NewDefaultFormat()
+format.Location = tokyo
+
+config := golog.NewConfig(
+    &golog.DefaultLevels,
+    golog.AllLevelsActive,
+    golog.NewJSONWriterConfig(os.Stdout, format),
+)
+```
+
 ### Parsing Log Timestamps
 
 Use `golog.Timestamp` when you need to read log timestamps back out of JSON, a database column,
@@ -773,7 +794,7 @@ The performance gap for JSON output becomes meaningful only in extreme high-thro
 - **WriterConfig**: Output writer configuration
 - **Level**: Log level type
 - **LevelFilter**: Level filtering interface
-- **Format**: Layout config for timestamp keys, timestamp layouts, level keys, message keys, and structured `time.Time` attributes
+- **Format**: Layout config for timestamp keys, timestamp layouts, level keys, message keys, structured `time.Time` attributes, and an optional `*time.Location` to render every time value in a fixed timezone
 - **Timestamp**: `time.Time` wrapper with JSON, `database/sql.Scanner`/`driver.Valuer`, and null semantics, tuned for parsing log timestamps in many common formats
 
 ### Writer Types
