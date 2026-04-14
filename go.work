@@ -16,4 +16,5 @@ use (
 	./examples
 	./goslog
 	./logsentry
+	./tools
 )

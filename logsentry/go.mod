@@ -11,6 +11,7 @@ require github.com/getsentry/sentry-go v0.45.1
 require (
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/domonda/go-encjson v1.0.0 // indirect
+	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/lucasb-eyer/go-colorful v1.4.0 // indirect
 	github.com/mattn/go-isatty v0.0.21 // indirect
 	github.com/muesli/termenv v0.16.0 // indirect
