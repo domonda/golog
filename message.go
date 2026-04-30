@@ -410,7 +410,7 @@ func (m *Message) tryWriteInterface(w Writer, val reflect.Value) (written bool) 
 // Unknown modifier tokens are ignored silently, matching encoding/json's
 // forward-compat posture.
 //
-// Breaking change vs. earlier versions: the bare form `golog:"redact"`
+// Breaking change vs. earlier versions: the bare form `log:",redact"`
 // no longer triggers redaction — under the new unified parser it would
 // name the field "redact" in the log. Migrate to `golog:",redact"`.
 func (m *Message) StructFields(strct any) *Message {

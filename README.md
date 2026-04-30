@@ -583,7 +583,7 @@ log.Info("user").TaggedStructFields(user, "json").Log()
 
 > **Breaking changes in this release**
 >
-> - `golog:"redact"` (bare, single token) **no longer triggers redaction** — under the unified parser it names the field `"redact"`. Migrate to `golog:",redact"` (or combine with other modifiers: `golog:",redact,omitempty"`).
+> - `log:",redact"` (bare, single token) **no longer triggers redaction** — under the unified parser it names the field `"redact"`. Migrate to `golog:",redact"` (or combine with other modifiers: `golog:",redact,omitempty"`).
 > - `StructFields(s)` on an untagged struct now logs **nothing**. Previously it logged every exported field by its Go name. The cleanest replacement is `TaggedStructFields(s, "")`, the wildcard escape hatch documented above. Per-field, you can also add an empty tag like `json:""` or `golog:""` to opt in.
 > - `TaggedStructFields(s, "json")` with `json:""` now logs the field (Go field name), previously it skipped. This is `encoding/json.Marshal` parity.
 
