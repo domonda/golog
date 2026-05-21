@@ -110,7 +110,9 @@ func ParseUUID(str string) (id [16]byte, err error) {
 // ValidateUUID checks for valid version and variant
 // of a binary UUID value.
 func ValidateUUID(id [16]byte) error {
-	if version := id[6] >> 4; version < 1 || version > 5 {
+	// RFC 9562 defines UUID versions 1 through 8
+	// (1-5 from the obsoleted RFC 4122, plus 6, 7 and 8).
+	if version := id[6] >> 4; version < 1 || version > 8 {
 		return fmt.Errorf("invalid UUID version: %d", version)
 	}
 	switch {
