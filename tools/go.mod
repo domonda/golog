@@ -1,6 +1,6 @@
 module github.com/domonda/golog/tools
 
-go 1.24.9
+go 1.25.0
 
 tool github.com/securego/gosec/v2/cmd/gosec
 
@@ -21,7 +21,7 @@ require (
 	github.com/gookit/color v1.6.0 // indirect
 	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/openai/openai-go/v3 v3.8.1 // indirect
-	github.com/rogpeppe/go-internal v1.14.1 // indirect
+	github.com/rogpeppe/go-internal v1.15.0 // indirect
 	github.com/securego/gosec/v2 v2.22.11 // indirect
 	github.com/tidwall/gjson v1.18.0 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
@@ -38,7 +38,7 @@ require (
 	golang.org/x/mod v0.32.0 // indirect
 	golang.org/x/net v0.49.0 // indirect
 	golang.org/x/sync v0.19.0 // indirect
-	golang.org/x/sys v0.41.0 // indirect
+	golang.org/x/sys v0.45.0 // indirect
 	golang.org/x/text v0.34.0 // indirect
 	golang.org/x/tools v0.41.0 // indirect
 	google.golang.org/genai v1.37.0 // indirect
