@@ -21,7 +21,7 @@ A simple Go program that:
 ### 2. Dockerfile
 
 Builds a Docker image containing:
-- Go 1.24 runtime
+- Go 1.25 runtime
 - The golog library
 - The compiled test executable
 
@@ -38,7 +38,7 @@ A Go test that:
 ### Prerequisites
 
 - Docker must be installed and running
-- Go 1.24 or later
+- Go 1.25 or later
 
 ### Run the Test
 

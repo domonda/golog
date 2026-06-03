@@ -1,4 +1,4 @@
-go 1.24.9
+go 1.25.0
 
 // Pins below are the newest tagged releases that still declare go 1.24.x in go.mod
 // (field GoVersion from: go list -m -json <path>@<ver>). Newer tags require go 1.25+.

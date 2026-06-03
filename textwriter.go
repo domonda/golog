@@ -123,8 +123,8 @@ func (w *TextWriter) CommitMessage() {
 	// Flush w.buf
 	if len(w.buf) > 0 {
 		_, err := w.config.writer.Write(append(w.buf, '\n'))
-		if err != nil && ErrorHandler != nil {
-			ErrorHandler(fmt.Errorf("golog.TextWriter error: %w", err))
+		if h := ErrorHandler(); err != nil && h != nil {
+			h(fmt.Errorf("golog.TextWriter error: %w", err))
 		}
 	}
 

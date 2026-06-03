@@ -9,7 +9,7 @@ The `logsentry` package implements the `golog.Writer` and `golog.WriterConfig` i
 ## Features
 
 - **Automatic Level Mapping**: Maps golog log levels to appropriate Sentry event levels
-- **Structured Data Capture**: Converts golog key-value pairs to Sentry event extra data
+- **Structured Data Capture**: Converts golog key-value pairs into a Sentry event `log` context (typed: time values are formatted via the golog Format, numbers/bools stay native, JSON stays structured)
 - **Stack Trace Filtering**: Automatically filters out golog internal frames from stack traces
 - **Memory Pooling**: Uses object pooling for efficient memory management
 - **Context-Aware Logging**: Supports disabling Sentry logging via context
@@ -101,7 +101,7 @@ consoleWriter := golog.NewTextWriterConfig(os.Stdout, nil, nil)
 sentryWriter := logsentry.NewWriterConfig(
     sentry.CurrentHub(),
     golog.NewDefaultFormat(),
-    golog.ErrorLevel().FilterOutBelow(), // Only send ERROR and FATAL to Sentry
+    golog.DefaultLevels.Error.FilterOutBelow(), // Only send ERROR and FATAL to Sentry
     false,
     map[string]any{"service": "my-app"},
 )
@@ -135,7 +135,8 @@ The package automatically maps golog log levels to Sentry event levels:
 
 ### Key-Value Pairs
 
-All golog key-value pairs are automatically captured as Sentry event extra data:
+All golog key-value pairs are automatically captured in a Sentry event `log` context
+(sentry-go v0.46.0 removed `Event.Extra`, so the data is attached as a named context):
 
 ```go
 logger.Error("User authentication failed").
@@ -150,16 +151,19 @@ logger.Error("User authentication failed").
 This creates a Sentry event with:
 - **Message**: "User authentication failed"
 - **Level**: ERROR
-- **Extra Data**:
+- **Context** (`log`):
   - `username`: "john_doe"
   - `ip_address`: "192.168.1.100"
   - `attempt_count`: 3
   - `account_locked`: false
   - `response_time`: 0.145
 
+> A value logged under the reserved key `type` is stored as `type_` instead, because
+> Sentry reserves `type` inside every context object to denote the context kind.
+
 ### Slice Data
 
-Slice data is captured as arrays in Sentry extra data:
+Slice data is captured as arrays in the `log` context:
 
 ```go
 logger.Info("Processing batch").
@@ -212,7 +216,7 @@ The writer respects golog's level filtering system:
 sentryWriter := logsentry.NewWriterConfig(
     sentry.CurrentHub(),
     golog.NewDefaultFormat(),
-    golog.ErrorLevel().FilterOutBelow(), // Only ERROR and FATAL
+    golog.DefaultLevels.Error.FilterOutBelow(), // Only ERROR and FATAL
     false,
     nil,
 )
@@ -228,7 +232,8 @@ func NewWriterConfig(
     format *golog.Format,      // golog message format
     filter golog.LevelFilter,   // Level filtering
     valsAsMsg bool,            // Include values in message text
-    extra map[string]any,      // Extra data for all events
+    extra map[string]any,      // Data added to the "log" context of every event
+    opts ...Option,            // Optional settings, e.g. WithErrorHandler
 ) *WriterConfig
 ```
 
@@ -237,8 +242,9 @@ func NewWriterConfig(
 - **`hub`**: The Sentry hub instance to send events to. Use `sentry.CurrentHub()` for the default hub.
 - **`format`**: golog format configuration for message formatting. Use `golog.NewDefaultFormat()` for standard formatting.
 - **`filter`**: Level filter to control which log levels are sent to Sentry. Use `golog.AllLevelsActive` to send all levels.
-- **`valsAsMsg`**: If `true`, includes key-value pairs in the message text. If `false`, only sends them as extra data.
-- **`extra`**: Additional data to include with every Sentry event (e.g., service name, version).
+- **`valsAsMsg`**: If `true`, includes key-value pairs in the message text. If `false`, only sends them in the `log` context.
+- **`extra`**: Additional data to include in the `log` context of every Sentry event (e.g., service name, version).
+- **`opts`**: Optional settings. Use `WithErrorHandler(func(error))` to route errors that occur while logging to Sentry into your normal logs (defaults to `golog.ErrorHandler()`).
 
 ### Global Configuration
 
@@ -249,6 +255,158 @@ logsentry.UnknownLevel = sentry.LevelWarning
 // Customize flush timeout
 logsentry.FlushTimeout = 5 * time.Second
 ```
+
+## How to route Sentry logging errors into your normal logs
+
+By default, problems that happen while logging to Sentry are easy to miss: writer-side
+failures go to `golog.ErrorHandler()` (stderr), and Sentry's own transport failures (HTTP 413
+"payload too large", network errors) happen asynchronously inside the Sentry SDK and never
+reach golog at all. This how-to routes both into a handler of your choice so they show up in
+your normal, non-Sentry logs.
+
+There are two independent error sources, each with its own hook:
+
+| Source | What it catches | Hook |
+|----------------------|----------------------------------------------|--------------------------------|
+| Writer side | Recovered panics while building/sending event | `WithErrorHandler` option |
+| Sentry transport | Async delivery failures (413, 5xx, network)  | `NewSentryDebugWriter` |
+
+### Prerequisites
+
+- A golog logger with a logsentry writer (see [Quick Start](#quick-start)).
+- A place to send the errors. This how-to uses stderr; in a real app use your existing
+  non-Sentry logger.
+
+### Steps
+
+1. Define one error handler and reuse it for both hooks.
+
+   ```go
+   onSentryError := func(err error) {
+       fmt.Fprintln(os.Stderr, "sentry logging error:", err)
+   }
+   ```
+
+   > **Do not** let this handler log back through the same Sentry-backed golog logger. A
+   > failed send would emit another event, whose failure produces another error, looping under
+   > backpressure. Route it to a plain sink (stderr, a file, or a console-only logger).
+
+2. Wire `NewSentryDebugWriter` into the Sentry client to capture transport failures. This
+   only works when `Debug: true` is also set (Sentry ignores `DebugWriter` otherwise).
+
+   ```go
+   err := sentry.Init(sentry.ClientOptions{
+       Dsn:         os.Getenv("SENTRY_DSN"),
+       Debug:       true,
+       DebugWriter: logsentry.NewSentryDebugWriter(onSentryError),
+   })
+   ```
+
+3. Pass `WithErrorHandler` to `NewWriterConfig` to capture writer-side errors.
+
+   ```go
+   sentryWriter := logsentry.NewWriterConfig(
+       sentry.CurrentHub(),
+       golog.NewDefaultFormat(),
+       golog.DefaultLevels.Error.FilterOutBelow(),
+       false,
+       nil,
+       logsentry.WithErrorHandler(onSentryError),
+   )
+   ```
+
+### Full example
+
+```go
+package main
+
+import (
+    "fmt"
+    "os"
+    "time"
+
+    "github.com/getsentry/sentry-go"
+    "github.com/domonda/golog"
+    "github.com/domonda/golog/logsentry"
+)
+
+func main() {
+    // One handler, reused for both error sources. Writes to stderr — never
+    // back through the Sentry-backed logger (that would loop).
+    onSentryError := func(err error) {
+        fmt.Fprintln(os.Stderr, "sentry logging error:", err)
+    }
+
+    // Debug:true + DebugWriter captures Sentry's async transport failures.
+    err := sentry.Init(sentry.ClientOptions{
+        Dsn:         os.Getenv("SENTRY_DSN"),
+        Debug:       true,
+        DebugWriter: logsentry.NewSentryDebugWriter(onSentryError),
+    })
+    if err != nil {
+        panic("sentry.Init: " + err.Error())
+    }
+    defer sentry.Flush(2 * time.Second)
+
+    // WithErrorHandler captures writer-side errors (recovered panics).
+    sentryWriter := logsentry.NewWriterConfig(
+        sentry.CurrentHub(),
+        golog.NewDefaultFormat(),
+        golog.DefaultLevels.Error.FilterOutBelow(),
+        false,
+        nil,
+        logsentry.WithErrorHandler(onSentryError),
+    )
+
+    logger := golog.NewLogger(golog.NewConfig(
+        &golog.DefaultLevels,
+        golog.AllLevelsActive,
+        sentryWriter,
+    ))
+
+    logger.Error("something broke").Log()
+}
+```
+
+### Setting a default handler instead
+
+If you do not pass `WithErrorHandler`, writer-side errors go to `golog.ErrorHandler()`, which
+prints to stderr by default. Set a process-wide handler once at startup with
+`golog.SetErrorHandler`:
+
+```go
+golog.SetErrorHandler(func(err error) {
+    consoleLogger.Error("logging error").Err(err).Log()
+})
+```
+
+`golog.SetErrorHandler(nil)` is valid and disables handling. Pass that same handler to
+`NewSentryDebugWriter` to cover the transport side too.
+
+### Verification
+
+Point the DSN at an unreachable host and log an error:
+
+```bash
+SENTRY_DSN="https://public@10.255.255.1/1" go run .
+```
+
+After the `sentry.Flush` on shutdown, the Sentry SDK fails to deliver the event and your
+handler prints a line such as:
+
+```
+sentry logging error: sentry: error sending envelope: ...
+```
+
+### Troubleshooting
+
+- **Nothing from the transport side.** You set `DebugWriter` but not `Debug: true` — Sentry
+  ignores the writer without it.
+- **Errors appear twice, or output explodes.** Your handler logs back through the
+  Sentry-backed logger. Route it to a plain sink.
+- **You expected a line for a dropped event but saw none.** `NewSentryDebugWriter` forwards
+  only genuine delivery failures. Intentional drops (sampling via `SampleRate`, `BeforeSend`
+  filtering) and routine debug output are ignored on purpose.
 
 ## Runtime Behavior
 
@@ -266,9 +424,13 @@ logsentry.FlushTimeout = 5 * time.Second
 
 ### Error Handling
 
-- **Silent Failures**: If Sentry is unavailable, logging continues without errors
 - **Graceful Degradation**: Application continues running even if Sentry integration fails
 - **No Panics**: The package is designed to never panic during normal operation
+- **Surfaceable Errors**: By default errors are sent to `golog.ErrorHandler()` (stderr). Pass
+  `WithErrorHandler` to `NewWriterConfig` to route writer errors into your normal logs, and
+  assign `NewSentryDebugWriter(handler)` to `sentry.ClientOptions.DebugWriter` (with
+  `Debug: true`) to capture Sentry's asynchronous transport failures (HTTP 413, network errors)
+  that otherwise never reach golog.
 
 ## Limitations
 
@@ -360,7 +522,7 @@ func main() {
     sentryWriter := logsentry.NewWriterConfig(
         sentry.CurrentHub(),
         golog.NewDefaultFormat(),
-        golog.ErrorLevel().FilterOutBelow(), // Only errors and above
+        golog.DefaultLevels.Error.FilterOutBelow(), // Only errors and above
         false,
         map[string]any{
             "service": "web-api",
@@ -432,7 +594,7 @@ func NewService() *Service {
     sentryWriter := logsentry.NewWriterConfig(
         sentry.CurrentHub(),
         golog.NewDefaultFormat(),
-        golog.WarnLevel().FilterOutBelow(), // Warnings and above
+        golog.DefaultLevels.Warn.FilterOutBelow(), // Warnings and above
         false,
         map[string]any{
             "service": "user-service",

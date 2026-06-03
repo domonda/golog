@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"maps"
 	"runtime/debug"
 	"strings"
 	"sync"
@@ -34,13 +33,15 @@ var (
 //   - Which log levels are sent to Sentry (via filter)
 //   - Whether values appear in message text (via valsAsMsg)
 //   - Additional metadata included with every event (via extra)
+//   - Where errors that occur while logging to Sentry are reported
+//     (via [WithErrorHandler]; defaults to [golog.ErrorHandler])
 //
 // Example usage:
 //
 //	config := logsentry.NewWriterConfig(
 //	    sentry.CurrentHub(),
 //	    golog.NewDefaultFormat(),
-//	    golog.ErrorLevel().FilterOutBelow(),
+//	    golog.DefaultLevels.Error.FilterOutBelow(),
 //	    false,
 //	    map[string]any{"service": "my-app"},
 //	)
@@ -50,25 +51,37 @@ type WriterConfig struct {
 	filter     golog.LevelFilter
 	valsAsMsg  bool
 	extra      map[string]any
+	onError    func(error)
 	writerPool sync.Pool
 }
 
 // NewWriterConfig returns a new WriterConfig for a sentry.Hub.
 // Any values passed as extra will be added to every log messsage.
-func NewWriterConfig(hub *sentry.Hub, format *golog.Format, filter golog.LevelFilter, valsAsMsg bool, extra map[string]any) *WriterConfig {
+//
+// Errors that occur while writing to Sentry (recovered panics in the writer)
+// are reported to the handler set via [WithErrorHandler], or to
+// [golog.ErrorHandler] when no option is given. To also route Sentry's own
+// asynchronous transport errors (e.g. HTTP 413, network failures) into the
+// same handler, pass [NewSentryDebugWriter] as sentry.ClientOptions.DebugWriter
+// (with Debug: true) when constructing the client.
+func NewWriterConfig(hub *sentry.Hub, format *golog.Format, filter golog.LevelFilter, valsAsMsg bool, extra map[string]any, opts ...Option) *WriterConfig {
 	if hub == nil {
 		panic("logsentry.NewWriterConfig: hub must not be nil")
 	}
 	if format == nil {
 		panic("logsentry.NewWriterConfig: format must not be nil")
 	}
-	return &WriterConfig{
+	c := &WriterConfig{
 		hub:       hub,
 		format:    format,
 		filter:    filter,
 		valsAsMsg: valsAsMsg,
 		extra:     extra,
 	}
+	for _, opt := range opts {
+		opt(c)
+	}
+	return c
 }
 
 func (c *WriterConfig) WriterForNewMessage(ctx context.Context, level golog.Level) golog.Writer {
@@ -84,7 +97,7 @@ func (c *WriterConfig) WriterForNewMessage(ctx context.Context, level golog.Leve
 func (c *WriterConfig) FlushUnderlying() {
 	defer func() {
 		if r := recover(); r != nil {
-			golog.ErrorHandler(fmt.Errorf("logsentry.WriterConfig.FlushUnderlying recovered panic: %v\n%s", r, debug.Stack()))
+			c.handleError(fmt.Errorf("logsentry.WriterConfig.FlushUnderlying recovered panic: %v\n%s", r, debug.Stack()))
 		}
 	}()
 
@@ -102,18 +115,22 @@ func (c *WriterConfig) FlushUnderlying() {
 // accumulates:
 //   - Message text and timestamp
 //   - Sentry level (mapped from golog level)
-//   - Key-value pairs as Sentry event extra data
+//   - Key-value pairs as a Sentry event "log" context
 //   - Optional stack trace information
 //
 // The Writer automatically maps golog levels to Sentry levels:
 //
 //	TRACE/DEBUG -> DEBUG, INFO -> INFO, WARN -> WARNING, ERROR -> ERROR, FATAL -> FATAL
 //
+// Sentry reserves the key "type" inside every context object to denote the
+// context type, so a value logged under the key "type" is remapped to "type_"
+// to keep it visible as data (see [copyContextValues]).
+//
 // Example usage through golog:
 //
 //	logger.Error("Database error").Str("query", sql).Err(err).Log()
 //	// Creates Sentry event with level=ERROR, message="Database error",
-//	// and extra data: {"query": sql, "error": err.Error()}
+//	// and a "log" context: {"query": sql, "error": err.Error()}
 type Writer struct {
 	config    *WriterConfig
 	timestamp time.Time
@@ -160,7 +177,8 @@ func (w *Writer) BeginMessage(config golog.Config, timestamp time.Time, level go
 //   - The accumulated message text
 //   - The mapped Sentry level
 //   - The original timestamp
-//   - All key-value pairs as extra data (from both config.extra and values)
+//   - All key-value pairs as a "log" context (from both config.extra and
+//     values), with the Sentry-reserved "type" key remapped to "type_"
 //   - Optional stack trace (if enabled in Sentry options)
 //   - A fingerprint based on the message for grouping
 //
@@ -169,7 +187,7 @@ func (w *Writer) BeginMessage(config golog.Config, timestamp time.Time, level go
 func (w *Writer) CommitMessage() {
 	defer func() {
 		if r := recover(); r != nil {
-			golog.ErrorHandler(fmt.Errorf("logsentry.Writer.CommitMessage recovered panic: %v\n%s", r, debug.Stack()))
+			w.config.handleError(fmt.Errorf("logsentry.Writer.CommitMessage recovered panic: %v\n%s", r, debug.Stack()))
 		}
 
 		// Reset and return to pool
@@ -189,8 +207,17 @@ func (w *Writer) CommitMessage() {
 		event.Level = w.level
 		event.Message = w.message.String()
 		event.Fingerprint = []string{event.Message}
-		maps.Copy(event.Extra, w.config.extra)
-		maps.Copy(event.Extra, w.values)
+		// sentry-go v0.46.0 removed Event.Extra; attach the key-value pairs
+		// as a named context instead (sentry.Context is map[string]any).
+		// logCtx is a fresh map, independent of w.values, so returning
+		// w.values to valueMapPool in the deferred cleanup cannot mutate the
+		// captured event. CaptureEvent serializes the event synchronously.
+		logCtx := make(sentry.Context, len(w.config.extra)+len(w.values))
+		copyContextValues(logCtx, w.config.extra)
+		copyContextValues(logCtx, w.values)
+		if len(logCtx) > 0 {
+			event.Contexts["log"] = logCtx
+		}
 		if client := w.config.hub.Client(); client != nil && client.Options().AttachStacktrace {
 			stackTrace := sentry.NewStacktrace()
 			stackTrace.Frames = filterFrames(stackTrace.Frames)
@@ -200,6 +227,35 @@ func (w *Writer) CommitMessage() {
 			}}
 		}
 		w.config.hub.CaptureEvent(event)
+	}
+}
+
+const (
+	// reservedContextKey is the key Sentry reserves inside every context
+	// object to identify the context's type. Within our "log" context it
+	// defaults to "log" when absent; a value logged under this key would be
+	// consumed as the context type instead of being shown as data.
+	// See https://develop.sentry.dev/sdk/data-model/event-payloads/contexts/.
+	reservedContextKey = "type"
+
+	// remappedContextKey is where a logged "type" value is stored instead, so
+	// it survives as ordinary context data. The Event.Extra map removed in
+	// sentry-go v0.46.0 had no reserved keys, so this collision is unique to
+	// the context-based encoding.
+	remappedContextKey = "type_"
+)
+
+// copyContextValues copies src into dst, remapping the Sentry-reserved
+// [reservedContextKey] ("type") to [remappedContextKey] ("type_") so a golog
+// value logged under "type" is preserved as data rather than swallowed by
+// Sentry as the context type. In the unlikely case a caller logs both "type"
+// and "type_", they collide under "type_" with last-writer-wins.
+func copyContextValues(dst, src map[string]any) {
+	for k, v := range src {
+		if k == reservedContextKey {
+			k = remappedContextKey
+		}
+		dst[k] = v
 	}
 }
 
@@ -278,7 +334,17 @@ func (w *Writer) WriteError(val error) {
 }
 
 func (w *Writer) WriteTime(val time.Time) {
-	w.writeVal(val)
+	// Format the time using the configured Format (matching JSONWriter and
+	// TextWriter) so structured time values honor Format.TimeFormat and
+	// Format.Location instead of sentry's default time.Time JSON marshaling.
+	format := w.config.format.TimeFormat
+	if format == "" {
+		format = golog.DefaultTimeFormat
+	}
+	if w.config.format.Location != nil {
+		val = val.In(w.config.format.Location)
+	}
+	w.writeVal(val.Format(format))
 }
 
 func (w *Writer) WriteUUID(val [16]byte) {
