@@ -102,7 +102,7 @@ func (c *WriterConfig) FlushUnderlying() {
 // accumulates:
 //   - Message text and timestamp
 //   - Sentry level (mapped from golog level)
-//   - Key-value pairs as Sentry event extra data
+//   - Key-value pairs as a Sentry event "log" context
 //   - Optional stack trace information
 //
 // The Writer automatically maps golog levels to Sentry levels:
@@ -113,7 +113,7 @@ func (c *WriterConfig) FlushUnderlying() {
 //
 //	logger.Error("Database error").Str("query", sql).Err(err).Log()
 //	// Creates Sentry event with level=ERROR, message="Database error",
-//	// and extra data: {"query": sql, "error": err.Error()}
+//	// and a "log" context: {"query": sql, "error": err.Error()}
 type Writer struct {
 	config    *WriterConfig
 	timestamp time.Time
@@ -160,7 +160,7 @@ func (w *Writer) BeginMessage(config golog.Config, timestamp time.Time, level go
 //   - The accumulated message text
 //   - The mapped Sentry level
 //   - The original timestamp
-//   - All key-value pairs as extra data (from both config.extra and values)
+//   - All key-value pairs as a "log" context (from both config.extra and values)
 //   - Optional stack trace (if enabled in Sentry options)
 //   - A fingerprint based on the message for grouping
 //
@@ -189,8 +189,14 @@ func (w *Writer) CommitMessage() {
 		event.Level = w.level
 		event.Message = w.message.String()
 		event.Fingerprint = []string{event.Message}
-		maps.Copy(event.Extra, w.config.extra)
-		maps.Copy(event.Extra, w.values)
+		// sentry-go v0.46.0 removed Event.Extra; attach the key-value pairs
+		// as a named context instead (sentry.Context is map[string]any).
+		logCtx := make(sentry.Context, len(w.config.extra)+len(w.values))
+		maps.Copy(logCtx, w.config.extra)
+		maps.Copy(logCtx, w.values)
+		if len(logCtx) > 0 {
+			event.Contexts["log"] = logCtx
+		}
 		if client := w.config.hub.Client(); client != nil && client.Options().AttachStacktrace {
 			stackTrace := sentry.NewStacktrace()
 			stackTrace.Frames = filterFrames(stackTrace.Frames)
@@ -278,7 +284,17 @@ func (w *Writer) WriteError(val error) {
 }
 
 func (w *Writer) WriteTime(val time.Time) {
-	w.writeVal(val)
+	// Format the time using the configured Format (matching JSONWriter and
+	// TextWriter) so structured time values honor Format.TimeFormat and
+	// Format.Location instead of sentry's default time.Time JSON marshaling.
+	format := w.config.format.TimeFormat
+	if format == "" {
+		format = golog.DefaultTimeFormat
+	}
+	if w.config.format.Location != nil {
+		val = val.In(w.config.format.Location)
+	}
+	w.writeVal(val.Format(format))
 }
 
 func (w *Writer) WriteUUID(val [16]byte) {
