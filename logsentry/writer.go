@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"maps"
 	"runtime/debug"
 	"strings"
 	"sync"
@@ -109,6 +108,10 @@ func (c *WriterConfig) FlushUnderlying() {
 //
 //	TRACE/DEBUG -> DEBUG, INFO -> INFO, WARN -> WARNING, ERROR -> ERROR, FATAL -> FATAL
 //
+// Sentry reserves the key "type" inside every context object to denote the
+// context type, so a value logged under the key "type" is remapped to "type_"
+// to keep it visible as data (see [copyContextValues]).
+//
 // Example usage through golog:
 //
 //	logger.Error("Database error").Str("query", sql).Err(err).Log()
@@ -160,7 +163,8 @@ func (w *Writer) BeginMessage(config golog.Config, timestamp time.Time, level go
 //   - The accumulated message text
 //   - The mapped Sentry level
 //   - The original timestamp
-//   - All key-value pairs as a "log" context (from both config.extra and values)
+//   - All key-value pairs as a "log" context (from both config.extra and
+//     values), with the Sentry-reserved "type" key remapped to "type_"
 //   - Optional stack trace (if enabled in Sentry options)
 //   - A fingerprint based on the message for grouping
 //
@@ -192,8 +196,8 @@ func (w *Writer) CommitMessage() {
 		// sentry-go v0.46.0 removed Event.Extra; attach the key-value pairs
 		// as a named context instead (sentry.Context is map[string]any).
 		logCtx := make(sentry.Context, len(w.config.extra)+len(w.values))
-		maps.Copy(logCtx, w.config.extra)
-		maps.Copy(logCtx, w.values)
+		copyContextValues(logCtx, w.config.extra)
+		copyContextValues(logCtx, w.values)
 		if len(logCtx) > 0 {
 			event.Contexts["log"] = logCtx
 		}
@@ -206,6 +210,34 @@ func (w *Writer) CommitMessage() {
 			}}
 		}
 		w.config.hub.CaptureEvent(event)
+	}
+}
+
+const (
+	// reservedContextKey is the key Sentry reserves inside every context
+	// object to identify the context's type. Within our "log" context it
+	// defaults to "log" when absent; a value logged under this key would be
+	// consumed as the context type instead of being shown as data.
+	// See https://develop.sentry.dev/sdk/data-model/event-payloads/contexts/.
+	reservedContextKey = "type"
+
+	// remappedContextKey is where a logged "type" value is stored instead, so
+	// it survives as ordinary context data. The Event.Extra map removed in
+	// sentry-go v0.46.0 had no reserved keys, so this collision is unique to
+	// the context-based encoding.
+	remappedContextKey = "type_"
+)
+
+// copyContextValues copies src into dst, remapping the Sentry-reserved
+// [reservedContextKey] ("type") to [remappedContextKey] ("type_") so a golog
+// value logged under "type" is preserved as data rather than swallowed by
+// Sentry as the context type.
+func copyContextValues(dst, src map[string]any) {
+	for k, v := range src {
+		if k == reservedContextKey {
+			k = remappedContextKey
+		}
+		dst[k] = v
 	}
 }
 

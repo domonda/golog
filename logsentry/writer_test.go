@@ -108,6 +108,34 @@ func TestWriterContextValues(t *testing.T) {
 	}
 }
 
+// TestWriterReservedTypeKey verifies that a value logged under the Sentry-
+// reserved "type" key is remapped to "type_" so it survives as context data,
+// for both per-message values and config-level extra.
+func TestWriterReservedTypeKey(t *testing.T) {
+	transport := &captureTransport{}
+	hub := newTestHub(t, transport)
+
+	config := NewWriterConfig(hub, golog.NewDefaultFormat(), golog.AllLevelsActive, false,
+		map[string]any{"type": "from-extra"})
+	logger := golog.NewLogger(golog.NewConfig(&golog.DefaultLevels, golog.AllLevelsActive, config))
+
+	logger.Error("boom").Str("type", "invoice").Log()
+	hub.Flush(time.Second)
+
+	if len(transport.events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(transport.events))
+	}
+	logCtx := transport.events[0].Contexts["log"]
+
+	if _, present := logCtx["type"]; present {
+		t.Errorf(`log["type"] should be absent (reserved); got %#v`, logCtx["type"])
+	}
+	// Per-message value wins over config extra under the remapped key.
+	if got := logCtx["type_"]; got != "invoice" {
+		t.Errorf(`log["type_"] = %#v, want %q`, got, "invoice")
+	}
+}
+
 // TestWriterTimeDefaultFormat verifies time formatting falls back to
 // golog.DefaultTimeFormat when Format.TimeFormat is empty, in the time's
 // original location when Format.Location is nil.
