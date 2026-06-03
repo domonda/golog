@@ -203,14 +203,25 @@ func TestWithErrorHandler(t *testing.T) {
 		t.Errorf("configured handler got %v, want %v", captured, want)
 	}
 
-	// Without WithErrorHandler, reportError defers to golog.ErrorHandler.
-	prev := golog.ErrorHandler
-	defer func() { golog.ErrorHandler = prev }()
+	// Without WithErrorHandler, reportError defers to golog.ErrorHandler().
+	prev := golog.ErrorHandler()
+	defer golog.SetErrorHandler(prev)
 	var fallback error
-	golog.ErrorHandler = func(err error) { fallback = err }
+	golog.SetErrorHandler(func(err error) { fallback = err })
 	reportError(nil, want)
 	if fallback != want {
 		t.Errorf("fallback handler got %v, want %v", fallback, want)
+	}
+
+	// SetErrorHandler(nil) is valid and disables handling; ErrorHandlerOr
+	// returns the fallback in that case.
+	golog.SetErrorHandler(nil)
+	if golog.ErrorHandler() != nil {
+		t.Error("ErrorHandler() should be nil after SetErrorHandler(nil)")
+	}
+	sentinel := func(error) {}
+	if got := golog.ErrorHandlerOr(sentinel); got == nil {
+		t.Error("ErrorHandlerOr should return fallback when handler is nil")
 	}
 }
 

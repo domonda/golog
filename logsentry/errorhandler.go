@@ -33,13 +33,14 @@ func (c *WriterConfig) handleError(err error) {
 
 // reportError sends err to onError, or to the current [golog.ErrorHandler]
 // when onError is nil. Resolving golog.ErrorHandler at call time (rather than
-// capturing it) honors any later reassignment of [golog.ErrorHandler].
+// capturing it) honors any later [golog.SetErrorHandler] change. Either
+// handler may be nil, in which case the error is dropped.
 func reportError(onError func(error), err error) {
-	switch {
-	case onError != nil:
+	if onError == nil {
+		onError = golog.ErrorHandler()
+	}
+	if onError != nil {
 		onError(err)
-	case golog.ErrorHandler != nil:
-		golog.ErrorHandler(err)
 	}
 }
 
