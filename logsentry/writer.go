@@ -33,6 +33,8 @@ var (
 //   - Which log levels are sent to Sentry (via filter)
 //   - Whether values appear in message text (via valsAsMsg)
 //   - Additional metadata included with every event (via extra)
+//   - Where errors that occur while logging to Sentry are reported
+//     (via [WithErrorHandler]; defaults to [golog.ErrorHandler])
 //
 // Example usage:
 //
@@ -49,25 +51,37 @@ type WriterConfig struct {
 	filter     golog.LevelFilter
 	valsAsMsg  bool
 	extra      map[string]any
+	onError    func(error)
 	writerPool sync.Pool
 }
 
 // NewWriterConfig returns a new WriterConfig for a sentry.Hub.
 // Any values passed as extra will be added to every log messsage.
-func NewWriterConfig(hub *sentry.Hub, format *golog.Format, filter golog.LevelFilter, valsAsMsg bool, extra map[string]any) *WriterConfig {
+//
+// Errors that occur while writing to Sentry (recovered panics in the writer)
+// are reported to the handler set via [WithErrorHandler], or to
+// [golog.ErrorHandler] when no option is given. To also route Sentry's own
+// asynchronous transport errors (e.g. HTTP 413, network failures) into the
+// same handler, pass [NewSentryDebugWriter] as sentry.ClientOptions.DebugWriter
+// (with Debug: true) when constructing the client.
+func NewWriterConfig(hub *sentry.Hub, format *golog.Format, filter golog.LevelFilter, valsAsMsg bool, extra map[string]any, opts ...Option) *WriterConfig {
 	if hub == nil {
 		panic("logsentry.NewWriterConfig: hub must not be nil")
 	}
 	if format == nil {
 		panic("logsentry.NewWriterConfig: format must not be nil")
 	}
-	return &WriterConfig{
+	c := &WriterConfig{
 		hub:       hub,
 		format:    format,
 		filter:    filter,
 		valsAsMsg: valsAsMsg,
 		extra:     extra,
 	}
+	for _, opt := range opts {
+		opt(c)
+	}
+	return c
 }
 
 func (c *WriterConfig) WriterForNewMessage(ctx context.Context, level golog.Level) golog.Writer {
@@ -83,7 +97,7 @@ func (c *WriterConfig) WriterForNewMessage(ctx context.Context, level golog.Leve
 func (c *WriterConfig) FlushUnderlying() {
 	defer func() {
 		if r := recover(); r != nil {
-			golog.ErrorHandler(fmt.Errorf("logsentry.WriterConfig.FlushUnderlying recovered panic: %v\n%s", r, debug.Stack()))
+			c.handleError(fmt.Errorf("logsentry.WriterConfig.FlushUnderlying recovered panic: %v\n%s", r, debug.Stack()))
 		}
 	}()
 
@@ -173,7 +187,7 @@ func (w *Writer) BeginMessage(config golog.Config, timestamp time.Time, level go
 func (w *Writer) CommitMessage() {
 	defer func() {
 		if r := recover(); r != nil {
-			golog.ErrorHandler(fmt.Errorf("logsentry.Writer.CommitMessage recovered panic: %v\n%s", r, debug.Stack()))
+			w.config.handleError(fmt.Errorf("logsentry.Writer.CommitMessage recovered panic: %v\n%s", r, debug.Stack()))
 		}
 
 		// Reset and return to pool

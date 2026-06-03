@@ -3,7 +3,10 @@ package logsentry
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"io"
 	"math"
+	"strings"
 	"testing"
 	"time"
 
@@ -133,6 +136,68 @@ func TestWriterReservedTypeKey(t *testing.T) {
 	// Per-message value wins over config extra under the remapped key.
 	if got := logCtx["type_"]; got != "invoice" {
 		t.Errorf(`log["type_"] = %#v, want %q`, got, "invoice")
+	}
+}
+
+// TestSentryDebugWriter verifies the DebugWriter adapter forwards Sentry's
+// delivery-error debug lines to the handler and ignores routine output.
+func TestSentryDebugWriter(t *testing.T) {
+	var got []string
+	w := NewSentryDebugWriter(func(err error) { got = append(got, err.Error()) })
+
+	lines := []string{
+		"Sending event-1 to sentry.io project: 42",                         // routine -> ignored
+		"Sending event-2 failed because the request was too large: <body>", // 413 -> forwarded
+		"There was an issue with sending an event: connection refused",     // network -> forwarded
+		"Event dropped due to transport buffer being full. event-3",        // drop -> forwarded
+		"Too many requests for \"error\", backing off till: 2026-06-03",    // 429 -> forwarded
+		"Unexpected status code 418 for event event-4",                     // unexpected -> forwarded
+	}
+	for _, l := range lines {
+		if _, err := io.WriteString(w, l+"\n"); err != nil {
+			t.Fatalf("Write: %v", err)
+		}
+	}
+
+	if len(got) != 5 {
+		t.Fatalf("expected 5 forwarded errors, got %d: %v", len(got), got)
+	}
+	for _, e := range got {
+		if !strings.HasPrefix(e, "sentry: ") {
+			t.Errorf("forwarded error missing prefix: %q", e)
+		}
+	}
+	for _, e := range got {
+		if strings.Contains(e, "project: 42") {
+			t.Errorf("routine line should not be forwarded: %q", e)
+		}
+	}
+}
+
+// TestWithErrorHandler verifies the per-config handler receives writer errors,
+// and that reportError falls back to golog.ErrorHandler when unset.
+func TestWithErrorHandler(t *testing.T) {
+	transport := &captureTransport{}
+	hub := newTestHub(t, transport)
+
+	var captured error
+	config := NewWriterConfig(hub, golog.NewDefaultFormat(), golog.AllLevelsActive, false, nil,
+		WithErrorHandler(func(err error) { captured = err }))
+
+	want := errors.New("boom")
+	config.handleError(want)
+	if captured != want {
+		t.Errorf("configured handler got %v, want %v", captured, want)
+	}
+
+	// Without WithErrorHandler, reportError defers to golog.ErrorHandler.
+	prev := golog.ErrorHandler
+	defer func() { golog.ErrorHandler = prev }()
+	var fallback error
+	golog.ErrorHandler = func(err error) { fallback = err }
+	reportError(nil, want)
+	if fallback != want {
+		t.Errorf("fallback handler got %v, want %v", fallback, want)
 	}
 }
 
