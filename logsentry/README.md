@@ -244,7 +244,7 @@ func NewWriterConfig(
 - **`filter`**: Level filter to control which log levels are sent to Sentry. Use `golog.AllLevelsActive` to send all levels.
 - **`valsAsMsg`**: If `true`, includes key-value pairs in the message text. If `false`, only sends them in the `log` context.
 - **`extra`**: Additional data to include in the `log` context of every Sentry event (e.g., service name, version).
-- **`opts`**: Optional settings. Use `WithErrorHandler(func(error))` to route errors that occur while logging to Sentry into your normal logs (defaults to `golog.ErrorHandler`).
+- **`opts`**: Optional settings. Use `WithErrorHandler(func(error))` to route errors that occur while logging to Sentry into your normal logs (defaults to `golog.ErrorHandler()`).
 
 ### Global Configuration
 
@@ -259,7 +259,7 @@ logsentry.FlushTimeout = 5 * time.Second
 ## How to route Sentry logging errors into your normal logs
 
 By default, problems that happen while logging to Sentry are easy to miss: writer-side
-failures go to `golog.ErrorHandler` (stderr), and Sentry's own transport failures (HTTP 413
+failures go to `golog.ErrorHandler()` (stderr), and Sentry's own transport failures (HTTP 413
 "payload too large", network errors) happen asynchronously inside the Sentry SDK and never
 reach golog at all. This how-to routes both into a handler of your choice so they show up in
 your normal, non-Sentry logs.
@@ -370,7 +370,7 @@ func main() {
 
 ### Setting a default handler instead
 
-If you do not pass `WithErrorHandler`, writer-side errors go to `golog.ErrorHandler`, which
+If you do not pass `WithErrorHandler`, writer-side errors go to `golog.ErrorHandler()`, which
 prints to stderr by default. Set a process-wide handler once at startup with
 `golog.SetErrorHandler`:
 
@@ -426,7 +426,7 @@ sentry logging error: sentry: error sending envelope: ...
 
 - **Graceful Degradation**: Application continues running even if Sentry integration fails
 - **No Panics**: The package is designed to never panic during normal operation
-- **Surfaceable Errors**: By default errors are sent to `golog.ErrorHandler` (stderr). Pass
+- **Surfaceable Errors**: By default errors are sent to `golog.ErrorHandler()` (stderr). Pass
   `WithErrorHandler` to `NewWriterConfig` to route writer errors into your normal logs, and
   assign `NewSentryDebugWriter(handler)` to `sentry.ClientOptions.DebugWriter` (with
   `Debug: true`) to capture Sentry's asynchronous transport failures (HTTP 413, network errors)

@@ -41,7 +41,7 @@ var (
 //	config := logsentry.NewWriterConfig(
 //	    sentry.CurrentHub(),
 //	    golog.NewDefaultFormat(),
-//	    golog.ErrorLevel().FilterOutBelow(),
+//	    golog.DefaultLevels.Error.FilterOutBelow(),
 //	    false,
 //	    map[string]any{"service": "my-app"},
 //	)
