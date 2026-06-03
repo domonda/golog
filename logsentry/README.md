@@ -9,7 +9,7 @@ The `logsentry` package implements the `golog.Writer` and `golog.WriterConfig` i
 ## Features
 
 - **Automatic Level Mapping**: Maps golog log levels to appropriate Sentry event levels
-- **Structured Data Capture**: Converts golog key-value pairs to Sentry event extra data
+- **Structured Data Capture**: Converts golog key-value pairs into a Sentry event `log` context (typed: time values are formatted via the golog Format, numbers/bools stay native, JSON stays structured)
 - **Stack Trace Filtering**: Automatically filters out golog internal frames from stack traces
 - **Memory Pooling**: Uses object pooling for efficient memory management
 - **Context-Aware Logging**: Supports disabling Sentry logging via context
@@ -135,7 +135,8 @@ The package automatically maps golog log levels to Sentry event levels:
 
 ### Key-Value Pairs
 
-All golog key-value pairs are automatically captured as Sentry event extra data:
+All golog key-value pairs are automatically captured in a Sentry event `log` context
+(sentry-go v0.46.0 removed `Event.Extra`, so the data is attached as a named context):
 
 ```go
 logger.Error("User authentication failed").
@@ -150,16 +151,19 @@ logger.Error("User authentication failed").
 This creates a Sentry event with:
 - **Message**: "User authentication failed"
 - **Level**: ERROR
-- **Extra Data**:
+- **Context** (`log`):
   - `username`: "john_doe"
   - `ip_address`: "192.168.1.100"
   - `attempt_count`: 3
   - `account_locked`: false
   - `response_time`: 0.145
 
+> A value logged under the reserved key `type` is stored as `type_` instead, because
+> Sentry reserves `type` inside every context object to denote the context kind.
+
 ### Slice Data
 
-Slice data is captured as arrays in Sentry extra data:
+Slice data is captured as arrays in the `log` context:
 
 ```go
 logger.Info("Processing batch").
@@ -228,7 +232,8 @@ func NewWriterConfig(
     format *golog.Format,      // golog message format
     filter golog.LevelFilter,   // Level filtering
     valsAsMsg bool,            // Include values in message text
-    extra map[string]any,      // Extra data for all events
+    extra map[string]any,      // Data added to the "log" context of every event
+    opts ...Option,            // Optional settings, e.g. WithErrorHandler
 ) *WriterConfig
 ```
 
@@ -237,8 +242,9 @@ func NewWriterConfig(
 - **`hub`**: The Sentry hub instance to send events to. Use `sentry.CurrentHub()` for the default hub.
 - **`format`**: golog format configuration for message formatting. Use `golog.NewDefaultFormat()` for standard formatting.
 - **`filter`**: Level filter to control which log levels are sent to Sentry. Use `golog.AllLevelsActive` to send all levels.
-- **`valsAsMsg`**: If `true`, includes key-value pairs in the message text. If `false`, only sends them as extra data.
-- **`extra`**: Additional data to include with every Sentry event (e.g., service name, version).
+- **`valsAsMsg`**: If `true`, includes key-value pairs in the message text. If `false`, only sends them in the `log` context.
+- **`extra`**: Additional data to include in the `log` context of every Sentry event (e.g., service name, version).
+- **`opts`**: Optional settings. Use `WithErrorHandler(func(error))` to route errors that occur while logging to Sentry into your normal logs (defaults to `golog.ErrorHandler`).
 
 ### Global Configuration
 
@@ -266,9 +272,13 @@ logsentry.FlushTimeout = 5 * time.Second
 
 ### Error Handling
 
-- **Silent Failures**: If Sentry is unavailable, logging continues without errors
 - **Graceful Degradation**: Application continues running even if Sentry integration fails
 - **No Panics**: The package is designed to never panic during normal operation
+- **Surfaceable Errors**: By default errors are sent to `golog.ErrorHandler` (stderr). Pass
+  `WithErrorHandler` to `NewWriterConfig` to route writer errors into your normal logs, and
+  assign `NewSentryDebugWriter(handler)` to `sentry.ClientOptions.DebugWriter` (with
+  `Debug: true`) to capture Sentry's asynchronous transport failures (HTTP 413, network errors)
+  that otherwise never reach golog.
 
 ## Limitations
 
