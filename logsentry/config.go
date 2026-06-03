@@ -22,12 +22,12 @@ var (
 	// to ensure pending events are sent to Sentry before termination.
 	// Defaults to 3 seconds, which should be sufficient for most network conditions.
 	FlushTimeout time.Duration = 3 * time.Second
-
-	// withoutLoggingCtxKey is used as a context key to mark contexts that should
-	// not send log messages to Sentry. This allows selective disabling of Sentry
-	// logging for specific request contexts or operations.
-	withoutLoggingCtxKey int
 )
+
+// withoutLoggingCtxKey is used as a context key to mark contexts that should
+// not send log messages to Sentry. This allows selective disabling of Sentry
+// logging for specific request contexts or operations.
+type withoutLoggingCtxKey struct{}
 
 // ContextWithoutLogging returns a new context derived from parent that disables
 // Sentry logging for all log levels. When a logger uses this context, no log
@@ -49,7 +49,7 @@ func ContextWithoutLogging(parent context.Context) context.Context {
 	if IsContextWithoutLogging(parent) {
 		return parent
 	}
-	return context.WithValue(parent, &withoutLoggingCtxKey, struct{}{})
+	return context.WithValue(parent, withoutLoggingCtxKey{}, struct{}{})
 }
 
 // IsContextWithoutLogging checks whether the given context has Sentry logging
@@ -68,5 +68,5 @@ func ContextWithoutLogging(parent context.Context) context.Context {
 //	    // Sentry logging is disabled for this context
 //	}
 func IsContextWithoutLogging(ctx context.Context) bool {
-	return ctx != nil && ctx.Value(&withoutLoggingCtxKey) != nil
+	return ctx != nil && ctx.Value(withoutLoggingCtxKey{}) != nil
 }
