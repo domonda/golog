@@ -209,6 +209,9 @@ func (w *Writer) CommitMessage() {
 		event.Fingerprint = []string{event.Message}
 		// sentry-go v0.46.0 removed Event.Extra; attach the key-value pairs
 		// as a named context instead (sentry.Context is map[string]any).
+		// logCtx is a fresh map, independent of w.values, so returning
+		// w.values to valueMapPool in the deferred cleanup cannot mutate the
+		// captured event. CaptureEvent serializes the event synchronously.
 		logCtx := make(sentry.Context, len(w.config.extra)+len(w.values))
 		copyContextValues(logCtx, w.config.extra)
 		copyContextValues(logCtx, w.values)
@@ -245,7 +248,8 @@ const (
 // copyContextValues copies src into dst, remapping the Sentry-reserved
 // [reservedContextKey] ("type") to [remappedContextKey] ("type_") so a golog
 // value logged under "type" is preserved as data rather than swallowed by
-// Sentry as the context type.
+// Sentry as the context type. In the unlikely case a caller logs both "type"
+// and "type_", they collide under "type_" with last-writer-wins.
 func copyContextValues(dst, src map[string]any) {
 	for k, v := range src {
 		if k == reservedContextKey {

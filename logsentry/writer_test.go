@@ -139,37 +139,50 @@ func TestWriterReservedTypeKey(t *testing.T) {
 	}
 }
 
-// TestSentryDebugWriter verifies the DebugWriter adapter forwards Sentry's
-// delivery-error debug lines to the handler and ignores routine output.
+// TestSentryDebugWriter verifies the DebugWriter adapter forwards genuine
+// delivery failures (including the default async path's "error sending
+// envelope") while ignoring routine output and intentional drops (sampling,
+// BeforeSend). Lines are verbatim from sentry-go v0.46.2 debuglog calls.
 func TestSentryDebugWriter(t *testing.T) {
+	cases := []struct {
+		line    string
+		forward bool
+	}{
+		{"Sending event-1 to sentry.io project: 42", false},                     // routine
+		{"Event dropped due to SampleRate hit.", false},                         // intentional sampling
+		{"Event dropped due to BeforeSend callback.", false},                    // intentional filter
+		{"Event dropped by one of the Client EventProcessors: x", false},        // intentional processor
+		{"error sending envelope: connection refused", true},                    // default-path send failure
+		{"Sending event-2 failed because the request was too large: x", true},   // 413
+		{"Sending event-3 failed with server error 500: boom", true},            // 5xx
+		{"Event dropped due to transport buffer being full. event-4", true},     // overload drop
+		{"Too many requests for \"error\", backing off till: 2026-06-03", true}, // 429
+		{"Failed to build envelope, skipping delivery. evt: boom", true},        // serialization fail
+		{"Unexpected status code 418 for event event-5", true},                  // unexpected
+	}
+
 	var got []string
 	w := NewSentryDebugWriter(func(err error) { got = append(got, err.Error()) })
 
-	lines := []string{
-		"Sending event-1 to sentry.io project: 42",                         // routine -> ignored
-		"Sending event-2 failed because the request was too large: <body>", // 413 -> forwarded
-		"There was an issue with sending an event: connection refused",     // network -> forwarded
-		"Event dropped due to transport buffer being full. event-3",        // drop -> forwarded
-		"Too many requests for \"error\", backing off till: 2026-06-03",    // 429 -> forwarded
-		"Unexpected status code 418 for event event-4",                     // unexpected -> forwarded
-	}
-	for _, l := range lines {
-		if _, err := io.WriteString(w, l+"\n"); err != nil {
+	var wantCount int
+	for _, c := range cases {
+		if c.forward {
+			wantCount++
+		}
+		if _, err := io.WriteString(w, c.line+"\n"); err != nil {
 			t.Fatalf("Write: %v", err)
 		}
 	}
 
-	if len(got) != 5 {
-		t.Fatalf("expected 5 forwarded errors, got %d: %v", len(got), got)
+	if len(got) != wantCount {
+		t.Fatalf("expected %d forwarded errors, got %d: %v", wantCount, len(got), got)
 	}
 	for _, e := range got {
 		if !strings.HasPrefix(e, "sentry: ") {
 			t.Errorf("forwarded error missing prefix: %q", e)
 		}
-	}
-	for _, e := range got {
-		if strings.Contains(e, "project: 42") {
-			t.Errorf("routine line should not be forwarded: %q", e)
+		if strings.Contains(e, "SampleRate") || strings.Contains(e, "BeforeSend") || strings.Contains(e, "project: 42") {
+			t.Errorf("intentional/routine line should not be forwarded: %q", e)
 		}
 	}
 }

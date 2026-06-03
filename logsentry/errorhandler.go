@@ -33,7 +33,7 @@ func (c *WriterConfig) handleError(err error) {
 
 // reportError sends err to onError, or to the current [golog.ErrorHandler]
 // when onError is nil. Resolving golog.ErrorHandler at call time (rather than
-// capturing it) honors any later [golog.SetErrorHandler] change.
+// capturing it) honors any later reassignment of [golog.ErrorHandler].
 func reportError(onError func(error), err error) {
 	switch {
 	case onError != nil:
@@ -43,17 +43,48 @@ func reportError(onError func(error), err error) {
 	}
 }
 
-// sentryErrorMarkers are lowercase substrings that identify Sentry debug log
-// lines reporting a delivery problem (send failure, drop, or rate-limit), as
-// opposed to routine informational output. See the debuglog.Printf calls in
-// sentry-go's transport, client and internal/util packages.
+// sentryErrorMarkers are lowercase substrings that identify sentry-go debug log
+// lines reporting a genuine delivery failure or overload-induced drop, as
+// opposed to routine output or intentional drops (sampling, BeforeSend, etc.).
+// Compiled from the debuglog.Printf/Println calls in sentry-go v0.46.2's
+// transport, telemetry scheduler, client and internal/util packages. Matched
+// case-insensitively. A bare "fail"/"drop" keyword is deliberately avoided
+// because it both misses the default async path's "error sending envelope" and
+// matches benign lines like "Event dropped due to SampleRate hit".
 var sentryErrorMarkers = []string{
-	"fail",              // "...failed because the request was too large", "Failed to build envelope"
-	"issue",             // "There was an issue with sending an event"
-	"drop",              // "Event dropped due to transport buffer being full"
-	"too large",         // HTTP 413
-	"too many requests", // HTTP 429 backoff
-	"unexpected",        // "Unexpected status code %d"
+	"error sending envelope",                   // async scheduler + transport send failure (default path)
+	"http request failed",                      // transport HTTP failure
+	"there was an issue",                       // request build / send issue
+	"failed because the request was too large", // HTTP 413
+	"failed with server error",                 // HTTP 5xx
+	"failed with client error",                 // HTTP 4xx
+	"too many requests",                        // HTTP 429 backoff
+	"rate limited for category",                // rate-limit drop
+	"unexpected status code",                   //
+	"skipping delivery",                        // "Failed to build/convert envelope, skipping delivery"
+	"could not encode event as json",           // serialization failure -> delivery skipped
+	"error while converting to envelope",       // envelope item conversion failure
+	"error creating",                           // "error creating log/trace metric batch envelope item"
+	"buffer being full",                        // "Event dropped due to transport buffer being full"
+	"buffer full",                              // "Dropping log/metric: buffer full", telemetry buffer full
+	"failed to flush",                          // flush timed out / transport closed
+	"failed to send client report",             //
+	"failed to serialize client report",        //
+}
+
+// sentryIgnoreMarkers identify intentional, non-error sentry-go debug lines
+// (sampling, BeforeSend/Ignore filters, callbacks) that must never be forwarded
+// even if a future message rewording makes one match an error marker. Defense
+// in depth: with the current marker set none of these match anyway.
+var sentryIgnoreMarkers = []string{
+	"samplerate",         // "Event dropped due to SampleRate hit"
+	"beforesend",         // BeforeSend / BeforeSendLog / BeforeSendMetric / BeforeSendTransaction
+	"beforebreadcrumb",   //
+	"ignoreerrors",       //
+	"ignoretransactions", //
+	"eventprocessors",    // "Event dropped by one of the ... EventProcessors"
+	"tracessampler",      //
+	"callback",           //
 }
 
 // sentryDebugWriter forwards Sentry's error-level debug output to onError.
@@ -63,16 +94,24 @@ type sentryDebugWriter struct {
 
 // NewSentryDebugWriter returns an io.Writer to assign to
 // sentry.ClientOptions.DebugWriter (with ClientOptions.Debug set to true). It
-// forwards Sentry's internal delivery errors — which happen asynchronously in
+// forwards Sentry's internal delivery failures — which happen asynchronously in
 // the transport and otherwise never reach golog — to onError, so they appear
-// in the normal, non-Sentry logs. Routine (non-error) debug lines are ignored.
+// in the normal, non-Sentry logs. Routine output and intentional drops
+// (sampling, BeforeSend filtering) are ignored.
 //
 // When onError is nil, errors are passed to the current [golog.ErrorHandler].
 // Pass the same callback used with [WithErrorHandler] to route both the
 // writer's errors and Sentry's transport errors to one place.
 //
+// Important: onError must not log back through the same Sentry-backed golog
+// logger. A delivery failure forwarded to such a handler would emit a new
+// event whose own failure produces another debug line, amplifying into a
+// feedback loop under sustained backpressure. Route it to a plain logger or to
+// the default [golog.ErrorHandler] (stderr).
+//
 // Because filtering relies on matching sentry-go's debug message text, treat it
-// as best-effort: it may miss a renamed message or forward an unexpected line.
+// as best-effort: a renamed message in a future sentry-go release may be missed
+// (and should be added to sentryErrorMarkers).
 func NewSentryDebugWriter(onError func(error)) io.Writer {
 	return &sentryDebugWriter{onError: onError}
 }
@@ -84,12 +123,22 @@ func (w *sentryDebugWriter) Write(p []byte) (int, error) {
 			continue
 		}
 		lower := strings.ToLower(line)
-		for _, marker := range sentryErrorMarkers {
-			if strings.Contains(lower, marker) {
-				reportError(w.onError, fmt.Errorf("sentry: %s", line))
-				break
-			}
+		if containsAny(lower, sentryIgnoreMarkers) {
+			continue
+		}
+		if containsAny(lower, sentryErrorMarkers) {
+			reportError(w.onError, fmt.Errorf("sentry: %s", line))
 		}
 	}
 	return len(p), nil
+}
+
+// containsAny reports whether s contains any of the substrings in subs.
+func containsAny(s string, subs []string) bool {
+	for _, sub := range subs {
+		if strings.Contains(s, sub) {
+			return true
+		}
+	}
+	return false
 }
