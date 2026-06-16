@@ -42,7 +42,7 @@ Sub-packages **without** their own `go.mod` (part of the root module):
 Always operate across all modules — a change to the root can break `goslog`/`logsentry`.
 
 ```bash
-./test-workspace.sh          # build + go vet + gosec + go test across all modules (except tools)
+./test-workspace.sh          # build, go vet, gosec, go test across all modules except tools (gosec also skips examples)
 ./test-workspace.sh -v       # extra args are forwarded to `go test`
 ./run-gosec.sh               # gosec on the root module only
 ```

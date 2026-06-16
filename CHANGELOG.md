@@ -20,6 +20,9 @@ lockstep with the root module, e.g. `v1.0.7`, `logsentry/v1.0.7`, `goslog/v1.0.7
   getter function: replace `golog.ErrorHandler = fn` with
   `golog.SetErrorHandler(fn)`, and read the handler via `golog.ErrorHandler()`
   or `golog.ErrorHandlerOr(fallback)`.
+- **logsentry:** structured log values now populate the Sentry event's `log`
+  context instead of the removed `Event.Extra`; a logged `type` key is sent as
+  `type_` (reserved-name remap) (#14).
 - Bump `securego/gosec` to v2.27.1 in the `tools` submodule (stays on Go 1.25),
   pulling along `google.golang.org/grpc` 1.81.1 and assorted `golang.org/x/*`
   and `google.golang.org/*` updates.
