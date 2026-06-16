@@ -26,6 +26,8 @@ lockstep with the root module, e.g. `v1.0.7`, `logsentry/v1.0.7`, `goslog/v1.0.7
 - Bump `securego/gosec` to v2.27.1 in the `tools` submodule (stays on Go 1.25),
   pulling along `google.golang.org/grpc` 1.81.1 and assorted `golang.org/x/*`
   and `google.golang.org/*` updates.
+- Replace `tag-release.sh` (version passed as an argument) with `tag-version.sh`,
+  which reads the release version from the `VERSION` file.
 
 ### Fixed
 

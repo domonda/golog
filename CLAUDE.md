@@ -76,5 +76,6 @@ This is a **public, dependency-light library**, so the user's global Go conventi
 The `VERSION` file uses Go module version syntax — a leading `v` followed by semver
 (`vMAJOR.MINOR.PATCH`, e.g. `v1.1.0`), matching the git release tags.
 
-`./tag-release.sh vX.Y.Z [message]` tags the root, `goslog/`, and `logsentry/` modules
-together (run with no args to see current tags). Ask before pushing tags.
+`./tag-version.sh [message]` reads the version from the `VERSION` file and tags the
+root, `goslog/`, and `logsentry/` modules together (it prints the current tags first).
+Ask before pushing tags.
