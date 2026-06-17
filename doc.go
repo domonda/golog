@@ -83,8 +83,8 @@ Store and retrieve log attributes in context:
 
 	// Add attributes to context
 	ctx = golog.ContextWithAttribs(ctx,
-		golog.Str("correlation_id", corrID),
-		golog.Str("user_id", userID),
+		golog.NewString("correlation_id", corrID),
+		golog.NewString("user_id", userID),
 	)
 
 	// Create logger from context

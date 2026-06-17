@@ -1,3 +1,20 @@
+// Package log provides a ready-to-use, package-level logger so applications and
+// libraries can start logging without constructing a [golog.Logger] themselves.
+//
+// The package-level functions ([Info], [Warn], [Error], [Debug], [Trace],
+// [Fatal] and their *Ctx and *f variants) delegate to the shared [Logger],
+// which is built from [Config]. By default the minimum level is read from the
+// LOG_LEVEL environment variable (defaulting to DEBUG) and the output format
+// adapts to the environment: colorized text on a terminal, JSON when stdout is
+// redirected (see [golog.DecideWriterConfigForTerminal]).
+//
+// Both [Config] and [Logger] are exported variables that may be reassigned at
+// startup to customize formatting, levels, or writers. [Logger] uses a
+// [golog.DerivedConfig] that references [Config], so changes to [Config] take
+// effect immediately without recreating the logger.
+//
+// For request-scoped logging, [HTTPMiddlewareHandler] and [HTTPMiddlewareFunc]
+// attach a UUID request ID that the *Ctx functions include automatically.
 package log
 
 import (

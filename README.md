@@ -61,7 +61,7 @@ Fast and feature-rich structured logging library for Go
 - **Terminal Auto-Detection**: Automatically switches between colored text (TTY) and JSON (non-TTY)
 - **Configurable Log Levels**: TRACE, DEBUG, INFO, WARN, ERROR, FATAL with flexible filtering
 - **Context Support**: Log attributes can be stored in and retrieved from context automatically
-- **Duplicate Key Prevention**: Prevents accidental duplicate keys in log output
+- **Duplicate Key Prevention**: A message attribute is dropped when the same key was already set by the logger, a sub-logger, or the context (the inherited value wins), keeping inherited structured data clean
 - **Colorized Output**: Beautiful colored console output with customizable colorizers
 - **Multi-Writer Architecture**: Log to multiple destinations with different formats and filters
 - **Rotating Log Files**: Automatic file rotation based on size thresholds
@@ -730,7 +730,7 @@ golog is designed to strike a balance between performance and flexibility. While
 | Feature                                  | zerolog          | zap              | golog                 |
 |------------------------------------------|------------------|------------------|-----------------------|
 | **Multi-writer support**                 | Single output    | Limited          | Native, unlimited     |
-| **Duplicate key prevention**             | No               | No               | Yes                   |
+| **Duplicate key prevention** (inherited) | No               | No               | Yes                   |
 | **Context attribute integration**        | Manual           | Manual           | Automatic             |
 | **Sub-logger with inherited attributes** | Basic            | Basic            | Full support with attrib recording |
 | **Zero allocations (simple message)**    | Yes              | Yes              | Yes                   |
@@ -755,7 +755,7 @@ golog is designed to strike a balance between performance and flexibility. While
 - **Native multi-writer architecture**: Log to console, files, and external services simultaneously with different formats and filters per destination
 - **Automatic context integration**: Attributes added to `context.Context` are automatically included in log messages without manual plumbing
 - **Sub-logger attribute recording**: The `With().SubLogger()` pattern creates child loggers that efficiently inherit and extend parent attributes
-- **Duplicate key prevention**: Prevents accidental duplicate keys in log output, ensuring clean structured data
+- **Duplicate key prevention**: When a message sets a key already provided by the logger, a sub-logger, or the context, the inherited value is kept and the message-level duplicate is dropped, ensuring clean inherited structured data
 - **Zero allocations for standard logging**: Despite the richer feature set, golog achieves zero allocations for JSON logging with fields
 - **Nil-safe design**: A nil logger is safe to use and won't panic, simplifying error handling
 
@@ -766,7 +766,7 @@ golog is the right choice when you need:
 - **Multiple output destinations**: Log to stdout with colors for development and JSON files for production simultaneously
 - **Request-scoped logging**: Automatically propagate correlation IDs, user IDs, and other context through your application
 - **Sub-loggers with inherited context**: Create child loggers for specific components that include parent attributes
-- **Clean structured data**: Prevent duplicate keys from appearing in your logs
+- **Clean structured data**: Prevent keys inherited from sub-loggers or context from being duplicated by message-level attributes
 - **slog compatibility**: Use golog as a backend for Go's standard library logging interface
 - **Rotating log files**: Built-in support for size-based log rotation
 

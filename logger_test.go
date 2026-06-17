@@ -564,3 +564,58 @@ func TestLogger_DuplicateKeyHandling(t *testing.T) {
 	// Verify only one occurrence of the key
 	assert.Equal(t, 1, strings.Count(output, "key="), "key should appear exactly once")
 }
+
+// TestLogger_NilSafeLevelMethods verifies the nil-safe contract documented in
+// doc.go: a nil *Logger must not panic on the level shortcut methods. Each
+// method reads the level from l.config, so a missing nil guard dereferences a
+// nil pointer. See https://github.com/domonda/golog issue: nil logger panic.
+func TestLogger_NilSafeLevelMethods(t *testing.T) {
+	var logger *Logger
+	ctx := context.Background()
+	now := time.Now()
+	err := context.Canceled
+
+	assert.NotPanics(t, func() {
+		// Base level methods (the documented example: log.Info(...).Log()).
+		logger.Trace("msg").Log()
+		logger.Debug("msg").Log()
+		logger.Info("msg").Log()
+		logger.Warn("msg").Log()
+		logger.Error("msg").Err(err).Log()
+		logger.Fatal("msg").Log()
+
+		// At variants.
+		logger.TraceAt(now, "msg").Log()
+		logger.DebugAt(now, "msg").Log()
+		logger.InfoAt(now, "msg").Log()
+		logger.WarnAt(now, "msg").Log()
+		logger.ErrorAt(now, "msg").Log()
+
+		// Ctx variants.
+		logger.TraceCtx(ctx, "msg").Log()
+		logger.DebugCtx(ctx, "msg").Log()
+		logger.InfoCtx(ctx, "msg").Log()
+		logger.WarnCtx(ctx, "msg").Log()
+		logger.ErrorCtx(ctx, "msg").Log()
+		logger.FatalCtx(ctx, "msg").Log()
+
+		// Formatted variants.
+		logger.Tracef("msg %d", 1).Log()
+		logger.Debugf("msg %d", 1).Log()
+		logger.Infof("msg %d", 1).Log()
+		logger.Warnf("msg %d", 1).Log()
+		logger.Errorf("msg %w", err).Log()
+		logger.Fatalf("msg %d", 1).Log()
+
+		// Formatted context variants.
+		logger.TracefCtx(ctx, "msg %d", 1).Log()
+		logger.DebugfCtx(ctx, "msg %d", 1).Log()
+		logger.InfofCtx(ctx, "msg %d", 1).Log()
+		logger.WarnfCtx(ctx, "msg %d", 1).Log()
+		logger.ErrorfCtx(ctx, "msg %w", err).Log()
+		logger.FatalfCtx(ctx, "msg %d", 1).Log()
+	})
+
+	// A nil logger must return a nil Message so chained field methods stay safe.
+	assert.Nil(t, logger.Info("msg"))
+}
