@@ -10,6 +10,36 @@ lockstep with the root module, e.g. `v1.0.7`, `logsentry/v1.0.7`, `goslog/v1.0.7
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-06-17
+
+### Added
+
+- Runnable `Example` functions for the primary `Logger` API (`Example`,
+  `ExampleLogger`) and the `log` subpackage, so the common usage paths appear
+  on pkg.go.dev and are verified by `go test`.
+- Package documentation comment for the `log` subpackage.
+
+### Changed
+
+- **logsentry:** bump the indirect `golang.org/x/text` dependency from v0.34.0
+  to v0.37.0, aligning it with the `tools` submodule.
+
+### Fixed
+
+- A nil `*Logger` no longer panics on the level methods (`Trace`, `Debug`,
+  `Info`, `Warn`, `Error`, `Fatal` and their `At`/`Ctx`/`f`/`fCtx` variants).
+  They now return a nil `*Message`, honoring the nil-safe contract documented
+  in `doc.go`. Previously they dereferenced `l.config` while reading the level
+  and crashed with a nil pointer dereference.
+
+### Documentation
+
+- Clarify that duplicate-key prevention applies to keys inherited from the
+  logger, a sub-logger, or the context (the inherited value wins), not to
+  duplicate keys added within a single message chain.
+- Fix the `doc.go` context example to use `golog.NewString` (there is no
+  `golog.Str` constructor).
+
 ## [1.1.0] - 2026-06-16
 
 ### Changed
@@ -109,7 +139,8 @@ lockstep with the root module, e.g. `v1.0.7`, `logsentry/v1.0.7`, `goslog/v1.0.7
   attrib type for zero-allocation `time.Time` logging, and the `tag-release`
   versioning script.
 
-[Unreleased]: https://github.com/domonda/golog/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/domonda/golog/compare/v1.1.1...HEAD
+[1.1.1]: https://github.com/domonda/golog/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/domonda/golog/compare/v1.0.7...v1.1.0
 [1.0.7]: https://github.com/domonda/golog/compare/v1.0.6...v1.0.7
 [1.0.6]: https://github.com/domonda/golog/compare/v1.0.5...v1.0.6
