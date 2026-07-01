@@ -9,6 +9,7 @@ The `logsentry` package implements the `golog.Writer` and `golog.WriterConfig` i
 ## Features
 
 - **Automatic Level Mapping**: Maps golog log levels to appropriate Sentry event levels
+- **Error Reporting**: An error logged via `Message.Err` is surfaced as a Sentry exception, so its message shows as the issue subtitle (instead of "(No error message)") and a stack trace it carries points at the error's origin
 - **Structured Data Capture**: Converts golog key-value pairs into a Sentry event `log` context (typed: time values are formatted via the golog Format, numbers/bools stay native, JSON stays structured)
 - **Stack Trace Filtering**: Automatically filters out golog internal frames from stack traces
 - **Memory Pooling**: Uses object pooling for efficient memory management
@@ -130,6 +131,35 @@ The package automatically maps golog log levels to Sentry event levels:
 | `ERROR` (20) | `ERROR` | Error conditions that don't require immediate attention |
 | `FATAL` (30) | `FATAL` | Critical errors that may cause application termination |
 | Unknown/Other | `ERROR` | Fallback for unmapped levels (uses `UnknownLevel` variable) |
+
+## Error Reporting
+
+An error logged with `Message.Err` (the shortcut for `Error("error", err)`) is promoted
+to a Sentry **exception**, not just stored as text in the `log` context:
+
+```go
+logger.Error("Failed to sync email message").
+    Err(errors.New("connection refused")).
+    Log()
+```
+
+produces a Sentry event whose exception has:
+
+- **Type**: `"Failed to sync email message"` — the log message, shown as the **issue title**
+- **Value**: `"connection refused"` — the error text, shown as the **issue subtitle**
+- **Stacktrace**: the error's own origin stack when it carries one — extracted by
+  `sentry.ExtractStacktrace`, which recognizes a `StackTrace()` (as `pkg/errors`
+  exposes), `StackFrames()` (`go-errors/errors`), or `GetStackTracer()` method;
+  otherwise the current call-site stack when `AttachStacktrace` is enabled.
+  golog-internal frames are filtered out either way.
+
+Without this, a plain message event has no exception payload and Sentry renders the
+subtitle as **"(No error message)"**, hiding the actual cause. The error string is still
+also kept under `error` in the `log` context.
+
+Only a standalone `Err`/`Error("error", …)` is promoted. Errors logged as a slice via
+`Errs`/`Errors`, or under a different key, remain `log` context data so the issue title
+and grouping stay clean.
 
 ## Structured Data Handling
 
@@ -477,6 +507,12 @@ sentry logging error: sentry: error sending envelope: ...
 2. **Missing Stack Traces**
    - Enable `AttachStacktrace: true` in Sentry options
    - Check if frames are being filtered out
+
+3. **Issue subtitle shows "(No error message)"**
+   - The event has no exception payload — attach the cause with `Err(err)` so it is
+     promoted to a Sentry exception (see [Error Reporting](#error-reporting)). Errors
+     logged only as `log` context values (e.g. via `Errs`, or under a non-`error` key)
+     do not populate the subtitle.
 
 ### Debugging
 

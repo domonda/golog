@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"math"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -110,6 +111,175 @@ func TestWriterContextValues(t *testing.T) {
 		t.Errorf(`log["payload"] = %s, want %s`, payload, `{"a":1}`)
 	}
 }
+
+// TestWriterErrAsException verifies that an error logged via Message.Err is
+// surfaced as a Sentry exception: its message becomes the exception Value (the
+// issue subtitle, replacing "(No error message)") while the log text stays the
+// exception Type (the issue title). The error string is still kept in the
+// "log" context for completeness.
+func TestWriterErrAsException(t *testing.T) {
+	transport := &captureTransport{}
+	hub := newTestHub(t, transport)
+
+	config := NewWriterConfig(hub, golog.NewDefaultFormat(), golog.AllLevelsActive, false, nil)
+	logger := golog.NewLogger(golog.NewConfig(&golog.DefaultLevels, golog.AllLevelsActive, config))
+
+	logger.Error("Failed to sync email message").Err(errors.New("connection refused")).Log()
+	hub.Flush(time.Second)
+
+	if len(transport.events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(transport.events))
+	}
+	event := transport.events[0]
+
+	if len(event.Exception) != 1 {
+		t.Fatalf("expected 1 exception, got %d", len(event.Exception))
+	}
+	exc := event.Exception[0]
+	if exc.Type != "Failed to sync email message" {
+		t.Errorf("exception.Type = %q, want the log message", exc.Type)
+	}
+	if exc.Value != "connection refused" {
+		t.Errorf("exception.Value = %q, want %q", exc.Value, "connection refused")
+	}
+	// The message (issue title) is preserved alongside the exception.
+	if event.Message != "Failed to sync email message" {
+		t.Errorf("event.Message = %q, want the log message", event.Message)
+	}
+	// The error string remains available in the "log" context too.
+	if got := event.Contexts["log"]["error"]; got != "connection refused" {
+		t.Errorf(`log["error"] = %#v, want %q`, got, "connection refused")
+	}
+}
+
+// TestWriterErrorsSliceNoException verifies that errors logged via Message.Errs
+// (a slice under the "errors" key) stay context data only and do not produce a
+// Sentry exception, so the issue title/grouping stay clean. Only a standalone
+// Message.Err under the reserved "error" key is promoted to an exception.
+func TestWriterErrorsSliceNoException(t *testing.T) {
+	transport := &captureTransport{}
+	hub := newTestHub(t, transport)
+
+	config := NewWriterConfig(hub, golog.NewDefaultFormat(), golog.AllLevelsActive, false, nil)
+	logger := golog.NewLogger(golog.NewConfig(&golog.DefaultLevels, golog.AllLevelsActive, config))
+
+	logger.Error("batch failed").
+		Errs([]error{errors.New("first"), errors.New("second")}).
+		Log()
+	hub.Flush(time.Second)
+
+	if len(transport.events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(transport.events))
+	}
+	event := transport.events[0]
+	if len(event.Exception) != 0 {
+		t.Errorf("expected no exception for Errs slice, got %d", len(event.Exception))
+	}
+	if got, ok := event.Contexts["log"]["errors"].([]any); !ok || len(got) != 2 {
+		t.Errorf(`log["errors"] = %#v, want a 2-element slice`, event.Contexts["log"]["errors"])
+	}
+}
+
+// TestWriterErrStacktrace verifies that a stack trace carried by the logged
+// error (via a pkg/errors-style StackTrace() method, which sentry.ExtractStacktrace
+// recognizes) is extracted and attached to the exception even when the client
+// does NOT have AttachStacktrace enabled — proving the error's own origin stack
+// is used.
+func TestWriterErrStacktrace(t *testing.T) {
+	transport := &captureTransport{}
+	hub := newTestHub(t, transport) // AttachStacktrace is off by default
+
+	config := NewWriterConfig(hub, golog.NewDefaultFormat(), golog.AllLevelsActive, false, nil)
+	logger := golog.NewLogger(golog.NewConfig(&golog.DefaultLevels, golog.AllLevelsActive, config))
+
+	logger.Error("boom").Err(newStackErr("with stack")).Log()
+	hub.Flush(time.Second)
+
+	if len(transport.events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(transport.events))
+	}
+	event := transport.events[0]
+	if len(event.Exception) != 1 {
+		t.Fatalf("expected 1 exception, got %d", len(event.Exception))
+	}
+	// A plain error would yield no stack here (AttachStacktrace off); a non-nil
+	// Stacktrace means the error's own StackTrace() was used. Per-frame golog
+	// filtering is covered by TestFilterFrames.
+	if event.Exception[0].Stacktrace == nil {
+		t.Fatal("expected a stack trace extracted from the error's StackTrace()")
+	}
+}
+
+// TestWriterErrFallbackStacktrace verifies that when the logged error carries
+// no stack of its own but the client has AttachStacktrace enabled, the current
+// call-site stack is attached to the exception instead.
+func TestWriterErrFallbackStacktrace(t *testing.T) {
+	transport := &captureTransport{}
+	client, err := sentry.NewClient(sentry.ClientOptions{
+		Dsn:              "https://public@example.com/1",
+		Transport:        transport,
+		AttachStacktrace: true,
+	})
+	if err != nil {
+		t.Fatalf("sentry.NewClient: %v", err)
+	}
+	hub := sentry.NewHub(client, sentry.NewScope())
+
+	config := NewWriterConfig(hub, golog.NewDefaultFormat(), golog.AllLevelsActive, false, nil)
+	logger := golog.NewLogger(golog.NewConfig(&golog.DefaultLevels, golog.AllLevelsActive, config))
+
+	logger.Error("boom").Err(errors.New("no stack")).Log()
+	hub.Flush(time.Second)
+
+	if len(transport.events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(transport.events))
+	}
+	event := transport.events[0]
+	if len(event.Exception) != 1 {
+		t.Fatalf("expected 1 exception, got %d", len(event.Exception))
+	}
+	if event.Exception[0].Stacktrace == nil {
+		t.Fatal("expected fallback call-site stack trace when AttachStacktrace is on")
+	}
+}
+
+// TestFilterFrames verifies that golog-internal frames (including the
+// logsentry sub-package) are dropped while application and main frames survive.
+func TestFilterFrames(t *testing.T) {
+	in := []sentry.Frame{
+		{Module: "github.com/domonda/golog", Function: "Log"},
+		{Module: "github.com/domonda/golog/logsentry", Function: "CommitMessage"},
+		{Module: "github.com/domonda/server/gmailsync", Function: "Sync"},
+		{Module: "main", Function: "main"},
+	}
+	out := filterFrames(in)
+	if len(out) != 2 {
+		t.Fatalf("filterFrames kept %d frames, want 2: %+v", len(out), out)
+	}
+	for _, f := range out {
+		if strings.HasPrefix(f.Module, "github.com/domonda/golog") {
+			t.Errorf("golog-internal frame survived filtering: %s.%s", f.Module, f.Function)
+		}
+	}
+}
+
+// stackErr is a minimal error carrying a pkg/errors-style StackTrace() method
+// (returning []uintptr) that sentry.ExtractStacktrace recognizes. newStackErr
+// captures the real call stack at construction so the PCs resolve to genuine
+// runtime frames.
+type stackErr struct {
+	msg     string
+	callers []uintptr
+}
+
+func newStackErr(msg string) *stackErr {
+	var pcs [32]uintptr
+	n := runtime.Callers(2, pcs[:]) // skip runtime.Callers and newStackErr itself
+	return &stackErr{msg: msg, callers: pcs[:n]}
+}
+
+func (e *stackErr) Error() string         { return e.msg }
+func (e *stackErr) StackTrace() []uintptr { return e.callers }
 
 // TestWriterReservedTypeKey verifies that a value logged under the Sentry-
 // reserved "type" key is remapped to "type_" so it survives as context data,

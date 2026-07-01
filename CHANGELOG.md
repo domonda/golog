@@ -10,6 +10,20 @@ lockstep with the root module, e.g. `v1.0.7`, `logsentry/v1.0.7`, `goslog/v1.0.7
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-07-01
+
+### Added
+
+- **logsentry:** the error logged via `Message.Err` is now surfaced as a proper
+  Sentry exception. Its text becomes the issue subtitle (instead of
+  `(No error message)`) while the log message stays the issue title. The
+  exception carries the error's own origin stack trace when the error exposes
+  one (via a `pkg/errors`-style `StackTrace()`/`StackFrames()` method, extracted
+  by `sentry.ExtractStacktrace`), falling back to the current call stack when
+  `AttachStacktrace` is enabled. golog-internal frames are filtered out either
+  way. Errors logged in a slice (`Message.Errs`) or under other keys stay
+  context data only, keeping issue titles and grouping clean.
+
 ## [1.1.1] - 2026-06-17
 
 ### Added

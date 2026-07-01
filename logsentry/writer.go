@@ -139,6 +139,7 @@ type Writer struct {
 	values    map[string]any
 	key       string
 	slice     []any
+	err       error // primary logged error (from .Err), surfaced as a Sentry exception
 }
 
 func (w *Writer) BeginMessage(config golog.Config, timestamp time.Time, level golog.Level, prefix, text string) {
@@ -179,7 +180,11 @@ func (w *Writer) BeginMessage(config golog.Config, timestamp time.Time, level go
 //   - The original timestamp
 //   - All key-value pairs as a "log" context (from both config.extra and
 //     values), with the Sentry-reserved "type" key remapped to "type_"
-//   - Optional stack trace (if enabled in Sentry options)
+//   - An exception built from the error logged via Message.Err (if any), whose
+//     value becomes the issue subtitle instead of "(No error message)"
+//   - A stack trace: the logged error's own origin stack when it carries one,
+//     otherwise the current call stack if enabled in Sentry options. It is
+//     attached to the exception when present, else as a thread.
 //   - A fingerprint based on the message for grouping
 //
 // After sending the event, the Writer is reset and returned to the object
@@ -197,6 +202,8 @@ func (w *Writer) CommitMessage() {
 			w.values = nil
 		}
 		w.slice = nil
+		w.err = nil
+		w.key = ""
 		w.config.writerPool.Put(w)
 	}()
 
@@ -218,9 +225,37 @@ func (w *Writer) CommitMessage() {
 		if len(logCtx) > 0 {
 			event.Contexts["log"] = logCtx
 		}
-		if client := w.config.hub.Client(); client != nil && client.Options().AttachStacktrace {
-			stackTrace := sentry.NewStacktrace()
+
+		// Resolve a stack trace. Prefer one carried by the logged error itself
+		// (a pkg/errors-style StackTrace()/StackFrames() method), which points at
+		// the error's origin rather than this log call site;
+		// sentry.ExtractStacktrace returns nil when the error carries none. Fall
+		// back to the current call stack when the client has AttachStacktrace
+		// enabled.
+		var stackTrace *sentry.Stacktrace
+		if w.err != nil {
+			stackTrace = sentry.ExtractStacktrace(w.err)
+		}
+		if stackTrace == nil {
+			if client := w.config.hub.Client(); client != nil && client.Options().AttachStacktrace {
+				stackTrace = sentry.NewStacktrace()
+			}
+		}
+		if stackTrace != nil {
 			stackTrace.Frames = filterFrames(stackTrace.Frames)
+		}
+
+		if w.err != nil {
+			// Surface the logged error as a Sentry exception so its message
+			// shows as the issue subtitle instead of "(No error message)". Type
+			// keeps the human-readable log message as the issue title (per the
+			// sentry.Exception field semantics); Value is the actual error text.
+			event.Exception = []sentry.Exception{{
+				Type:       event.Message,
+				Value:      w.err.Error(),
+				Stacktrace: stackTrace,
+			}}
+		} else if stackTrace != nil {
 			event.Threads = []sentry.Thread{{
 				Stacktrace: stackTrace,
 				Current:    true,
@@ -231,6 +266,11 @@ func (w *Writer) CommitMessage() {
 }
 
 const (
+	// errorContextKey is the golog attribute key used by Message.Err (a shortcut
+	// for Error("error", val)). The error logged under this key is promoted to a
+	// Sentry exception so its message becomes the issue subtitle.
+	errorContextKey = "error"
+
 	// reservedContextKey is the key Sentry reserves inside every context
 	// object to identify the context's type. Within our "log" context it
 	// defaults to "log" when absent; a value logged under this key would be
@@ -329,6 +369,13 @@ func (w *Writer) WriteError(val error) {
 	if val == nil {
 		w.WriteNil()
 		return
+	}
+	// Capture the first standalone error logged under the reserved
+	// errorContextKey (i.e. via Message.Err) so CommitMessage can surface it as
+	// a proper Sentry exception. Errors inside a slice (Message.Errs) or under
+	// other keys stay context data only, to keep the issue title/grouping clean.
+	if w.err == nil && w.slice == nil && w.key == errorContextKey {
+		w.err = val
 	}
 	w.writeVal(val.Error())
 }
