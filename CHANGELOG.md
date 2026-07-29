@@ -10,6 +10,18 @@ lockstep with the root module, e.g. `v1.0.7`, `logsentry/v1.0.7`, `goslog/v1.0.7
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-07-30
+
+### Changed
+
+- Refreshed dependencies across the workspace and bumped the Go toolchain
+  directive to 1.25.8 in every module. **logsentry:** `sentry-go` v0.46.2 →
+  v0.48.0 (none of the v0.47/v0.48 breaking changes affect the writer, which
+  builds events directly). **benchmarks:** zerolog v1.35.1, zap v1.28.0.
+  **examples:** fatih/color v1.19.0. Root module: `ungerik/go-fs` v0.1.0.
+  **tools:** gosec v2.28.0. Plus various transitive updates
+  (`golang.org/x/sys`, `x/term`, `go-isatty`, `go-colorable`).
+
 ## [1.2.0] - 2026-07-01
 
 ### Added
@@ -153,7 +165,9 @@ lockstep with the root module, e.g. `v1.0.7`, `logsentry/v1.0.7`, `goslog/v1.0.7
   attrib type for zero-allocation `time.Time` logging, and the `tag-release`
   versioning script.
 
-[Unreleased]: https://github.com/domonda/golog/compare/v1.1.1...HEAD
+[Unreleased]: https://github.com/domonda/golog/compare/v1.2.1...HEAD
+[1.2.1]: https://github.com/domonda/golog/compare/v1.2.0...v1.2.1
+[1.2.0]: https://github.com/domonda/golog/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/domonda/golog/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/domonda/golog/compare/v1.0.7...v1.1.0
 [1.0.7]: https://github.com/domonda/golog/compare/v1.0.6...v1.0.7
