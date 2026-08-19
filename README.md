@@ -200,7 +200,9 @@ subLog.Error("User validation failed").Err(errors.New("invalid email")).Log()
 ### Context Integration
 
 ```go
-// Add attributes to context
+// Add attributes to context.
+// The context takes over ownership of the passed attribs
+// (see Attribs.AddToContext), pass attribs.Clone() to keep using them.
 ctx = golog.ContextWithAttribs(ctx,
     golog.NewString("correlation_id", "abc-123"),
     golog.NewString("user_id", "user-456"),
