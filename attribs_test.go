@@ -79,6 +79,30 @@ func TestAttribs_CloneAndAppendNonExisting(t *testing.T) {
 	}
 }
 
+// TestAttribs_AddToContext_Consumes pins the consuming contract of
+// Attribs.AddToContext: the returned context takes over the passed attribs
+// instead of cloning them. Cloning them would orphan the passed attribs
+// because they are never returned to the mempool by the caller
+// that hands them over, like ContextWithAttribs(ctx, NewUUID(...)).
+// Attribs inherited from the parent context are cloned so that the
+// attribs of the parent context stay valid independent of the child.
+func TestAttribs_AddToContext_Consumes(t *testing.T) {
+	strA := NewString("a", "1")
+	ctx1 := ContextWithAttribs(context.Background(), strA)
+	require.Same(t, strA, AttribsFromContext(ctx1).Get("a"), "context consumed the passed attrib")
+
+	strB := NewString("b", "2")
+	ctx2 := ContextWithAttribs(ctx1, strB)
+	require.Same(t, strB, AttribsFromContext(ctx2).Get("b"), "context consumed the passed attrib")
+
+	inheritedA := AttribsFromContext(ctx2).Get("a")
+	require.NotSame(t, strA, inheritedA, "attrib inherited from the parent context is a clone")
+	require.Equal(t, strA, inheritedA, "clone has the same key and value")
+
+	require.Same(t, strA, AttribsFromContext(ctx1).Get("a"), "parent context is unchanged")
+	require.Len(t, AttribsFromContext(ctx1), 1, "parent context is unchanged")
+}
+
 func TestAttribFromContext(t *testing.T) {
 	_, ok := AttribFromContext[*Int](context.Background(), "invalid")
 	require.False(t, ok, "attrib not added to context")
