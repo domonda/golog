@@ -123,6 +123,8 @@ func AttribFromContext[T Attrib](ctx context.Context, key string) (attrib T, ok 
 // added to it, overwriting any attribs with the same keys
 // already added to the context.
 //
+// The returned context consumes the passed attribs, see Attribs.AddToContext.
+//
 // The added attribs can be retrieved from the context
 // with AttribsFromContext.
 func ContextWithAttribs(ctx context.Context, attribs ...Attrib) context.Context {
@@ -132,6 +134,9 @@ func ContextWithAttribs(ctx context.Context, attribs ...Attrib) context.Context 
 // RequestWithAttribs returns an http.Request with the Attribs
 // added to its context, overwriting any attribs with
 // the same keys already added to the request context.
+//
+// The context of the returned request consumes
+// the passed attribs, see Attribs.AddToContext.
 func RequestWithAttribs(request *http.Request, attribs ...Attrib) *http.Request {
 	return Attribs(attribs).AddToRequest(request)
 }
@@ -140,19 +145,36 @@ func RequestWithAttribs(request *http.Request, attribs ...Attrib) *http.Request 
 // added to it, overwriting any attribs with the same keys
 // already added to the context.
 //
+// The returned context consumes the Attribs of the receiver:
+// it takes over ownership of the attribs and of the slice,
+// so the caller must not use or Free them anymore.
+// Attribs added to a context are never returned to the mempool
+// because a context has no end of life, so consuming them
+// saves cloning attribs that the caller wants to hand over anyway.
+// Callers that keep using their Attribs must pass a clone:
+//
+//	ctx = attribs.Clone().AddToContext(ctx)
+//
+// Attribs from the parent context that are not shadowed by an attrib
+// with the same key are cloned into the returned context, so that the
+// attribs of the parent context stay valid independent of the returned one.
+//
 // The added attribs can be retrieved from the context
 // with AttribsFromContext.
 func (a Attribs) AddToContext(ctx context.Context) context.Context {
 	if len(a) == 0 {
 		return ctx
 	}
-	mergedAttribs := a.CloneAndAppendNonExistingCloned(AttribsFromContext(ctx))
-	return context.WithValue(ctx, &attribsCtxKey, mergedAttribs)
+	a = a.appendNonExistingCloned(AttribsFromContext(ctx))
+	return context.WithValue(ctx, &attribsCtxKey, a)
 }
 
 // AddToRequest returns an http.Request with the Attribs
 // added to its context, overwriting any attribs with
 // the same keys already added to the request context.
+//
+// The context of the returned request consumes
+// the Attribs of the receiver, see Attribs.AddToContext.
 func (a Attribs) AddToRequest(request *http.Request) *http.Request {
 	if len(a) == 0 {
 		return request
@@ -161,12 +183,38 @@ func (a Attribs) AddToRequest(request *http.Request) *http.Request {
 	return request.WithContext(ctx)
 }
 
+// appendNonExistingCloned appends clones of the attribs from b
+// that are not already present in a identified by their key.
+//
+// The attribs of a are transferred to the returned slice,
+// so a must not be used anymore, while b is not modified.
+func (a Attribs) appendNonExistingCloned(b Attribs) Attribs {
+	if len(b) == 0 {
+		return a
+	}
+	if cap(a) < len(a)+len(b) {
+		// Transfer the attribs of a into a pooled slice with room for the
+		// clones from b instead of growing a with append or Attribs.Add,
+		// which could put a non-pooled slice into the mempool
+		grown := attribsPool.GetOrMake(len(a), len(a)+len(b))
+		copy(grown, a)
+		a = grown
+	}
+	for _, bAttrib := range b {
+		if !a.Has(bAttrib.Key()) {
+			a = append(a, bAttrib.Clone())
+		}
+	}
+	return a
+}
+
 // CloneAndAppendNonExistingCloned clones a and appends clones of
 // attribs from b that are not already present in a
 // identified by their key.
 //
 // The result is a new slice and the slices a and b
 // are not modified.
+// It's the non-consuming counterpart of Attribs.AddToContext.
 func (a Attribs) CloneAndAppendNonExistingCloned(b Attribs) Attribs {
 	if len(a) == 0 {
 		return b.Clone()
@@ -175,7 +223,9 @@ func (a Attribs) CloneAndAppendNonExistingCloned(b Attribs) Attribs {
 		return a.Clone()
 	}
 	result := attribsPool.GetOrMake(len(a), len(a)+len(b))
-	copy(result, a)
+	for i, aAttrib := range a {
+		result[i] = aAttrib.Clone()
+	}
 	for _, bAttrib := range b {
 		if !a.Has(bAttrib.Key()) {
 			result = append(result, bAttrib.Clone())

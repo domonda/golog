@@ -97,6 +97,9 @@ func (m *Message) SubLogger() *Logger {
 // SubLoggerContext returns a new sub-logger with recorded per message attribs
 // in addition to any attribs from the passed ctx
 // and a context with those attribs added to it.
+// The returned sub-logger and context have the same union of attribs
+// attached to them, where the attribs recorded at the message
+// take precedence over attribs from the ctx with the same key.
 func (m *Message) SubLoggerContext(ctx context.Context) (*Logger, context.Context) {
 	if m == nil {
 		return nil, ctx
@@ -104,11 +107,20 @@ func (m *Message) SubLoggerContext(ctx context.Context) (*Logger, context.Contex
 	if !m.IsAttribRecorder() {
 		// Message was not created by Logger.With() for recording attribs
 		// which isn't how it should be used, so return the original logger
-		// and don't put the message back into the pool
-		return m.logger, m.attribs.AddToContext(ctx)
+		// and don't put the message back into the pool.
+		// The message keeps ownership of its attribs, so the
+		// consuming AddToContext gets a clone of them.
+		return m.logger, m.attribs.Clone().AddToContext(ctx)
 	}
 
-	ctxWithAttribs := m.attribs.AddToContext(ctx)
+	// The context consumes clones of the message attribs
+	// merged with the attribs already added to the passed ctx.
+	ctxWithAttribs := m.attribs.Clone().AddToContext(ctx)
+	// Add clones of the ctx attribs that are not already recorded
+	// at the message so that the sub-logger created from the
+	// message attribs ends up with the same attribs as ctxWithAttribs.
+	m.attribs = m.attribs.appendNonExistingCloned(AttribsFromContext(ctx))
+
 	subLog := m.SubLogger() // Puts the message back into the pool
 
 	if writerConfigsFromCtx := WriterConfigsFromContext(ctx); len(writerConfigsFromCtx) > 0 {
@@ -129,11 +141,14 @@ func (m *Message) SubLoggerContext(ctx context.Context) (*Logger, context.Contex
 
 // SubContext returns a new context with recorded per message attribs
 // added to the passed ctx argument.
+// The message keeps its attribs and can still be used.
 func (m *Message) SubContext(ctx context.Context) context.Context {
 	if m == nil {
 		return ctx
 	}
-	return m.attribs.AddToContext(ctx)
+	// The message keeps ownership of its attribs, so the
+	// consuming AddToContext gets a clone of them.
+	return m.attribs.Clone().AddToContext(ctx)
 }
 
 // Ctx logs any attribs that were added to the context

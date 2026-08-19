@@ -703,6 +703,85 @@ func TestMessage_SubLoggerContext(t *testing.T) {
 	}
 }
 
+// TestMessage_SubLoggerContext_CtxAttribs tests that the sub-logger and the
+// context returned by SubLoggerContext carry the same union of attribs:
+// the attribs recorded at the message plus those from the passed context.
+// The sub-logger must be self-contained so that it still logs the context
+// attribs when used with an unrelated context, and the returned context
+// must not lose attribs that were already added to the passed context.
+func TestMessage_SubLoggerContext_CtxAttribs(t *testing.T) {
+	timestamp, _ := time.Parse("2006-01-02 15:04:05", "2006-01-02 15:04:05")
+
+	log, textOut, jsonOut := newTestLoggerWithPrefix("pkg")
+	infoLevel := log.Config().InfoLevel()
+
+	ctx := ContextWithAttribs(
+		context.Background(),
+		NewString("ctxStr", "ctx"),
+		NewString("bothStr", "ctx"), // Shadowed by the message attrib with the same key
+	)
+
+	subLog, subCtx := log.With().
+		Str("msgStr", "msg").
+		Str("bothStr", "msg").
+		SubLoggerContext(ctx)
+
+	// Message attribs first, then the non-shadowed attribs from the context
+	expectedAttribs := Attribs{
+		NewString("msgStr", "msg"),
+		NewString("bothStr", "msg"),
+		NewString("ctxStr", "ctx"),
+	}
+	assert.Equal(t, expectedAttribs, subLog.Attribs(), "sub-logger attribs")
+	assert.Equal(t, expectedAttribs, AttribsFromContext(subCtx), "attribs of returned context")
+
+	// Logging with a context without attribs must still log the ctx attribs
+	// because they are now part of the sub-logger's attribs.
+	subLog.NewMessageAt(context.Background(), timestamp, infoLevel, "Msg").Log()
+
+	textMsg := `2006-01-02 15:04:05 |INFO | pkg: Msg msgStr="msg" bothStr="msg" ctxStr="ctx"` + "\n"
+	jsonMsg := `{"time":"2006-01-02 15:04:05","level":"INFO","message":"pkg: Msg","msgStr":"msg","bothStr":"msg","ctxStr":"ctx"}` + "\n"
+	assert.Equal(t, textMsg, textOut.String())
+	assert.Equal(t, jsonMsg, jsonOut.String())
+	textOut.Reset()
+	jsonOut.Reset()
+
+	// Logging with the returned context must not repeat any attrib
+	subLog.NewMessageAt(subCtx, timestamp, infoLevel, "Msg").Log()
+
+	assert.Equal(t, textMsg, textOut.String())
+	assert.Equal(t, jsonMsg, jsonOut.String())
+	textOut.Reset()
+	jsonOut.Reset()
+
+	// The attribs of the returned context must be owned by it
+	// and not freed together with the sub-logger's attribs.
+	subLog.RemoveAttribs()
+	assert.Equal(t, expectedAttribs, AttribsFromContext(subCtx), "attribs of returned context after Logger.RemoveAttribs")
+
+	// A message without recorded attribs must still pass
+	// the ctx attribs on to the sub-logger
+	t.Run("no message attribs", func(t *testing.T) {
+		subLog, subCtx := log.With().SubLoggerContext(ctx)
+
+		expectedAttribs := Attribs{
+			NewString("ctxStr", "ctx"),
+			NewString("bothStr", "ctx"),
+		}
+		assert.Equal(t, expectedAttribs, subLog.Attribs(), "sub-logger attribs")
+		assert.Equal(t, expectedAttribs, AttribsFromContext(subCtx), "attribs of returned context")
+
+		subLog.NewMessageAt(context.Background(), timestamp, infoLevel, "Msg").Log()
+
+		textMsg := `2006-01-02 15:04:05 |INFO | pkg: Msg ctxStr="ctx" bothStr="ctx"` + "\n"
+		jsonMsg := `{"time":"2006-01-02 15:04:05","level":"INFO","message":"pkg: Msg","ctxStr":"ctx","bothStr":"ctx"}` + "\n"
+		assert.Equal(t, textMsg, textOut.String())
+		assert.Equal(t, jsonMsg, jsonOut.String())
+		textOut.Reset()
+		jsonOut.Reset()
+	})
+}
+
 func TestMessage_SubContext(t *testing.T) {
 	log, _, _ := newTestLogger()
 
