@@ -12,6 +12,24 @@ lockstep with the root module, e.g. `v1.0.7`, `logsentry/v1.0.7`, `goslog/v1.0.7
 
 ### Changed
 
+- `Message.SubLoggerContext` now also adds the attribs from the passed context
+  to the returned sub-logger, so that the sub-logger and the returned context
+  have the same union of attribs attached to them. Attribs recorded at the
+  message still take precedence over context attribs with the same key.
+  Previously the context attribs ended up only in the returned context, so the
+  sub-logger lost them when used with a different context.
+
+- `Attribs.AddToContext` now documents and implements a **consuming** contract:
+  the returned context takes over ownership of the receiver's attribs and slice
+  instead of cloning them, so callers must not use or `Free` them anymore and
+  have to pass `attribs.Clone()` to keep using them. Attribs added to a context
+  are never returned to the mempool (a context has no end of life), so cloning
+  them only orphaned the attribs the caller handed over anyway — one pooled
+  attrib per call on paths like `ContextWithAttribs(ctx, NewUUID(...))` in the
+  HTTP middleware. Attribs inherited from the parent context are still cloned so
+  that parent and child context stay independent. Same contract for
+  `ContextWithAttribs`, `RequestWithAttribs`, and `Attribs.AddToRequest`.
+  `Attribs.CloneAndAppendNonExistingCloned` is the non-consuming counterpart.
 - `mempool.Slice.GetOrMake` now returns a slice with at least the requested
   capacity. It used to reuse a pooled slice that only fit the requested
   length, so appending up to the requested capacity could allocate a new,
@@ -23,6 +41,13 @@ lockstep with the root module, e.g. `v1.0.7`, `logsentry/v1.0.7`, `goslog/v1.0.7
 
 ### Fixed
 
+- `Attribs.CloneAndAppendNonExistingCloned` now clones the receiver's attribs as
+  documented instead of copying the pooled pointers, so the returned Attribs no
+  longer share attribs with the receiver that another owner may free
+  (`Logger.RemoveAttribs`, `Attribs.Free`). This affects `Logger.WithClonedAttribs`
+  and `Logger.WithCtx`, whose sub-logger no longer shares attribs with its parent.
+- `Message.SubContext` no longer hands the returned context the attribs that the
+  still usable message keeps ownership of.
 - `mempool.Slice.GetOrMake` no longer panics when it allocates a new slice
   for a capacity smaller than the length while `MinCap` is zero.
 
