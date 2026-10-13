@@ -5,7 +5,7 @@ Guidance for agents working in this repository.
 ## Project
 
 `github.com/domonda/golog` — a fast, zero-allocation structured logging library for Go
-(inspired by zerolog). Production-tested at domonda since 2023. Go 1.25.
+(inspired by zerolog). Production-tested at domonda since 2023. Go 1.26.
 
 The public API surface is large but mechanical (see `message.go`, ~87 typed `Message`
 field methods). Read `doc.go` and `README.md` for the user-facing overview before adding
@@ -57,7 +57,9 @@ go test -run TestName ./...
 go tool gosec ./...          # gosec is wired via tools/go.mod `tool` directive
 ```
 
-CI: `.github/workflows/go.yml` (build + `go test -v` on the root) and `gosec.yml`.
+CI: `.github/workflows/go.yml` (build, `go test -v` and `go mod tidy -diff` for the root,
+`goslog` and `logsentry` modules, each with `GOWORK=off`) and `gosec.yml` (gosec run inside
+each of those modules; run from the root it skips nested modules).
 
 ## Conventions specific to this repo
 

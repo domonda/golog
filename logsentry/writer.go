@@ -183,8 +183,10 @@ func (w *Writer) BeginMessage(config golog.Config, timestamp time.Time, level go
 //   - An exception built from the error logged via Message.Err (if any), whose
 //     value becomes the issue subtitle instead of "(No error message)"
 //   - A stack trace: the logged error's own origin stack when it carries one,
-//     otherwise the current call stack if enabled in Sentry options. It is
-//     attached to the exception when present, else as a thread.
+//     otherwise the current call stack if enabled in Sentry options (when
+//     logging while a panic unwinds, e.g. from a deferred or recover handler,
+//     sentry-go cuts that stack at the panic origin). It is attached to the
+//     exception when present, else as a thread.
 //   - A fingerprint based on the message for grouping
 //
 // After sending the event, the Writer is reset and returned to the object
@@ -237,7 +239,7 @@ func (w *Writer) CommitMessage() {
 			stackTrace = sentry.ExtractStacktrace(w.err)
 		}
 		if stackTrace == nil {
-			if client := w.config.hub.Client(); client != nil && client.Options().AttachStacktrace {
+			if client := w.config.hub.Client(); client.IsEnabled() && client.Options().AttachStacktrace {
 				stackTrace = sentry.NewStacktrace()
 			}
 		}

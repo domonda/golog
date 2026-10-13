@@ -16,10 +16,21 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v6
       with:
-        go-version: '1.25'
+        go-version: '1.26'
+        cache-dependency-path: |
+          go.sum
+          goslog/go.sum
+          logsentry/go.sum
 
-    - name: Build
-      run: go build -v ./...
-
-    - name: Test
-      run: go test -count=1 -v ./...
+    # Build and test each released module on its own (GOWORK=off) so it is
+    # checked with exactly the requirements consumers get; go.work mode pools
+    # the requirements of every workspace module and can hide a missing one.
+    # Keep the list in sync with the released modules (MODULE_PATHS in
+    # tag-version.sh); benchmarks, examples and tools are intentionally excluded.
+    - name: Build, test and check go.mod
+      env:
+        GOWORK: 'off'
+      run: |
+        for dir in . goslog logsentry; do
+          (cd "$dir" && go build -v ./... && go test -p 1 -count=1 -v ./... && go mod tidy -diff)
+        done
