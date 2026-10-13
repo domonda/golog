@@ -48,7 +48,9 @@ func reportError(onError func(error), err error) {
 // lines reporting a genuine delivery failure or overload-induced drop, as
 // opposed to routine output or intentional drops (sampling, BeforeSend, etc.).
 // Compiled from the debuglog.Printf/Println calls in sentry-go v0.46.2's
-// transport, telemetry scheduler, client and internal/util packages. Matched
+// transport, telemetry scheduler, client and internal/util packages; every
+// entry still matches a message in v0.50.0, the minimum version logsentry
+// requires, but the list does not cover every failure message. Matched
 // case-insensitively. A bare "fail"/"drop" keyword is deliberately avoided
 // because it both misses the default async path's "error sending envelope" and
 // matches benign lines like "Event dropped due to SampleRate hit".
@@ -65,12 +67,14 @@ var sentryErrorMarkers = []string{
 	"skipping delivery",                        // "Failed to build/convert envelope, skipping delivery"
 	"could not encode event as json",           // serialization failure -> delivery skipped
 	"error while converting to envelope",       // envelope item conversion failure
-	"error creating",                           // "error creating log/trace metric batch envelope item"
+	"failed to create request from envelope",   // envelope could not be turned into an HTTP request
 	"buffer being full",                        // "Event dropped due to transport buffer being full"
 	"buffer full",                              // "Dropping log/metric: buffer full", telemetry buffer full
 	"failed to flush",                          // flush timed out / transport closed
 	"failed to send client report",             //
 	"failed to serialize client report",        //
+	"failed to encode client report",           //
+	"failed to create client report request",   //
 }
 
 // sentryIgnoreMarkers identify intentional, non-error sentry-go debug lines
@@ -112,7 +116,10 @@ type sentryDebugWriter struct {
 //
 // Because filtering relies on matching sentry-go's debug message text, treat it
 // as best-effort: a renamed message in a future sentry-go release may be missed
-// (and should be added to sentryErrorMarkers).
+// (and should be added to sentryErrorMarkers). With Debug set, sentry-go also
+// echoes the bodies of Sentry structured logs (Sentry Logs) to DebugWriter, so
+// an application log message containing a marker phrase such as "HTTP request
+// failed" is forwarded as if it were a Sentry delivery failure.
 func NewSentryDebugWriter(onError func(error)) io.Writer {
 	return &sentryDebugWriter{onError: onError}
 }

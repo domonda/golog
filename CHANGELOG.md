@@ -10,6 +10,45 @@ lockstep with the root module, e.g. `v1.0.7`, `logsentry/v1.0.7`, `goslog/v1.0.7
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-10-13
+
+### Changed
+
+- **Breaking:** raised the minimum Go version to 1.26.0 in every module, to use
+  `golang.org/x/sys` v0.48.0 and `x/term` v0.46.0 (both require Go 1.26).
+- **Breaking (logsentry):** now requires `sentry-go` v0.50.0 (was v0.48.0),
+  so upgrading logsentry also upgrades sentry-go in your build. Its breaking
+  changes affect code that configures Sentry directly: v0.49.0 removed
+  `ClientOptions.DisableLogs` and `DisableMetrics`, and since v0.50.0
+  `Hub.Client()` returns a disabled no-op client instead of nil when no client
+  is bound, so replace `hub.Client() != nil` checks with
+  `hub.Client().IsEnabled()`. logsentry's own AttachStacktrace lookup now uses
+  `IsEnabled`.
+- **logsentry:** with `AttachStacktrace` enabled, a message logged while a
+  panic unwinds (e.g. from a deferred or recover handler) now carries a
+  call-site stack that ends at the panic origin (sentry-go v0.49.0 trims the
+  frames above the panic).
+- Refreshed dependencies across the workspace: testify v1.12.1;
+  **benchmarks:** logrus v1.10.2; **tools:** gosec v2.29.0. Removed the stale
+  Go 1.24 `replace` pins for `golang.org/x/sys`, `x/term` and `x/text` from
+  `go.work`.
+
+### Fixed
+
+- **logsentry:** `NewSentryDebugWriter` now forwards sentry-go's
+  "Failed to create request from envelope" delivery failure, which previously
+  dropped the event without reaching the error handler, and the
+  "Failed to encode client report" and "Failed to create client report
+  request" failures. Every marker now matches a sentry-go v0.50.0 message: the
+  `error creating` marker, which matches nothing since sentry-go v0.47.0, was
+  removed.
+
+### Documentation
+
+- **logsentry:** note that with `Debug: true` sentry-go echoes Sentry Logs
+  message bodies to `DebugWriter`, so application messages containing a marker
+  phrase are forwarded as if they were delivery failures.
+
 ## [1.2.1] - 2026-07-30
 
 ### Changed
@@ -165,7 +204,8 @@ lockstep with the root module, e.g. `v1.0.7`, `logsentry/v1.0.7`, `goslog/v1.0.7
   attrib type for zero-allocation `time.Time` logging, and the `tag-release`
   versioning script.
 
-[Unreleased]: https://github.com/domonda/golog/compare/v1.2.1...HEAD
+[Unreleased]: https://github.com/domonda/golog/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/domonda/golog/compare/v1.2.1...v1.3.0
 [1.2.1]: https://github.com/domonda/golog/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/domonda/golog/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/domonda/golog/compare/v1.1.0...v1.1.1

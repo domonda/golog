@@ -150,8 +150,10 @@ produces a Sentry event whose exception has:
 - **Stacktrace**: the error's own origin stack when it carries one — extracted by
   `sentry.ExtractStacktrace`, which recognizes a `StackTrace()` (as `pkg/errors`
   exposes), `StackFrames()` (`go-errors/errors`), or `GetStackTracer()` method;
-  otherwise the current call-site stack when `AttachStacktrace` is enabled.
-  golog-internal frames are filtered out either way.
+  otherwise the current call-site stack when `AttachStacktrace` is enabled
+  (when logging while a panic unwinds, e.g. from a deferred or recover handler,
+  sentry-go cuts that stack at the panic origin). golog-internal frames are
+  filtered out either way.
 
 Without this, a plain message event has no exception payload and Sentry renders the
 subtitle as **"(No error message)"**, hiding the actual cause. The error string is still
@@ -437,6 +439,10 @@ sentry logging error: sentry: error sending envelope: ...
 - **You expected a line for a dropped event but saw none.** `NewSentryDebugWriter` forwards
   only genuine delivery failures. Intentional drops (sampling via `SampleRate`, `BeforeSend`
   filtering) and routine debug output are ignored on purpose.
+- **Your own log messages show up as Sentry errors.** With `Debug: true`, sentry-go also
+  echoes the bodies of Sentry structured logs (Sentry Logs) to `DebugWriter`. An application
+  message containing a marker phrase such as "HTTP request failed" is then forwarded as if it
+  were a delivery failure.
 
 ## Runtime Behavior
 

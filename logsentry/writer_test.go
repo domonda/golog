@@ -7,7 +7,9 @@ import (
 	"io"
 	"math"
 	"runtime"
+	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -28,19 +30,27 @@ func (t *captureTransport) Configure(sentry.ClientOptions)        {}
 func (t *captureTransport) SendEvent(event *sentry.Event)         { t.events = append(t.events, event) }
 func (t *captureTransport) Close()                                {}
 
-func newTestHub(t *testing.T, transport sentry.Transport) *sentry.Hub {
+func newTestHub(t *testing.T, transport sentry.Transport, opts ...func(*sentry.ClientOptions)) *sentry.Hub {
 	t.Helper()
-	client, err := sentry.NewClient(sentry.ClientOptions{
+	options := sentry.ClientOptions{
 		// A custom Transport is always used regardless of the DSN; the DSN is
 		// only set so events are not dropped before reaching the transport.
 		Dsn:       "https://public@example.com/1",
 		Transport: transport,
-	})
+	}
+	for _, opt := range opts {
+		opt(&options)
+	}
+	client, err := sentry.NewClient(options)
 	if err != nil {
 		t.Fatalf("sentry.NewClient: %v", err)
 	}
 	return sentry.NewHub(client, sentry.NewScope())
 }
+
+// attachStacktrace is a newTestHub option that enables
+// ClientOptions.AttachStacktrace.
+func attachStacktrace(o *sentry.ClientOptions) { o.AttachStacktrace = true }
 
 // TestWriterContextValues verifies that golog typed values land in the
 // event's "log" Context with the expected types, that time.Time values are
@@ -184,7 +194,9 @@ func TestWriterErrorsSliceNoException(t *testing.T) {
 // error (via a pkg/errors-style StackTrace() method, which sentry.ExtractStacktrace
 // recognizes) is extracted and attached to the exception even when the client
 // does NOT have AttachStacktrace enabled — proving the error's own origin stack
-// is used.
+// is used. A plain error on the same hub serves as the control: it must get no
+// stack, otherwise the call-site fallback could satisfy the first assertion and
+// the client's AttachStacktrace=false option would be ignored.
 func TestWriterErrStacktrace(t *testing.T) {
 	transport := &captureTransport{}
 	hub := newTestHub(t, transport) // AttachStacktrace is off by default
@@ -192,7 +204,11 @@ func TestWriterErrStacktrace(t *testing.T) {
 	config := NewWriterConfig(hub, golog.NewDefaultFormat(), golog.AllLevelsActive, false, nil)
 	logger := golog.NewLogger(golog.NewConfig(&golog.DefaultLevels, golog.AllLevelsActive, config))
 
-	logger.Error("boom").Err(newStackErr("with stack")).Log()
+	// Create the error inside a stdlib callback so its stack keeps a frame that
+	// survives filterFrames (see callViaStdlib).
+	var errWithStack error
+	callViaStdlib(func() { errWithStack = newStackErr("with stack") })
+	logger.Error("boom").Err(errWithStack).Log()
 	hub.Flush(time.Second)
 
 	if len(transport.events) != 1 {
@@ -202,33 +218,76 @@ func TestWriterErrStacktrace(t *testing.T) {
 	if len(event.Exception) != 1 {
 		t.Fatalf("expected 1 exception, got %d", len(event.Exception))
 	}
-	// A plain error would yield no stack here (AttachStacktrace off); a non-nil
-	// Stacktrace means the error's own StackTrace() was used. Per-frame golog
-	// filtering is covered by TestFilterFrames.
-	if event.Exception[0].Stacktrace == nil {
-		t.Fatal("expected a stack trace extracted from the error's StackTrace()")
+	// A plain error would yield no stack here (AttachStacktrace off), and the
+	// log call itself is not inside the stdlib callback, so the sync frame can
+	// only come from the error's own StackTrace(). Per-frame golog filtering is
+	// covered by TestFilterFrames.
+	if !hasModuleFrame(event.Exception[0].Stacktrace, "sync") {
+		t.Fatalf("expected the stack extracted from the error's StackTrace(), got %+v", event.Exception[0].Stacktrace)
+	}
+
+	logger.Error("boom").Err(errors.New("no stack")).Log()
+	hub.Flush(time.Second)
+
+	if len(transport.events) != 2 {
+		t.Fatalf("expected 2 events, got %d", len(transport.events))
+	}
+	control := transport.events[1]
+	if len(control.Exception) != 1 {
+		t.Fatalf("expected 1 exception, got %d", len(control.Exception))
+	}
+	if control.Exception[0].Stacktrace != nil {
+		t.Error("expected no stack trace for a plain error when AttachStacktrace is off")
+	}
+}
+
+// TestWriterErrStacktracePreferredOverCallSite verifies that the logged error's
+// own stack wins over the call-site stack even with AttachStacktrace enabled,
+// so Sentry shows where the error happened, not where it was logged. The error
+// origin is marked by sync.Once frames, the log call site by a slices frame.
+func TestWriterErrStacktracePreferredOverCallSite(t *testing.T) {
+	transport := &captureTransport{}
+	hub := newTestHub(t, transport, attachStacktrace)
+
+	config := NewWriterConfig(hub, golog.NewDefaultFormat(), golog.AllLevelsActive, false, nil)
+	logger := golog.NewLogger(golog.NewConfig(&golog.DefaultLevels, golog.AllLevelsActive, config))
+
+	var errWithStack error
+	callViaStdlib(func() { errWithStack = newStackErr("with stack") })
+	_ = slices.IndexFunc([]int{0}, func(int) bool {
+		logger.Error("boom").Err(errWithStack).Log()
+		return true
+	})
+	hub.Flush(time.Second)
+
+	if len(transport.events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(transport.events))
+	}
+	event := transport.events[0]
+	if len(event.Exception) != 1 {
+		t.Fatalf("expected 1 exception, got %d", len(event.Exception))
+	}
+	stack := event.Exception[0].Stacktrace
+	if !hasModuleFrame(stack, "sync") || hasModuleFrame(stack, "slices") {
+		t.Fatalf("expected the error's own origin stack, not the call-site stack, got %+v", stack)
 	}
 }
 
 // TestWriterErrFallbackStacktrace verifies that when the logged error carries
 // no stack of its own but the client has AttachStacktrace enabled, the current
-// call-site stack is attached to the exception instead.
+// call-site stack is attached to the exception instead. A message logged without
+// any error still gets the call-site stack, attached as the current thread, so
+// AttachStacktrace also covers plain error-level log lines.
 func TestWriterErrFallbackStacktrace(t *testing.T) {
 	transport := &captureTransport{}
-	client, err := sentry.NewClient(sentry.ClientOptions{
-		Dsn:              "https://public@example.com/1",
-		Transport:        transport,
-		AttachStacktrace: true,
-	})
-	if err != nil {
-		t.Fatalf("sentry.NewClient: %v", err)
-	}
-	hub := sentry.NewHub(client, sentry.NewScope())
+	hub := newTestHub(t, transport, attachStacktrace)
 
 	config := NewWriterConfig(hub, golog.NewDefaultFormat(), golog.AllLevelsActive, false, nil)
 	logger := golog.NewLogger(golog.NewConfig(&golog.DefaultLevels, golog.AllLevelsActive, config))
 
-	logger.Error("boom").Err(errors.New("no stack")).Log()
+	// Log from a stdlib callback so the call-site stack keeps a frame that
+	// survives filterFrames (see callViaStdlib).
+	callViaStdlib(func() { logger.Error("boom").Err(errors.New("no stack")).Log() })
 	hub.Flush(time.Second)
 
 	if len(transport.events) != 1 {
@@ -238,8 +297,99 @@ func TestWriterErrFallbackStacktrace(t *testing.T) {
 	if len(event.Exception) != 1 {
 		t.Fatalf("expected 1 exception, got %d", len(event.Exception))
 	}
-	if event.Exception[0].Stacktrace == nil {
-		t.Fatal("expected fallback call-site stack trace when AttachStacktrace is on")
+	if !hasModuleFrame(event.Exception[0].Stacktrace, "sync") {
+		t.Fatalf("expected fallback call-site stack trace when AttachStacktrace is on, got %+v", event.Exception[0].Stacktrace)
+	}
+	// The call-site stack runs through golog and logsentry, whose frames must
+	// not reach Sentry (TestFilterFrames covers the helper on its own).
+	if slices.ContainsFunc(event.Exception[0].Stacktrace.Frames, func(f sentry.Frame) bool {
+		return strings.HasPrefix(f.Module, "github.com/domonda/golog")
+	}) {
+		t.Errorf("expected golog-internal frames to be filtered from the stack, got %+v", event.Exception[0].Stacktrace.Frames)
+	}
+
+	callViaStdlib(func() { logger.Error("no error logged").Log() })
+	hub.Flush(time.Second)
+
+	if len(transport.events) != 2 {
+		t.Fatalf("expected 2 events, got %d", len(transport.events))
+	}
+	event = transport.events[1]
+	if len(event.Exception) != 0 {
+		t.Errorf("expected no exception without a logged error, got %d", len(event.Exception))
+	}
+	if len(event.Threads) != 1 {
+		t.Fatalf("expected 1 thread carrying the call-site stack, got %d", len(event.Threads))
+	}
+	if !event.Threads[0].Current || !hasModuleFrame(event.Threads[0].Stacktrace, "sync") {
+		t.Errorf("expected the current thread with the call-site stack trace, got %+v", event.Threads[0])
+	}
+}
+
+// TestWriterRecoverStacktraceEndsAtPanicOrigin pins the documented behavior
+// that, with AttachStacktrace enabled, a message logged from a recover handler
+// carries a call-site stack that ends at the panic origin (sentry-go trims the
+// frames above the panic). Stdlib frames serve as markers because this test's
+// own frames are filtered out: the sync.Once frames below the panic must
+// survive, the slices.IndexFunc frame inside the recover handler must not.
+func TestWriterRecoverStacktraceEndsAtPanicOrigin(t *testing.T) {
+	transport := &captureTransport{}
+	hub := newTestHub(t, transport, attachStacktrace)
+
+	config := NewWriterConfig(hub, golog.NewDefaultFormat(), golog.AllLevelsActive, false, nil)
+	logger := golog.NewLogger(golog.NewConfig(&golog.DefaultLevels, golog.AllLevelsActive, config))
+
+	func() {
+		defer func() {
+			if recover() != nil {
+				_ = slices.IndexFunc([]int{0}, func(int) bool {
+					logger.Error("recovered").Err(errors.New("no stack")).Log()
+					return true
+				})
+			}
+		}()
+		callViaStdlib(func() { panic("boom") })
+	}()
+	hub.Flush(time.Second)
+
+	if len(transport.events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(transport.events))
+	}
+	event := transport.events[0]
+	if len(event.Exception) != 1 {
+		t.Fatalf("expected 1 exception, got %d", len(event.Exception))
+	}
+	stack := event.Exception[0].Stacktrace
+	if !hasModuleFrame(stack, "sync") {
+		t.Errorf("expected the panic-origin path (sync.Once) in the stack, got %+v", stack)
+	}
+	if hasModuleFrame(stack, "slices") {
+		t.Errorf("expected the recover-handler frames above the panic to be trimmed, got %+v", stack)
+	}
+}
+
+// TestWriterHubWithoutClient verifies that logging an error through a hub with
+// no client bound (e.g. sentry.CurrentHub() before sentry.Init) is a silent
+// no-op, so an unconfigured Sentry never breaks logging: a panic in the writer
+// would be recovered and reported to the error handler.
+func TestWriterHubWithoutClient(t *testing.T) {
+	hub := sentry.NewHub(nil, sentry.NewScope())
+	// Premise: a hub without a bound client reports a disabled client. If a
+	// future sentry-go breaks this, revisit the AttachStacktrace guard in
+	// CommitMessage.
+	if hub.Client().IsEnabled() {
+		t.Fatal("premise: a hub without a bound client must have a disabled client")
+	}
+
+	var captured error
+	config := NewWriterConfig(hub, golog.NewDefaultFormat(), golog.AllLevelsActive, false, nil,
+		WithErrorHandler(func(err error) { captured = err }))
+	logger := golog.NewLogger(golog.NewConfig(&golog.DefaultLevels, golog.AllLevelsActive, config))
+
+	logger.Error("boom").Err(errors.New("no stack")).Log()
+
+	if captured != nil {
+		t.Fatalf("expected no writer error without a client, got: %v", captured)
 	}
 }
 
@@ -281,6 +431,20 @@ func newStackErr(msg string) *stackErr {
 func (e *stackErr) Error() string         { return e.msg }
 func (e *stackErr) StackTrace() []uintptr { return e.callers }
 
+// callViaStdlib runs fn through sync.Once so a stack captured inside fn
+// contains standard library frames. Every frame of this test package belongs to
+// the github.com/domonda/golog module and is removed by filterFrames, so a
+// surviving "sync" frame proves that a real, non-empty stack was attached.
+func callViaStdlib(fn func()) {
+	var once sync.Once
+	once.Do(fn)
+}
+
+// hasModuleFrame reports whether st contains a frame of the given module.
+func hasModuleFrame(st *sentry.Stacktrace, module string) bool {
+	return st != nil && slices.ContainsFunc(st.Frames, func(f sentry.Frame) bool { return f.Module == module })
+}
+
 // TestWriterReservedTypeKey verifies that a value logged under the Sentry-
 // reserved "type" key is remapped to "type_" so it survives as context data,
 // for both per-message values and config-level extra.
@@ -312,7 +476,8 @@ func TestWriterReservedTypeKey(t *testing.T) {
 // TestSentryDebugWriter verifies the DebugWriter adapter forwards genuine
 // delivery failures (including the default async path's "error sending
 // envelope") while ignoring routine output and intentional drops (sampling,
-// BeforeSend). Lines are verbatim from sentry-go v0.46.2 debuglog calls.
+// BeforeSend). Lines are verbatim from sentry-go debuglog calls present in
+// v0.50.0, the minimum version logsentry requires.
 func TestSentryDebugWriter(t *testing.T) {
 	cases := []struct {
 		line    string
@@ -328,32 +493,31 @@ func TestSentryDebugWriter(t *testing.T) {
 		{"Event dropped due to transport buffer being full. event-4", true},     // overload drop
 		{"Too many requests for \"error\", backing off till: 2026-06-03", true}, // 429
 		{"Failed to build envelope, skipping delivery. evt: boom", true},        // serialization fail
+		{"Failed to create request from envelope: bad DSN", true},               // request build fail
 		{"Unexpected status code 418 for event event-5", true},                  // unexpected
+		{"Failed to send client report: connection refused", true},              // client report send
+		{"Failed to serialize client report: json: boom", true},                 // client report serialize
+		{"Failed to encode client report: json: boom", true},                    // client report encode
+		{"Failed to create client report request: bad DSN", true},               // client report build
 	}
 
 	var got []string
 	w := NewSentryDebugWriter(func(err error) { got = append(got, err.Error()) })
 
-	var wantCount int
+	// Compare the exact forwarded lines, not just their count, so a marker that
+	// stops matching cannot be masked by another line that starts matching.
+	var want []string
 	for _, c := range cases {
 		if c.forward {
-			wantCount++
+			want = append(want, "sentry: "+c.line)
 		}
 		if _, err := io.WriteString(w, c.line+"\n"); err != nil {
 			t.Fatalf("Write: %v", err)
 		}
 	}
 
-	if len(got) != wantCount {
-		t.Fatalf("expected %d forwarded errors, got %d: %v", wantCount, len(got), got)
-	}
-	for _, e := range got {
-		if !strings.HasPrefix(e, "sentry: ") {
-			t.Errorf("forwarded error missing prefix: %q", e)
-		}
-		if strings.Contains(e, "SampleRate") || strings.Contains(e, "BeforeSend") || strings.Contains(e, "project: 42") {
-			t.Errorf("intentional/routine line should not be forwarded: %q", e)
-		}
+	if !slices.Equal(got, want) {
+		t.Fatalf("forwarded errors mismatch\n got: %q\nwant: %q", got, want)
 	}
 }
 
