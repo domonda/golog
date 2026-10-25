@@ -2,6 +2,7 @@ package logfile
 
 import (
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -10,19 +11,37 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/ungerik/go-fs"
 
 	"github.com/domonda/golog"
 	"github.com/domonda/golog/log"
 )
 
-func TestRotatingWriter_BasicWrite(t *testing.T) {
-	dir := fs.MustMakeTempDir()
-	t.Cleanup(func() {
-		dir.RemoveRecursive()
-	})
+// listDir returns the paths of the entries in dir whose names match pattern.
+// Unlike filepath.Glob it only matches pattern against the entry names,
+// so glob metacharacters in dir (e.g. from TMPDIR) are not interpreted,
+// and it returns directory read errors instead of ignoring them.
+func listDir(dir, pattern string) ([]string, error) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, err
+	}
+	var paths []string
+	for _, entry := range entries {
+		match, err := filepath.Match(pattern, entry.Name())
+		if err != nil {
+			return nil, err
+		}
+		if match {
+			paths = append(paths, filepath.Join(dir, entry.Name()))
+		}
+	}
+	return paths, nil
+}
 
-	filePath := dir.Join("test.log").LocalPath()
+func TestRotatingWriter_BasicWrite(t *testing.T) {
+	dir := t.TempDir()
+
+	filePath := filepath.Join(dir, "test.log")
 	writer, err := NewRotatingWriter(filePath, "", 0644, 0)
 	require.NoError(t, err)
 	defer writer.Close()
@@ -43,12 +62,9 @@ func TestRotatingWriter_BasicWrite(t *testing.T) {
 }
 
 func TestRotatingWriter_NoRotation(t *testing.T) {
-	dir := fs.MustMakeTempDir()
-	t.Cleanup(func() {
-		dir.RemoveRecursive()
-	})
+	dir := t.TempDir()
 
-	filePath := dir.Join("test.log").LocalPath()
+	filePath := filepath.Join(dir, "test.log")
 	// rotateSize = 0 means no rotation
 	writer, err := NewRotatingWriter(filePath, "", 0644, 0)
 	require.NoError(t, err)
@@ -64,18 +80,15 @@ func TestRotatingWriter_NoRotation(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify only one file exists
-	files, err := dir.ListDirMax(-1, "test.log*")
+	files, err := listDir(dir, "test.log*")
 	require.NoError(t, err)
 	assert.Equal(t, 1, len(files), "should only have one file with no rotation")
 }
 
 func TestRotatingWriter_SingleRotation(t *testing.T) {
-	dir := fs.MustMakeTempDir()
-	t.Cleanup(func() {
-		dir.RemoveRecursive()
-	})
+	dir := t.TempDir()
 
-	filePath := dir.Join("test.log").LocalPath()
+	filePath := filepath.Join(dir, "test.log")
 	rotateSize := int64(100)
 	writer, err := NewRotatingWriter(filePath, "", 0644, rotateSize)
 	require.NoError(t, err)
@@ -97,7 +110,7 @@ func TestRotatingWriter_SingleRotation(t *testing.T) {
 	require.NoError(t, err)
 
 	// Should have 2 files: original and rotated
-	files, err := dir.ListDirMax(-1, "test.log*")
+	files, err := listDir(dir, "test.log*")
 	require.NoError(t, err)
 	assert.Equal(t, 2, len(files), "should have original and one rotated file")
 
@@ -108,12 +121,9 @@ func TestRotatingWriter_SingleRotation(t *testing.T) {
 }
 
 func TestRotatingWriter_MultipleRotations(t *testing.T) {
-	dir := fs.MustMakeTempDir()
-	t.Cleanup(func() {
-		dir.RemoveRecursive()
-	})
+	dir := t.TempDir()
 
-	filePath := dir.Join("test.log").LocalPath()
+	filePath := filepath.Join(dir, "test.log")
 	rotateSize := int64(50)
 	writer, err := NewRotatingWriter(filePath, "", 0644, rotateSize)
 	require.NoError(t, err)
@@ -141,19 +151,16 @@ func TestRotatingWriter_MultipleRotations(t *testing.T) {
 	// So we get: numWrites+1 files (current + numWrites rotated)
 	// Actually, each write triggers rotation if size >= rotateSize
 	// So: write 1 (60 bytes), write 2 (rotate, 60 bytes), write 3 (rotate, 60 bytes), etc.
-	files, err := dir.ListDirMax(-1, "test.log*")
+	files, err := listDir(dir, "test.log*")
 	require.NoError(t, err)
 	expectedFiles := numWrites + 1 // Current file + one rotated file per write after first
 	assert.Equal(t, expectedFiles, len(files), "should have %d files after %d writes", expectedFiles, numWrites)
 }
 
 func TestRotatingWriter_CustomTimeFormat(t *testing.T) {
-	dir := fs.MustMakeTempDir()
-	t.Cleanup(func() {
-		dir.RemoveRecursive()
-	})
+	dir := t.TempDir()
 
-	filePath := dir.Join("test.log").LocalPath()
+	filePath := filepath.Join(dir, "test.log")
 	customFormat := "2006-01-02"
 	rotateSize := int64(50)
 	writer, err := NewRotatingWriter(filePath, customFormat, 0644, rotateSize)
@@ -170,26 +177,23 @@ func TestRotatingWriter_CustomTimeFormat(t *testing.T) {
 	err = writer.Sync()
 	require.NoError(t, err)
 
-	// Verify rotated file uses custom format
-	files, err := dir.ListDirMax(-1, "test.log.*")
+	// The single write rotates once, before writing
+	files, err := listDir(dir, "test.log.*")
 	require.NoError(t, err)
-	require.Greater(t, len(files), 0, "should have at least one rotated file")
+	require.Len(t, files, 1, "should have exactly one rotated file")
 
-	// Check that the rotated file name contains date in expected format
-	rotatedFile := files[0].Name()
-	assert.Contains(t, rotatedFile, "test.log.")
-	// Should match pattern like: test.log.2024-01-15
-	parts := strings.Split(rotatedFile, ".")
-	require.Greater(t, len(parts), 2, "rotated file should have date suffix")
+	// The suffix must parse with the custom format, like test.log.2024-01-15.
+	// A suffix in the default format (2006-01-02_15:04:05) fails to parse
+	// with "extra text", and parsing does not depend on the current time.
+	suffix := strings.TrimPrefix(filepath.Base(files[0]), "test.log.")
+	_, err = time.Parse(customFormat, suffix)
+	require.NoError(t, err, "rotated file suffix %q should use the custom format %q", suffix, customFormat)
 }
 
 func TestRotatingWriter_ExistingFile(t *testing.T) {
-	dir := fs.MustMakeTempDir()
-	t.Cleanup(func() {
-		dir.RemoveRecursive()
-	})
+	dir := t.TempDir()
 
-	filePath := dir.Join("existing.log").LocalPath()
+	filePath := filepath.Join(dir, "existing.log")
 
 	// Create an existing file with content
 	existingContent := []byte("Existing log content\n")
@@ -217,12 +221,9 @@ func TestRotatingWriter_ExistingFile(t *testing.T) {
 }
 
 func TestRotatingWriter_Sync(t *testing.T) {
-	dir := fs.MustMakeTempDir()
-	t.Cleanup(func() {
-		dir.RemoveRecursive()
-	})
+	dir := t.TempDir()
 
-	filePath := dir.Join("test.log").LocalPath()
+	filePath := filepath.Join(dir, "test.log")
 	writer, err := NewRotatingWriter(filePath, "", 0644, 0)
 	require.NoError(t, err)
 	defer writer.Close()
@@ -242,12 +243,9 @@ func TestRotatingWriter_Sync(t *testing.T) {
 }
 
 func TestRotatingWriter_Getters(t *testing.T) {
-	dir := fs.MustMakeTempDir()
-	t.Cleanup(func() {
-		dir.RemoveRecursive()
-	})
+	dir := t.TempDir()
 
-	filePath := dir.Join("test.log").LocalPath()
+	filePath := filepath.Join(dir, "test.log")
 	timeFormat := "2006-01-02_15:04"
 	rotateSize := int64(1024 * 1024)
 
@@ -261,12 +259,9 @@ func TestRotatingWriter_Getters(t *testing.T) {
 }
 
 func TestRotatingWriter_ConcurrentWrites(t *testing.T) {
-	dir := fs.MustMakeTempDir()
-	t.Cleanup(func() {
-		dir.RemoveRecursive()
-	})
+	dir := t.TempDir()
 
-	filePath := dir.Join("concurrent.log").LocalPath()
+	filePath := filepath.Join(dir, "concurrent.log")
 	rotateSize := int64(200)
 	writer, err := NewRotatingWriter(filePath, "", 0644, rotateSize)
 	require.NoError(t, err)
@@ -295,7 +290,7 @@ func TestRotatingWriter_ConcurrentWrites(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify files were created (should have rotated multiple times)
-	files, err := dir.ListDirMax(-1, "concurrent.log*")
+	files, err := listDir(dir, "concurrent.log*")
 	require.NoError(t, err)
 	assert.Greater(t, len(files), 1, "should have rotated at least once with concurrent writes")
 }
@@ -303,20 +298,17 @@ func TestRotatingWriter_ConcurrentWrites(t *testing.T) {
 // TestRotatingWriter_WithGolog tests integration with golog using concurrent writes
 // This is the original test, now improved with better assertions
 func TestRotatingWriter_WithGolog(t *testing.T) {
-	dir := fs.MustMakeTempDir()
-	t.Cleanup(func() {
-		dir.RemoveRecursive()
-	})
+	dir := t.TempDir()
 
 	const jsonRotateSize = 350 // fit two 165 byte lines, but not three
 	jsonWriter, err := NewRotatingWriter(
-		dir.Join("json.log").LocalPath(), "", 0644, jsonRotateSize)
+		filepath.Join(dir, "json.log"), "", 0644, jsonRotateSize)
 	require.NoError(t, err)
 	defer jsonWriter.Close()
 
 	const textRotateSize = 300 // fit two 130 byte lines but not three
 	textWriter, err := NewRotatingWriter(
-		dir.Join("text.log").LocalPath(), "", 0644, textRotateSize)
+		filepath.Join(dir, "text.log"), "", 0644, textRotateSize)
 	require.NoError(t, err)
 	defer textWriter.Close()
 
@@ -359,12 +351,12 @@ func TestRotatingWriter_WithGolog(t *testing.T) {
 	numFilesExpected := numThreads * numThreadMessages / numMessagesPerFile
 
 	// Verify JSON log rotation
-	jsonFiles, err := dir.ListDirMax(-1, "json.log*")
+	jsonFiles, err := listDir(dir, "json.log*")
 	require.NoError(t, err)
 	require.Equal(t, numFilesExpected, len(jsonFiles), "expected %d files for json.log*, got %d", numFilesExpected, len(jsonFiles))
 
 	// Verify text log rotation
-	textFiles, err := dir.ListDirMax(-1, "text.log*")
+	textFiles, err := listDir(dir, "text.log*")
 	require.NoError(t, err)
 	require.Equal(t, numFilesExpected, len(textFiles), "expected %d files for text.log*, got %d", numFilesExpected, len(textFiles))
 
@@ -373,7 +365,7 @@ func TestRotatingWriter_WithGolog(t *testing.T) {
 	// Count messages in JSON files
 	jsonMessageCount := 0
 	for _, file := range jsonFiles {
-		content, err := os.ReadFile(file.LocalPath())
+		content, err := os.ReadFile(file)
 		require.NoError(t, err)
 		// Each line is a JSON log message
 		lines := strings.Split(strings.TrimSpace(string(content)), "\n")
@@ -387,10 +379,9 @@ func TestRotatingWriter_WithGolog(t *testing.T) {
 // rw.file pointing to a closed file descriptor. The writer should recover
 // by reopening the file path and remain functional for subsequent writes.
 func TestRotatingWriter_RecoveryAfterFileDeleted(t *testing.T) {
-	dir := fs.MustMakeTempDir()
-	t.Cleanup(func() { dir.RemoveRecursive() })
+	dir := t.TempDir()
 
-	filePath := dir.Join("test.log").LocalPath()
+	filePath := filepath.Join(dir, "test.log")
 	writer, err := NewRotatingWriter(filePath, "", 0644, 100)
 	require.NoError(t, err)
 	defer writer.Close()
@@ -425,10 +416,9 @@ func TestRotatingWriter_RecoveryAfterFileDeleted(t *testing.T) {
 }
 
 func TestRotatingWriter_SameTimestampSuffix(t *testing.T) {
-	dir := fs.MustMakeTempDir()
-	t.Cleanup(func() { dir.RemoveRecursive() })
+	dir := t.TempDir()
 
-	filePath := dir.Join("test.log").LocalPath()
+	filePath := filepath.Join(dir, "test.log")
 	// Day-precision format guarantees all rotations within this test
 	// produce the same timestamp string, exercising the numeric suffix logic.
 	writer, err := NewRotatingWriter(filePath, "2006-01-02", 0644, 10)
@@ -443,7 +433,7 @@ func TestRotatingWriter_SameTimestampSuffix(t *testing.T) {
 
 	require.NoError(t, writer.Sync())
 
-	files, err := dir.ListDirMax(-1, "test.log*")
+	files, err := listDir(dir, "test.log*")
 	require.NoError(t, err)
 	// 1 current file + numRotations rotated files
 	// (each write of 20 bytes >= rotateSize of 10, so every write rotates)
@@ -455,8 +445,8 @@ func TestRotatingWriter_SameTimestampSuffix(t *testing.T) {
 
 	rotatedNames := make(map[string]bool)
 	for _, f := range files {
-		if f.Name() != "test.log" {
-			rotatedNames[f.Name()] = true
+		if filepath.Base(f) != "test.log" {
+			rotatedNames[filepath.Base(f)] = true
 		}
 	}
 	assert.Equal(t, numRotations, len(rotatedNames))
@@ -470,10 +460,9 @@ func TestRotatingWriter_SameTimestampSuffix(t *testing.T) {
 }
 
 func TestRotatingWriter_ExactBoundary(t *testing.T) {
-	dir := fs.MustMakeTempDir()
-	t.Cleanup(func() { dir.RemoveRecursive() })
+	dir := t.TempDir()
 
-	filePath := dir.Join("test.log").LocalPath()
+	filePath := filepath.Join(dir, "test.log")
 	writer, err := NewRotatingWriter(filePath, "", 0644, 100)
 	require.NoError(t, err)
 	defer writer.Close()
@@ -486,7 +475,7 @@ func TestRotatingWriter_ExactBoundary(t *testing.T) {
 
 	require.NoError(t, writer.Sync())
 
-	files, err := dir.ListDirMax(-1, "test.log*")
+	files, err := listDir(dir, "test.log*")
 	require.NoError(t, err)
 	assert.Equal(t, 2, len(files), "should have current + 1 rotated file at exact boundary")
 
@@ -497,10 +486,9 @@ func TestRotatingWriter_ExactBoundary(t *testing.T) {
 }
 
 func TestRotatingWriter_WriteLargerThanRotateSize(t *testing.T) {
-	dir := fs.MustMakeTempDir()
-	t.Cleanup(func() { dir.RemoveRecursive() })
+	dir := t.TempDir()
 
-	filePath := dir.Join("test.log").LocalPath()
+	filePath := filepath.Join(dir, "test.log")
 	writer, err := NewRotatingWriter(filePath, "", 0644, 50)
 	require.NoError(t, err)
 	defer writer.Close()
@@ -519,20 +507,19 @@ func TestRotatingWriter_WriteLargerThanRotateSize(t *testing.T) {
 	assert.Equal(t, string(data), string(content))
 
 	// Rotated file should be empty (the original file was freshly created)
-	rotated, err := dir.ListDirMax(-1, "test.log.*")
+	rotated, err := listDir(dir, "test.log.*")
 	require.NoError(t, err)
 	require.Equal(t, 1, len(rotated))
 
-	rotatedContent, err := os.ReadFile(rotated[0].LocalPath())
+	rotatedContent, err := os.ReadFile(rotated[0])
 	require.NoError(t, err)
 	assert.Empty(t, rotatedContent, "rotated file should be empty since original was fresh")
 }
 
 func TestRotatingWriter_RotatedFileContent(t *testing.T) {
-	dir := fs.MustMakeTempDir()
-	t.Cleanup(func() { dir.RemoveRecursive() })
+	dir := t.TempDir()
 
-	filePath := dir.Join("test.log").LocalPath()
+	filePath := filepath.Join(dir, "test.log")
 	writer, err := NewRotatingWriter(filePath, "", 0644, 100)
 	require.NoError(t, err)
 	defer writer.Close()
@@ -551,11 +538,11 @@ func TestRotatingWriter_RotatedFileContent(t *testing.T) {
 	require.NoError(t, writer.Sync())
 
 	// Verify rotated file has data1
-	rotated, err := dir.ListDirMax(-1, "test.log.*")
+	rotated, err := listDir(dir, "test.log.*")
 	require.NoError(t, err)
 	require.Equal(t, 1, len(rotated))
 
-	rotatedContent, err := os.ReadFile(rotated[0].LocalPath())
+	rotatedContent, err := os.ReadFile(rotated[0])
 	require.NoError(t, err)
 	assert.Equal(t, string(data1), string(rotatedContent), "rotated file should contain first message")
 
