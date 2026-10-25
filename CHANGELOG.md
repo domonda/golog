@@ -10,6 +10,8 @@ lockstep with the root module, e.g. `v1.0.7`, `logsentry/v1.0.7`, `goslog/v1.0.7
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-10-25
+
 ### Changed
 
 - `Message.SubLoggerContext` now also adds the attribs from the passed context
@@ -260,7 +262,8 @@ lockstep with the root module, e.g. `v1.0.7`, `logsentry/v1.0.7`, `goslog/v1.0.7
   attrib type for zero-allocation `time.Time` logging, and the `tag-release`
   versioning script.
 
-[Unreleased]: https://github.com/domonda/golog/compare/v1.3.1...HEAD
+[Unreleased]: https://github.com/domonda/golog/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/domonda/golog/compare/v1.3.1...v1.4.0
 [1.3.1]: https://github.com/domonda/golog/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/domonda/golog/compare/v1.2.1...v1.3.0
 [1.2.1]: https://github.com/domonda/golog/compare/v1.2.0...v1.2.1
