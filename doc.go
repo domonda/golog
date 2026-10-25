@@ -81,9 +81,7 @@ Create child loggers with inherited attributes:
 
 Store and retrieve log attributes in context:
 
-	// Add attributes to context.
-	// The context takes over ownership of the passed attribs,
-	// see golog.Attribs.AddToContext.
+	// Add attributes to context
 	ctx = golog.ContextWithAttribs(ctx,
 		golog.NewString("correlation_id", corrID),
 		golog.NewString("user_id", userID),

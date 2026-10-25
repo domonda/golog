@@ -18,18 +18,20 @@ lockstep with the root module, e.g. `v1.0.7`, `logsentry/v1.0.7`, `goslog/v1.0.7
   message still take precedence over context attribs with the same key.
   Previously the context attribs ended up only in the returned context, so the
   sub-logger lost them when used with a different context.
+  The context attribs are a snapshot that becomes a permanent part of the
+  sub-logger's attribs and, like all logger attribs, takes precedence over
+  attribs with the same key from a context the sub-logger is used with later.
+  A sub-logger created from a request scoped context must therefore not outlive
+  that request.
 
-- `Attribs.AddToContext` now documents and implements a **consuming** contract:
-  the returned context takes over ownership of the receiver's attribs and slice
-  instead of cloning them, so callers must not use or `Free` them anymore and
-  have to pass `attribs.Clone()` to keep using them. Attribs added to a context
-  are never returned to the mempool (a context has no end of life), so cloning
-  them only orphaned the attribs the caller handed over anyway — one pooled
-  attrib per call on paths like `ContextWithAttribs(ctx, NewUUID(...))` in the
-  HTTP middleware. Attribs inherited from the parent context are still cloned so
-  that parent and child context stay independent. Same contract for
-  `ContextWithAttribs`, `RequestWithAttribs`, and `Attribs.AddToRequest`.
-  `Attribs.CloneAndAppendNonExistingCloned` is the non-consuming counterpart.
+- `Attribs.AddToContext` now documents its non-consuming contract explicitly:
+  the returned context owns clones of the receiver's attribs and of the attribs
+  inherited from the parent context, so the caller keeps ownership of its
+  attribs and may keep using and finally `Free` them. A context must own its
+  attribs because it has no end of life: an attrib that another owner returns to
+  the mempool would be recycled while the context still references it. Same
+  contract for `ContextWithAttribs`, `RequestWithAttribs`, and
+  `Attribs.AddToRequest`. Behavior is unchanged from v1.2.1.
 
 ### Fixed
 

@@ -123,7 +123,8 @@ func AttribFromContext[T Attrib](ctx context.Context, key string) (attrib T, ok 
 // added to it, overwriting any attribs with the same keys
 // already added to the context.
 //
-// The returned context consumes the passed attribs, see Attribs.AddToContext.
+// Clones of the passed attribs are added to the context,
+// so the caller keeps ownership of them, see Attribs.AddToContext.
 //
 // The added attribs can be retrieved from the context
 // with AttribsFromContext.
@@ -135,8 +136,8 @@ func ContextWithAttribs(ctx context.Context, attribs ...Attrib) context.Context 
 // added to its context, overwriting any attribs with
 // the same keys already added to the request context.
 //
-// The context of the returned request consumes
-// the passed attribs, see Attribs.AddToContext.
+// Clones of the passed attribs are added to the request context,
+// so the caller keeps ownership of them, see Attribs.AddToContext.
 func RequestWithAttribs(request *http.Request, attribs ...Attrib) *http.Request {
 	return Attribs(attribs).AddToRequest(request)
 }
@@ -145,19 +146,14 @@ func RequestWithAttribs(request *http.Request, attribs ...Attrib) *http.Request 
 // added to it, overwriting any attribs with the same keys
 // already added to the context.
 //
-// The returned context consumes the Attribs of the receiver:
-// it takes over ownership of the attribs and of the slice,
-// so the caller must not use or Free them anymore.
-// Attribs added to a context are never returned to the mempool
-// because a context has no end of life, so consuming them
-// saves cloning attribs that the caller wants to hand over anyway.
-// Callers that keep using their Attribs must pass a clone:
-//
-//	ctx = attribs.Clone().AddToContext(ctx)
-//
-// Attribs from the parent context that are not shadowed by an attrib
-// with the same key are cloned into the returned context, so that the
-// attribs of the parent context stay valid independent of the returned one.
+// The returned context gets clones of the receiver's attribs and of the
+// attribs from the parent context that are not shadowed by a receiver attrib
+// with the same key. The receiver and the parent context therefore keep
+// ownership of their attribs and stay valid and usable independent of the
+// returned context. A context must own its attribs because it has no end of
+// life: an attrib that another owner may Free and return to the mempool
+// (Attribs.Free, Logger.RemoveAttribs) would be recycled while the context
+// still references it.
 //
 // The added attribs can be retrieved from the context
 // with AttribsFromContext.
@@ -165,16 +161,16 @@ func (a Attribs) AddToContext(ctx context.Context) context.Context {
 	if len(a) == 0 {
 		return ctx
 	}
-	a = a.appendNonExistingCloned(AttribsFromContext(ctx))
-	return context.WithValue(ctx, &attribsCtxKey, a)
+	mergedAttribs := a.CloneAndAppendNonExistingCloned(AttribsFromContext(ctx))
+	return context.WithValue(ctx, &attribsCtxKey, mergedAttribs)
 }
 
 // AddToRequest returns an http.Request with the Attribs
 // added to its context, overwriting any attribs with
 // the same keys already added to the request context.
 //
-// The context of the returned request consumes
-// the Attribs of the receiver, see Attribs.AddToContext.
+// Clones of the receiver's attribs are added to the request context,
+// so the receiver keeps ownership of them, see Attribs.AddToContext.
 func (a Attribs) AddToRequest(request *http.Request) *http.Request {
 	if len(a) == 0 {
 		return request
@@ -188,6 +184,9 @@ func (a Attribs) AddToRequest(request *http.Request) *http.Request {
 //
 // The attribs of a are transferred to the returned slice,
 // so a must not be used anymore, while b is not modified.
+// The clones from b are appended to the backing array of a when it has
+// spare capacity, so the caller must be the exclusive owner of a.
+// Use Attribs.CloneAndAppendNonExistingCloned for attribs owned by someone else.
 func (a Attribs) appendNonExistingCloned(b Attribs) Attribs {
 	if len(b) == 0 {
 		return a
@@ -212,9 +211,8 @@ func (a Attribs) appendNonExistingCloned(b Attribs) Attribs {
 // attribs from b that are not already present in a
 // identified by their key.
 //
-// The result is a new slice and the slices a and b
-// are not modified.
-// It's the non-consuming counterpart of Attribs.AddToContext.
+// The result is a new slice with cloned attribs and
+// the slices a and b are not modified.
 func (a Attribs) CloneAndAppendNonExistingCloned(b Attribs) Attribs {
 	if len(a) == 0 {
 		return b.Clone()

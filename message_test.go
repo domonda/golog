@@ -780,6 +780,29 @@ func TestMessage_SubLoggerContext_CtxAttribs(t *testing.T) {
 		textOut.Reset()
 		jsonOut.Reset()
 	})
+
+	// The ctx attribs are a snapshot that became part of the sub-logger's
+	// attribs, so they take precedence over attribs with the same key from
+	// another context the sub-logger is used with, exactly like the attribs
+	// recorded at the message. This is why a sub-logger created from a
+	// request scoped ctx must not outlive that request.
+	t.Run("snapshot takes precedence over another ctx", func(t *testing.T) {
+		subLog, _ := log.With().Str("msgStr", "msg").SubLoggerContext(ctx)
+
+		otherCtx := ContextWithAttribs(
+			context.Background(),
+			NewString("ctxStr", "other"),   // Shadowed by the sub-logger snapshot
+			NewString("otherStr", "other"), // Not in the sub-logger, so logged
+		)
+		subLog.NewMessageAt(otherCtx, timestamp, infoLevel, "Msg").Log()
+
+		textMsg := `2006-01-02 15:04:05 |INFO | pkg: Msg msgStr="msg" ctxStr="ctx" bothStr="ctx" otherStr="other"` + "\n"
+		jsonMsg := `{"time":"2006-01-02 15:04:05","level":"INFO","message":"pkg: Msg","msgStr":"msg","ctxStr":"ctx","bothStr":"ctx","otherStr":"other"}` + "\n"
+		assert.Equal(t, textMsg, textOut.String())
+		assert.Equal(t, jsonMsg, jsonOut.String())
+		textOut.Reset()
+		jsonOut.Reset()
+	})
 }
 
 func TestMessage_SubContext(t *testing.T) {
