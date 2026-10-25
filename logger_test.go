@@ -87,6 +87,24 @@ func TestLogger_WithPrefix(t *testing.T) {
 		assert.Equal(t, "newprefix", newLogger.Prefix())
 		assert.Equal(t, "", logger.Prefix()) // Original unchanged
 	})
+
+	// Sharing the attribs with the parent logger would let
+	// Logger.RemoveAttribs on either logger nil out the attribs of the other
+	// one and return their slice to the mempool while it's still referenced.
+	t.Run("clones attribs", func(t *testing.T) {
+		buf := bytes.NewBuffer(nil)
+		config := NewConfig(&DefaultLevels, AllLevelsActive, NewTextWriterConfig(buf, nil, nil))
+		logger := NewLogger(config, NewString("key", "value"))
+		prefixed := logger.WithPrefix("newprefix")
+		require.Len(t, prefixed.Attribs(), 1)
+		require.NotSame(t, logger.Attribs()[0], prefixed.Attribs()[0], "prefixed logger has a clone of the attrib")
+
+		logger.RemoveAttribs()
+		require.Len(t, prefixed.Attribs(), 1, "prefixed logger kept its attrib")
+
+		prefixed.Info("test").Log()
+		assert.Contains(t, buf.String(), `key="value"`)
+	})
 }
 
 func TestLogger_Prefix(t *testing.T) {

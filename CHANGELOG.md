@@ -44,6 +44,14 @@ lockstep with the root module, e.g. `v1.0.7`, `logsentry/v1.0.7`, `goslog/v1.0.7
   and `Logger.WithCtx`, whose sub-logger no longer shares attribs with its parent.
 - `Message.SubContext` no longer hands the returned context the attribs that the
   still usable message keeps ownership of.
+- `Logger.WithPrefix` now gets clones of the logger's attribs instead of sharing
+  the same slice, like every other method that derives a logger. Sharing it let
+  `Logger.RemoveAttribs` on either logger nil out the attribs of the other one
+  and return their slice to the mempool while it was still referenced, so the
+  next message of that logger panicked or logged recycled attribs.
+- `Message.SubLoggerContext` now returns the message's attribs slice to the
+  mempool when it has to grow to fit the attribs from the context, instead of
+  leaving it to the garbage collector.
 
 ## [1.3.1] - 2026-10-25
 

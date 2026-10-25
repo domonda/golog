@@ -185,7 +185,8 @@ func (a Attribs) AddToRequest(request *http.Request) *http.Request {
 // The attribs of a are transferred to the returned slice,
 // so a must not be used anymore, while b is not modified.
 // The clones from b are appended to the backing array of a when it has
-// spare capacity, so the caller must be the exclusive owner of a.
+// spare capacity, and the slice of a is returned to the mempool when it
+// has to grow, so the caller must be the exclusive owner of a pooled a.
 // Use Attribs.CloneAndAppendNonExistingCloned for attribs owned by someone else.
 func (a Attribs) appendNonExistingCloned(b Attribs) Attribs {
 	if len(b) == 0 {
@@ -197,6 +198,10 @@ func (a Attribs) appendNonExistingCloned(b Attribs) Attribs {
 		// which could put a non-pooled slice into the mempool
 		grown := attribsPool.GetOrMake(len(a), len(a)+len(b))
 		copy(grown, a)
+		// The attribs are owned by grown now, so return the slice of a to the
+		// mempool instead of leaving it to the garbage collector. Clearing it
+		// does not affect the attribs that were copied to grown.
+		attribsPool.ClearAndPutBack(a)
 		a = grown
 	}
 	for _, bAttrib := range b {

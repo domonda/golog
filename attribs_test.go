@@ -2,9 +2,13 @@ package golog
 
 import (
 	"context"
+	"io"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/domonda/golog/mempool"
 )
 
 func TestAttribs_CloneAndAppendNonExisting(t *testing.T) {
@@ -124,6 +128,31 @@ func TestAttribs_AddToContext_CallerKeepsOwnership(t *testing.T) {
 	// Freeing the caller's attribs must not nil out the ones in the context
 	attribs.Free()
 	require.Equal(t, Attribs{NewString("a", "1"), NewString("p", "parent")}, AttribsFromContext(ctx))
+}
+
+// TestAttribs_appendNonExistingCloned_GrowReturnsSliceToMemPool tests that
+// the slice of the receiver is returned to the mempool when it has no spare
+// capacity for the clones from b, instead of being left to the garbage
+// collector like Attribs.Add would do it.
+func TestAttribs_appendNonExistingCloned_GrowReturnsSliceToMemPool(t *testing.T) {
+	DrainAllMemPools()
+	mempool.RegisterCallbacksWriterForTest(t, io.Discard)
+
+	// Fill up the pooled slice of a so that appending a clone from b has to grow it
+	var a Attribs
+	for i := range attribsPool.MinCap {
+		a.Add(NewInt("a"+strconv.Itoa(i), int64(i)))
+	}
+	require.Equal(t, len(a), cap(a), "no spare capacity left in the pooled slice of a")
+	var b Attribs
+	b.Add(NewString("b", "1"))
+
+	merged := a.appendNonExistingCloned(b)
+	require.Len(t, merged, attribsPool.MinCap+1)
+
+	merged.Free()
+	b.Free()
+	require.Zero(t, mempool.NumOutstanding(), "every pooled attrib and slice was returned")
 }
 
 func TestAttribFromContext(t *testing.T) {

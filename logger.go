@@ -164,6 +164,8 @@ func (l *Logger) Prefix() string {
 
 // WithPrefix returns a clone of the logger using
 // the passed prefix or returns nil if the logger was nil.
+// The clone gets clones of the logger's attribs, so that the logger
+// and the clone stay valid and usable independent of each other.
 // See Logger.Prefix
 func (l *Logger) WithPrefix(prefix string) *Logger {
 	if l == nil {
@@ -171,7 +173,7 @@ func (l *Logger) WithPrefix(prefix string) *Logger {
 	}
 	return &Logger{
 		config:  l.config,
-		attribs: l.attribs,
+		attribs: l.attribs.Clone(),
 		prefix:  prefix,
 	}
 }
