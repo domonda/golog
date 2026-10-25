@@ -163,6 +163,32 @@ func TestAttribs_AddToContext_CallerKeepsOwnership(t *testing.T) {
 	require.Equal(t, Attribs{NewString("a", "1"), NewString("p", "parent")}, AttribsFromContext(ctx))
 }
 
+// TestAttribs_appendNonExistingCloned_GrowsPooled tests that appending the
+// clones from b to a receiver without spare capacity grows it via
+// Attribs.growPooled, so that the replaced slice is returned to the mempool
+// instead of being left to the garbage collector, and that append can't
+// allocate a non-pooled backing array that Attribs.Free would put back.
+func TestAttribs_appendNonExistingCloned_GrowsPooled(t *testing.T) {
+	DrainAllMemPools()
+	mempool.RegisterCallbacksWriterForTest(t, io.Discard)
+
+	// Fill up the pooled slice of a so that appending a clone from b has to grow it
+	var a Attribs
+	for i := range attribsPool.MinCap {
+		a.Add(NewInt("a"+strconv.Itoa(i), int64(i)))
+	}
+	require.Equal(t, len(a), cap(a), "no spare capacity left in the pooled slice of a")
+	var b Attribs
+	b.Add(NewString("b", "1"))
+
+	merged := a.appendNonExistingCloned(b)
+	require.Len(t, merged, attribsPool.MinCap+1)
+
+	merged.Free()
+	b.Free()
+	require.Zero(t, mempool.NumOutstanding(), "every pooled attrib and slice was returned")
+}
+
 func TestAttribFromContext(t *testing.T) {
 	_, ok := AttribFromContext[*Int](context.Background(), "invalid")
 	require.False(t, ok, "attrib not added to context")
