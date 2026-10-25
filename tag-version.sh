@@ -3,9 +3,11 @@
 # Tags the root, goslog/, and logsentry/ modules with the version read from the
 # VERSION file (instead of taking it as a command-line argument).
 
+set -e
+
 # Just in case the script is run from another directory
-SCRIPT_DIR=$(cd -P -- $(dirname -- "$0") && pwd -P)
-cd $SCRIPT_DIR
+SCRIPT_DIR=$(cd -P -- "$(dirname -- "$0")" && pwd -P)
+cd "$SCRIPT_DIR"
 
 MODULE_PATHS=("" "goslog/" "logsentry/")
 
@@ -58,28 +60,76 @@ for PREFIX in "${MODULE_PATHS[@]}"; do
     echo ""
 done
 
-MESSAGE="$VERSION"
-if [ -n "$1" ]; then
-    MESSAGE="$1" # optional tag message provided as the first argument
+MESSAGE="${1:-$VERSION}" # optional tag message provided as the first argument
+
+TAGS=()
+for PREFIX in "${MODULE_PATHS[@]}"; do
+    TAGS+=("${PREFIX}${VERSION}")
+done
+
+# Refuse to retag a released version: an existing tag would make
+# "git tag" fail, and reverting below would delete the existing release tag
+EXISTING=()
+for TAG in "${TAGS[@]}"; do
+    if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+        EXISTING+=("$TAG (local)")
+    fi
+    if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null; then
+        EXISTING+=("$TAG (origin)")
+    elif [ $? -ne 2 ]; then
+        echo "Error: could not list the tags on origin"
+        exit 1
+    fi
+done
+if [ ${#EXISTING[@]} -gt 0 ]; then
+    echo "Error: $VERSION is already tagged:"
+    printf '  %s\n' "${EXISTING[@]}"
+    echo "Update the VERSION file before tagging a new release."
+    exit 1
 fi
+
+# Only tags created by this run are ever deleted
+CREATED=()
+delete_created_tags() {
+    for TAG in "${CREATED[@]}"; do
+        git tag -d "$TAG"
+    done
+}
 
 echo "Tagging $VERSION (from VERSION file) with message: '$MESSAGE'"
 
-for PREFIX in "${MODULE_PATHS[@]}"; do
-    echo "  tag ${PREFIX}${VERSION}"
-    git tag -a "${PREFIX}${VERSION}" -m "$MESSAGE"
+for TAG in "${TAGS[@]}"; do
+    echo "  tag $TAG"
+    if ! git tag -a "$TAG" -m "$MESSAGE"; then
+        delete_created_tags
+        echo "Error: could not create tag $TAG, reverted the tags created so far"
+        exit 1
+    fi
+    CREATED+=("$TAG")
+done
+
+# Push only the new tags, never every local tag
+REFS=()
+for TAG in "${TAGS[@]}"; do
+    REFS+=("refs/tags/$TAG")
 done
 
 echo "Tags to be pushed"
-git push --tags --dry-run
+if ! git push --dry-run --atomic origin "${REFS[@]}"; then
+    delete_created_tags
+    echo "Error: push dry run failed, reverted local $VERSION tags"
+    exit 1
+fi
 
 echo "Do you want to push tags to origin? (y/n)"
-read CONFIRM
+read -r CONFIRM || CONFIRM=""
 if [[ "$CONFIRM" == "y" || "$CONFIRM" == "Y" ]]; then
-    git push origin --tags
+    if ! git push --atomic origin "${REFS[@]}"; then
+        delete_created_tags
+        echo "Error: push failed, reverted local $VERSION tags"
+        exit 1
+    fi
 else
-    for PREFIX in "${MODULE_PATHS[@]}"; do
-        git tag -d "${PREFIX}${VERSION}"
-    done
+    delete_created_tags
     echo "Reverted local $VERSION tags"
 fi

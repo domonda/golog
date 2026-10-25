@@ -10,6 +10,29 @@ lockstep with the root module, e.g. `v1.0.7`, `logsentry/v1.0.7`, `goslog/v1.0.7
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-10-25
+
+### Changed
+
+- Refreshed dependencies across the workspace: `golang.org/x/sys` v0.49.0
+  in every module and `x/term` v0.47.0 in every module that uses it (a direct
+  requirement of the root module); **logsentry:** `x/text` v0.43.0;
+  **tools:** gosec v2.30.0. The minimum Go version stays 1.26.0.
+
+### Removed
+
+- Dropped the test-only dependency on `ungerik/go-fs`, and with it the
+  indirect `fsnotify` and `pkg/xattr`, so they no longer appear in the root
+  module's dependency graph. The `logfile` tests now use `t.TempDir` and
+  `path/filepath` instead.
+
+### Fixed
+
+- `tag-version.sh` now stops when the `VERSION` is already tagged locally or
+  on origin, instead of failing to tag and then deleting the existing release
+  tags when the push is declined. It pushes only the new tags (not every local
+  tag), and on a declined or failed push it deletes only the tags it created.
+
 ## [1.3.0] - 2026-10-13
 
 ### Changed
@@ -204,7 +227,8 @@ lockstep with the root module, e.g. `v1.0.7`, `logsentry/v1.0.7`, `goslog/v1.0.7
   attrib type for zero-allocation `time.Time` logging, and the `tag-release`
   versioning script.
 
-[Unreleased]: https://github.com/domonda/golog/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/domonda/golog/compare/v1.3.1...HEAD
+[1.3.1]: https://github.com/domonda/golog/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/domonda/golog/compare/v1.2.1...v1.3.0
 [1.2.1]: https://github.com/domonda/golog/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/domonda/golog/compare/v1.1.1...v1.2.0

@@ -25,13 +25,15 @@ Builds a Docker image containing:
 - The golog library
 - The compiled test executable
 
-### 3. Integration Test (`../../terminaldetection_test.go`)
+### 3. Integration Test (`TestTerminalDetection` in `../../writerconfig_test.go`)
 
 A Go test that:
 1. Builds the Docker image
 2. Runs the container **with** a terminal (`docker run -t`)
 3. Runs the container **without** a terminal (`docker run`)
 4. Verifies the output format in each case
+
+The test is skipped when Docker is not available.
 
 ## Running the Test
 
