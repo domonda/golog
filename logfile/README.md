@@ -24,8 +24,6 @@ go get github.com/domonda/golog/logfile
 package main
 
 import (
-    "os"
-
     "github.com/domonda/golog"
     "github.com/domonda/golog/logfile"
 )
@@ -53,7 +51,6 @@ func main() {
     log := golog.NewLogger(config)
 
     log.Info("Application started").Log()
-    log.Error("An error occurred").Err(err).Log()
 }
 ```
 
@@ -66,6 +63,7 @@ import (
     "os"
 
     "github.com/domonda/golog"
+    "github.com/domonda/golog/log"
     "github.com/domonda/golog/logfile"
 )
 
@@ -90,16 +88,16 @@ func main() {
         golog.NewTextWriterConfig(
             os.Stdout,
             nil,
-            golog.NewStyledColorizer(),
+            log.NewStyledColorizer(),
         ),
         // JSON output to rotating file
         golog.NewJSONWriterConfig(fileWriter, nil),
     )
 
-    log := golog.NewLogger(config)
+    logger := golog.NewLogger(config)
 
     // Logs will appear on console in color AND be written to file in JSON
-    log.Info("Server starting").
+    logger.Info("Server starting").
         Str("host", "localhost").
         Int("port", 8080).
         Log()
@@ -145,7 +143,7 @@ func main() {
         golog.NewJSONWriterConfig(
             errorLogsWriter,
             nil,
-            golog.LevelFilterFrom(golog.DefaultLevels.Error),
+            golog.DefaultLevels.Error.FilterOutBelow(),
         ),
     )
 
@@ -158,28 +156,30 @@ func main() {
 
 ## How Rotation Works
 
-When a log file reaches the configured size threshold:
+Before a write that would make the log file reach or exceed the configured size threshold:
 
 1. The current file is closed
 2. The file is renamed with a timestamp suffix (e.g., `myapp.log.2024-01-15_10:30:45`)
 3. If a file with that name already exists, a numeric suffix is added (e.g., `myapp.log.2024-01-15_10:30:45.1`)
 4. A new file is created at the original path
-5. Logging continues to the new file
+5. The write that triggered the rotation goes to the new file
+
+Rotated files therefore stay just under the threshold.
 
 ### Example File Rotation
 
 ```
 # Before rotation
-myapp.log (10MB)
+myapp.log (just under 10MB)
 
 # After first rotation
-myapp.log (0 bytes, new file)
-myapp.log.2024-01-15_10:30:45 (10MB)
+myapp.log (the triggering message)
+myapp.log.2024-01-15_10:30:45 (just under 10MB)
 
 # After second rotation (same second)
-myapp.log (0 bytes, new file)
-myapp.log.2024-01-15_10:30:45 (10MB)
-myapp.log.2024-01-15_10:30:45.1 (10MB)
+myapp.log (the triggering message)
+myapp.log.2024-01-15_10:30:45 (just under 10MB)
+myapp.log.2024-01-15_10:30:45.1 (just under 10MB)
 ```
 
 ## Configuration Options
