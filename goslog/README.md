@@ -63,6 +63,7 @@ import (
 
     "github.com/domonda/golog"
     "github.com/domonda/golog/goslog"
+    "github.com/domonda/golog/log"
     "github.com/domonda/golog/logfile"
 )
 
@@ -81,7 +82,7 @@ gologLogger := golog.NewLogger(
         &golog.DefaultLevels,
         golog.AllLevelsActive,
         // Console: colored text
-        golog.NewTextWriterConfig(os.Stdout, nil, golog.NewStyledColorizer()),
+        golog.NewTextWriterConfig(os.Stdout, nil, log.NewStyledColorizer()),
         // File: JSON with rotation
         golog.NewJSONWriterConfig(fileWriter, nil),
     ),
@@ -166,7 +167,7 @@ logger.Info("User action",
 
 ### Attribute Groups
 
-Groups create nested attribute structures:
+Groups prefix their attribute keys with the group name:
 
 ```go
 logger.Info("HTTP request",
@@ -184,19 +185,7 @@ logger.Info("HTTP request",
 
 **JSON Output:**
 ```json
-{
-  "level": "INFO",
-  "msg": "HTTP request",
-  "request": {
-    "method": "GET",
-    "path": "/api/users",
-    "status": 200
-  },
-  "client": {
-    "ip": "192.168.1.1",
-    "user_agent": "Mozilla/5.0"
-  }
-}
+{"time":"2026-10-31 14:00:59.120","level":"INFO","message":"HTTP request","request.method":"GET","request.path":"/api/users","request.status":200,"client.ip":"192.168.1.1","client.user_agent":"Mozilla/5.0"}
 ```
 
 ### Child Loggers with Attributes
@@ -225,11 +214,11 @@ Use `WithGroup` to create loggers that prefix all attributes:
 ```go
 baseLogger := slog.New(handler)
 
-// All attributes will be under "service" group
+// All attribute keys get the "service." prefix
 serviceLogger := baseLogger.WithGroup("service")
 
 serviceLogger.Info("Starting", "name", "api", "version", "2.0")
-// Output: {"level":"INFO","msg":"Starting","service":{"name":"api","version":"2.0"}}
+// Output: {"time":"...","level":"INFO","message":"Starting","service.name":"api","service.version":"2.0"}
 ```
 
 ### Lazy Evaluation with LogValuer
@@ -266,7 +255,7 @@ devHandler := goslog.Handler(
         golog.NewConfig(
             &golog.DefaultLevels,
             golog.AllLevelsActive,
-            golog.NewTextWriterConfig(os.Stdout, nil, golog.NewStyledColorizer()),
+            golog.NewTextWriterConfig(os.Stdout, nil, log.NewStyledColorizer()), // github.com/domonda/golog/log
         ),
     ),
     goslog.ConvertDefaultLevels,
@@ -311,7 +300,7 @@ gologLogger := golog.NewLogger(
         golog.NewJSONWriterConfig(
             fileWriter,
             nil,
-            golog.LevelFilterFrom(golog.DefaultLevels.Warn),
+            golog.DefaultLevels.Warn.FilterOutBelow(),
         ),
     ),
 )

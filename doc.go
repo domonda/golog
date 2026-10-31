@@ -37,11 +37,11 @@ Add typed fields to log messages:
 Supported field types include:
   - Str, Strs: Strings and string slices
   - Int, Int64, Uint, Uint64: Integer types
-  - Float32, Float64: Floating point numbers
+  - Float32, Float: Floating point numbers
   - Bool: Booleans
   - Time, Duration: Time and duration values
   - UUID: UUID values
-  - JSON, RawJSON: JSON data
+  - JSON: Raw JSON data
   - Err: Error values
   - Any: Generic values (uses reflection)
 
@@ -54,7 +54,7 @@ Six standard log levels are supported:
   - INFO (0): General information messages
   - WARN (10): Warnings for potentially harmful situations
   - ERROR (20): Error conditions
-  - FATAL (30): Critical errors (calls panic after logging)
+  - FATAL (30): Critical errors (set [GlobalPanicLevel] to panic after logging)
 
 Level-specific methods:
 
@@ -63,7 +63,7 @@ Level-specific methods:
 	log.Info("Operation completed").Log()
 	log.Warn("Deprecated API used").Log()
 	log.Error("Failed to connect").Err(err).Log()
-	log.Fatal("Critical failure").Log() // Panics after logging
+	log.Fatal("Critical failure").Log()
 
 # Sub-loggers
 
@@ -114,7 +114,7 @@ Human-readable text output with optional colors:
 	config := golog.NewConfig(
 		&golog.DefaultLevels,
 		golog.AllLevelsActive,
-		golog.NewTextWriterConfig(os.Stdout, nil, golog.NewStyledColorizer()),
+		golog.NewTextWriterConfig(os.Stdout, nil, log.NewStyledColorizer()), // github.com/domonda/golog/log
 	)
 
 ## Message timestamp formats
@@ -154,22 +154,21 @@ Log to multiple outputs simultaneously:
 Control which log levels are written:
 
 	// Only log WARN and above to file
-	filter := golog.LevelFilterFrom(golog.DefaultLevels.Warn)
+	filter := golog.DefaultLevels.Warn.FilterOutBelow()
 	fileWriter := golog.NewJSONWriterConfig(logFile, nil, filter)
 
-	// Multiple filters with custom logic
+	// Combine filters: a level filtered out by any of them is not logged
 	filter := golog.JoinLevelFilters(
-		golog.LevelFilterFrom(golog.DefaultLevels.Debug),
-		golog.NewLevelFilterFunction(func(ctx context.Context, level golog.Level) bool {
-			return customLogic(ctx, level)
-		}),
+		golog.DefaultLevels.Trace.FilterOut(),
+		golog.DefaultLevels.Debug.FilterOut(),
 	)
 
 # HTTP Middleware
 
-Built-in HTTP request/response logging:
+Built-in HTTP request logging with a request ID taken from the
+X-Request-ID header (or X-Correlation-ID when it is missing), or generated:
 
-	handler := golog.HTTPMiddleware(log, yourHandler)
+	handler := golog.HTTPMiddlewareHandler(yourHandler, log, golog.DefaultLevels.Info, "HTTP request")
 
 Or create custom middleware:
 
@@ -189,11 +188,10 @@ golog is designed for high performance:
   - Zero-allocation logging in most cases
   - Memory pooling for message and writer instances
   - Efficient JSON encoding
-  - Lazy evaluation of expensive operations
   - Minimal overhead when log levels are inactive
 
-Benchmarks show golog performs comparably to zerolog with additional
-flexibility and features.
+In the comparative benchmarks zerolog is faster at JSON output, golog is
+faster at text output, and golog allocates nothing for either.
 
 # Advanced Features
 
@@ -208,19 +206,20 @@ Log call stacks for debugging:
 
 ## Custom Colorizers
 
-Implement the Colorizer interface for custom output styling:
-
-	type Colorizer interface {
-		Colorize(level Level, text string) string
-	}
+Implement the [Colorizer] interface for custom output styling.
+It has one method per element of a log line, for example
+ColorizeMsg, ColorizeLevel, ColorizeKey and ColorizeError.
 
 Built-in colorizers:
-  - StyledColorizer: Colorful, styled output
-  - Custom implementations for specific needs
+  - [StyledColorizer]: configurable termenv styles per element;
+    log.NewStyledColorizer from github.com/domonda/golog/log
+    returns one with default colors
+  - [NoColorizer]: plain text
 
 ## Nil-Safe Logger
 
-Logger is nil-safe and will not panic:
+The level methods of a nil Logger return a nil Message,
+and logging a nil Message does nothing:
 
 	var log *golog.Logger
 	log.Info("This is safe").Log() // No panic, no output

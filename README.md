@@ -1,82 +1,14 @@
 # golog
 
-Fast and feature-rich structured logging library for Go
+Zero-allocation structured logging for Go. The same logger writes colored text in a terminal and JSON everywhere else.
 
 ![GitHub go.mod Go version](https://img.shields.io/github/go-mod/go-version/domonda/golog)
 [![Go Reference](https://pkg.go.dev/badge/github.com/domonda/golog.svg)](https://pkg.go.dev/github.com/domonda/golog)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-## Table of Contents
+In production at [domonda](https://www.domonda.com) since 2023.
 
-- [Features](#features)
-- [Production Tested](#production-tested)
-- [Installation](#installation)
-- [Quick Start](#quick-start)
-  - [Basic Usage](#basic-usage)
-  - [JSON Output](#json-output)
-  - [Structured Logging with All Data Types](#structured-logging-with-all-data-types)
-- [Log Levels](#log-levels)
-  - [Level-specific Methods](#level-specific-methods)
-- [Sub-loggers and Context](#sub-loggers-and-context)
-  - [Creating Sub-loggers](#creating-sub-loggers)
-  - [Context Integration](#context-integration)
-- [Multiple Writers and Filtering](#multiple-writers-and-filtering)
-- [Terminal Detection](#terminal-detection)
-- [Ready-to-Use Logger (`log` subpackage)](#ready-to-use-logger-log-subpackage)
-  - [Default Configuration](#default-configuration)
-  - [Customizing the Default Logger](#customizing-the-default-logger)
-  - [Available Package-Level Functions](#available-package-level-functions)
-- [Rotating Log Files](#rotating-log-files)
-  - [Multiple Writers with Rotation](#multiple-writers-with-rotation)
-- [Standard Library Integration (slog)](#standard-library-integration-slog)
-  - [Benefits of slog Integration](#benefits-of-slog-integration)
-- [HTTP Middleware](#http-middleware)
-- [Advanced Features](#advanced-features)
-  - [Custom Colorizers](#custom-colorizers)
-  - [Call Stack Logging](#call-stack-logging)
-  - [Struct Field Logging: Tags and Modifiers](#struct-field-logging-tags-and-modifiers)
-  - [Custom Levels](#custom-levels)
-  - [Level Filtering](#level-filtering)
-  - [Logging in a Fixed Timezone](#logging-in-a-fixed-timezone)
-  - [Parsing Log Timestamps](#parsing-log-timestamps)
-- [Performance](#performance)
-  - [Benchmarks](#benchmarks)
-- [Comparison with Other Logging Libraries](#comparison-with-other-logging-libraries)
-  - [Performance vs Flexibility Tradeoffs](#performance-vs-flexibility-tradeoffs)
-  - [Architectural Differences](#architectural-differences)
-  - [When to Choose golog](#when-to-choose-golog)
-  - [When to Choose Alternatives](#when-to-choose-alternatives)
-  - [Real-World Performance](#real-world-performance)
-- [API Reference](#api-reference)
-  - [Core Types](#core-types)
-  - [Writer Types](#writer-types)
-- [License](#license)
-
-## Features
-
-- **High Performance**: Zero-allocation logging for JSON, text, and complex fields (error, time.Time)
-- **Structured Logging**: Type-safe field methods for all Go primitives including native time.Time and UUID
-- **Tag-driven Struct Logging**: `StructFields` and `TaggedStructFields` honor `golog`, `log`, and `json` tags with `omitempty`, `omitzero`, `omitnull`, and `redact` modifiers. `encoding/json`-compatible where applicable
-- **Multiple Output Formats**: JSON and human-readable text output
-- **Terminal Auto-Detection**: Automatically switches between colored text (TTY) and JSON (non-TTY)
-- **Configurable Log Levels**: TRACE, DEBUG, INFO, WARN, ERROR, FATAL with flexible filtering
-- **Context Support**: Log attributes can be stored in and retrieved from context automatically
-- **Duplicate Key Prevention**: A message attribute is dropped when the same key was already set by the logger, a sub-logger, or the context (the inherited value wins), keeping inherited structured data clean
-- **Colorized Output**: Beautiful colored console output with customizable colorizers
-- **Multi-Writer Architecture**: Log to multiple destinations with different formats and filters
-- **Rotating Log Files**: Automatic file rotation based on size thresholds
-- **slog Integration**: Use as a backend for Go's standard log/slog package
-- **HTTP Middleware**: Built-in HTTP request/response logging with request ID propagation
-- **UUID Support**: Native UUID logging with zero allocations
-- **Call Stack Tracing**: Capture and log call stacks for debugging
-- **Memory Safety**: Nil-safe logger implementation prevents panics
-- **Sub-loggers**: Create child loggers with inherited attributes
-
-## Production Tested
-
-golog has been used in production at [domonda](https://www.domonda.com) since 2023, powering mission-critical business applications with reliable, high-performance logging.
-
-## Installation
+## Install
 
 ```bash
 go get github.com/domonda/golog
@@ -84,7 +16,80 @@ go get github.com/domonda/golog
 
 ## Quick Start
 
-### Basic Usage
+```go
+package main
+
+import (
+    "errors"
+
+    "github.com/domonda/golog/log"
+)
+
+func main() {
+    log.Info("Server started").Int("port", 8080).Log()
+    log.Error("Payment failed").Str("order", "A-1001").Err(errors.New("card declined")).Log()
+}
+```
+
+In a terminal the output is colored text:
+
+```text
+2026-10-31 13:24:01.270 |INFO | Server started port=8080
+2026-10-31 13:24:01.270 |ERROR| Payment failed order="A-1001" error=`card declined`
+```
+
+Piped to a file or a log collector, the same program writes JSON:
+
+```json
+{"time":"2026-10-31 13:24:01.270","level":"INFO","message":"Server started","port":8080}
+{"time":"2026-10-31 13:24:01.270","level":"ERROR","message":"Payment failed","order":"A-1001","error":"card declined"}
+```
+
+Set the `LOG_LEVEL` environment variable to `TRACE`, `DEBUG`, `INFO`, `WARN`, `ERROR` or `FATAL` to choose the lowest level that gets logged. The default is `DEBUG`.
+
+## Features
+
+- **Logs without allocating** — 0 allocations per message for JSON and uncolored text output, including errors and `time.Time` fields.
+- **Picks the output format** — the `log` package writes colored text to a terminal and JSON when output is piped, with no setup.
+- **Writes to several places at once** — for example colored text on stdout plus warnings and errors as JSON in a size-rotated file, each writer with its own format and level filter.
+- **Reports errors to Sentry** — the `logsentry` module turns errors logged with `Err` into Sentry exceptions, keeping the stack trace the error carries.
+- **Carries request context** — attributes stored in a `context.Context` appear on every message logged with it. The HTTP middleware puts a request ID there, taken from `X-Request-ID` or generated.
+- **Protects inherited keys** — a message can't duplicate or override a key its logger or sub-logger already set, such as `service`.
+- **Logs structs by their tags** — reuses your `json` tags (or `golog` and `log` tags) with `omitempty`-style modifiers, and prints `***REDACTED***` for fields tagged `redact`.
+- **Backs `log/slog`** — the `goslog` module turns a golog logger into a `slog.Handler` that passes the standard library's `slogtest` suite.
+- **Ignores a nil logger** — `Info`, `Error` and the other level methods on a nil `*Logger` return a message that logs nothing, instead of panicking.
+
+`goslog` and `logsentry` are separate modules, so the core module doesn't pull in the Sentry SDK:
+
+```bash
+go get github.com/domonda/golog/goslog
+go get github.com/domonda/golog/logsentry
+```
+
+## Performance
+
+| Apple M2, per message | golog            | zerolog            | zap              | slog             |
+|-----------------------|------------------|--------------------|------------------|------------------|
+| JSON, 4 fields        | 353 ns, 0 allocs | 145 ns, 0 allocs   | 451 ns, 1 alloc  | 860 ns, 9 allocs |
+| Text, no colors       | 394 ns, 0 allocs | 2363 ns, 46 allocs | 514 ns, 4 allocs | 677 ns, 3 allocs |
+| Level disabled        | 42 ns, 0 allocs  | 6 ns, 0 allocs     | 35 ns, 1 alloc   | 47 ns, 3 allocs  |
+
+zerolog is faster at JSON. golog is the fastest at uncolored text output in these benchmarks and allocates nothing for either. Messages and writers come from object pools, which is how the per-message allocations reach zero. Colored terminal output allocates a few strings per message for the color codes.
+
+The comparative benchmarks live in their own module, so zerolog, zap and logrus never become dependencies of golog:
+
+```bash
+go test ./benchmarks -bench=. -benchmem   # golog vs zerolog, zap, slog, logrus
+go test -bench=. -benchmem                # golog's own benchmarks
+```
+
+All scenarios and results: [benchmarks/README.md](benchmarks/README.md).
+
+## Configuring a Logger
+
+The `log` package covers the common case. Build your own logger with `golog.NewConfig` when you need other writers, formats or levels.
+
+### Text Output
 
 ```go
 package main
@@ -97,7 +102,6 @@ import (
 )
 
 func main() {
-    // Create a basic text logger
     config := golog.NewConfig(
         &golog.DefaultLevels,
         golog.AllLevelsActive,
@@ -106,7 +110,6 @@ func main() {
 
     log := golog.NewLogger(config)
 
-    // Simple logging
     log.Info("Hello, World!").Log()
     log.Error("Something went wrong").Err(errors.New("example error")).Log()
 }
@@ -115,7 +118,6 @@ func main() {
 ### JSON Output
 
 ```go
-// Create a JSON logger
 config := golog.NewConfig(
     &golog.DefaultLevels,
     golog.AllLevelsActive,
@@ -138,7 +140,7 @@ Output (matches `NewDefaultFormat`: `"time"` key, `"2006-01-02 15:04:05.000"` la
 {"time":"2024-01-15 10:30:45.000","level":"INFO","message":"User login","username":"john_doe","ip":"192.168.1.1","login_time":"150ms"}
 ```
 
-### Structured Logging with All Data Types
+### Typed Fields
 
 ```go
 requestID := golog.UUIDv4()           // [16]byte UUID
@@ -211,8 +213,10 @@ ctxLogger := log.WithCtx(ctx)
 ctxLogger.Info("Operation started").Log() // Includes context attributes
 
 // Or use the logger's InfoCtx method
-logger.InfoCtx(ctx, "Operation started").Log() // Includes context attributes
+log.InfoCtx(ctx, "Operation started").Log() // Includes context attributes
 ```
+
+If a message sets a key that the logger or a sub-logger already provides, the message's attribute is dropped and the inherited value is kept. Context attributes that repeat a logger key are dropped the same way. A message attribute that repeats a context key is written as a second field, unless the logger was created with `WithCtx(ctx)`, which turns the context attributes into logger attributes.
 
 ## Multiple Writers and Filtering
 
@@ -224,38 +228,38 @@ defer logFile.Close()
 config := golog.NewConfig(
     &golog.DefaultLevels,
     golog.AllLevelsActive,
-    golog.NewTextWriterConfig(os.Stdout, nil, golog.NewStyledColorizer()),
+    golog.NewTextWriterConfig(os.Stdout, nil, log.NewStyledColorizer()), // github.com/domonda/golog/log
     // FilterOutBelow filters out less severe levels (lower numeric values)
     // Warn=10, so this filters out Trace=-20, Debug=-10, Info=0
     // Only Warn=10, Error=20, Fatal=30 will be logged to the file
     golog.NewJSONWriterConfig(logFile, nil, golog.DefaultLevels.Warn.FilterOutBelow()),
 )
 
-log := golog.NewLogger(config)
+logger := golog.NewLogger(config)
 
 // This will appear in colored text on stdout and as JSON in the file (if WARN+)
-log.Error("Database connection failed").Err(errors.New("connection refused")).Log()
+logger.Error("Database connection failed").Err(errors.New("connection refused")).Log()
 ```
 
 ## Terminal Detection
 
-golog can automatically switch between human-readable text and machine-readable JSON output based on whether the process is attached to a terminal (TTY):
+golog can switch between human-readable text and machine-readable JSON output based on whether the process is attached to a terminal (TTY):
 
 ```go
 config := golog.NewConfig(
     &golog.DefaultLevels,
     golog.AllLevelsActive,
     golog.DecideWriterConfigForTerminal(
-        golog.NewTextWriterConfig(os.Stdout, nil, golog.NewStyledColorizer()), // Used when running in terminal
-        golog.NewJSONWriterConfig(os.Stdout, nil),                             // Used when output is piped/redirected
+        golog.NewTextWriterConfig(os.Stdout, nil, log.NewStyledColorizer()), // Used when running in terminal
+        golog.NewJSONWriterConfig(os.Stdout, nil),                           // Used when output is piped/redirected
     ),
 )
 
-log := golog.NewLogger(config)
+logger := golog.NewLogger(config)
 ```
 
-- **Terminal (TTY)**: Outputs colored, human-readable text format
-- **Non-terminal**: Outputs machine-readable JSON format (ideal for log aggregation systems)
+- **Terminal (TTY)**: colored, human-readable text
+- **Non-terminal**: JSON for log collectors and files
 
 You can also check the terminal status directly:
 
@@ -265,15 +269,9 @@ if golog.IsTerminal() {
 }
 ```
 
-This feature is useful for:
-- **Development**: Human-readable logs in the terminal
-- **Production**: Machine-parseable JSON logs for log aggregation systems
-- **CI/CD**: Automatic format switching based on the environment
-- **Containerized Applications**: Proper format when logs are piped to files or log collectors
-
 ## Ready-to-Use Logger (`log` subpackage)
 
-For quick setup, the `log` subpackage provides a pre-configured logger with sensible defaults:
+The `log` subpackage provides a pre-configured logger:
 
 ```go
 import (
@@ -294,7 +292,7 @@ func main() {
 The `log` package is configured with:
 
 - **Log Levels**: Uses `golog.DefaultLevels` (TRACE, DEBUG, INFO, WARN, ERROR, FATAL)
-- **Level Filter**: Filters out levels below `LOG_LEVEL` environment variable (defaults to DEBUG if not set)
+- **Level Filter**: Filters out levels below the `LOG_LEVEL` environment variable (defaults to DEBUG if not set)
 - **Output**: Writes to stdout with automatic format selection:
   - **Terminal**: Colorized text format for human readability
   - **Non-terminal**: JSON format for log aggregation systems
@@ -351,7 +349,7 @@ subLog := log.With().Str("component", "auth").SubLogger()
 
 ## Rotating Log Files
 
-Automatic file rotation based on size thresholds using the `logfile` subpackage:
+The `logfile` subpackage rotates log files when they reach a size threshold:
 
 ```go
 import (
@@ -367,7 +365,7 @@ writer, err := logfile.NewRotatingWriter(
     10*1024*1024, // Rotate at 10MB
 )
 if err != nil {
-    log.Fatal(err)
+    panic(err)
 }
 defer writer.Close()
 
@@ -378,15 +376,14 @@ config := golog.NewConfig(
     golog.NewJSONWriterConfig(writer, nil),
 )
 
-log := golog.NewLogger(config)
+logger := golog.NewLogger(config)
 
-log.Info("Application started").Log()
+logger.Info("Application started").Log()
 ```
 
-When the log file reaches 10MB:
+Before a write that would make the file reach 10MB:
 - The current file is renamed with a timestamp (e.g., `myapp.log.2024-01-15_10:30:45`)
-- A new file is created at the original path
-- Logging continues seamlessly to the new file
+- A new file is created at the original path, and the write goes to the new file
 
 ### Multiple Writers with Rotation
 
@@ -398,11 +395,11 @@ defer fileWriter.Close()
 config := golog.NewConfig(
     &golog.DefaultLevels,
     golog.AllLevelsActive,
-    golog.NewTextWriterConfig(os.Stdout, nil, golog.NewStyledColorizer()),
+    golog.NewTextWriterConfig(os.Stdout, nil, log.NewStyledColorizer()), // github.com/domonda/golog/log
     golog.NewJSONWriterConfig(fileWriter, nil),
 )
 
-log := golog.NewLogger(config)
+logger := golog.NewLogger(config)
 ```
 
 See the [logfile package documentation](logfile/README.md) for more details.
@@ -436,48 +433,43 @@ logger := slog.New(handler)
 logger.Info("Hello from slog", "key", "value")
 ```
 
-### Benefits of slog Integration
+Code written against `slog` keeps its API and gets golog's writers and level filters. The handler passes the `slogtest` compliance suite. See the [goslog package documentation](goslog/README.md) for more details.
 
-- **Standard API**: Use Go's standard library slog API
-- **Existing Code**: Works with existing code that uses slog
-- **golog Features**: Get all golog benefits (multiple writers, rotation, colors)
-- **Full Compatibility**: Passes slogtest compliance suite
+## Sentry
 
-See the [goslog package documentation](goslog/README.md) for more details.
+The `logsentry` module provides a writer that sends log messages to Sentry. An error logged with `Err` becomes a Sentry exception. Its stack trace comes from the error when it carries one, otherwise from the call site if the Sentry client has `AttachStacktrace` enabled. See the [logsentry package documentation](logsentry/README.md) for setup.
 
 ## HTTP Middleware
 
+`golog.HTTPMiddlewareHandler` logs each incoming request and attaches a request ID to it:
+
 ```go
-func loggingMiddleware(log *golog.Logger) func(http.Handler) http.Handler {
-    return func(next http.Handler) http.Handler {
-        return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-            start := time.Now()
-            
-            // Log request
-            log.Info("HTTP request").
-                Request(r).
-                Log()
-            
-            next.ServeHTTP(w, r)
-            
-            // Log response
-            log.Info("HTTP response").
-                Str("method", r.Method).
-                Str("path", r.URL.Path).
-                Duration("duration", time.Since(start)).
-                Log()
-        })
-    }
-}
+logger := golog.NewLogger(config)
+
+mux := http.NewServeMux()
+mux.HandleFunc("/api/users", func(w http.ResponseWriter, r *http.Request) {
+    // Includes the requestID attribute set by the middleware
+    logger.InfoCtx(r.Context(), "Listing users").Log()
+})
+
+handler := golog.HTTPMiddlewareHandler(mux, logger, golog.DefaultLevels.Info, "HTTP request")
+http.ListenAndServe(":8080", handler)
 ```
+
+The middleware:
+- takes the request ID from the `X-Request-ID` header, or from `X-Correlation-ID` when `X-Request-ID` is missing; if that value isn't a UUID, it generates a random v4 UUID
+- stores it as the `requestID` attribute in the request context and sets it as the `X-Request-ID` response header
+- logs the remote address, method, URI and headers; pass header names after the message to log only those, or `golog.HTTPNoHeaders` to log none
+
+`golog.HTTPMiddlewareFunc` returns the same middleware as a `func(http.Handler) http.Handler`, the form routers like gorilla/mux expect.
 
 ## Advanced Features
 
 ### Custom Colorizers
 
 ```go
-colorizer := golog.NewStyledColorizer()
-// or implement your own Colorizer interface
+colorizer := log.NewStyledColorizer() // github.com/domonda/golog/log
+// or implement your own golog.Colorizer interface
 
 config := golog.NewConfig(
     &golog.DefaultLevels,
@@ -485,6 +477,8 @@ config := golog.NewConfig(
     golog.NewTextWriterConfig(os.Stdout, nil, colorizer),
 )
 ```
+
+`log.NewStyledColorizer` honors the `NO_COLOR` and `CLICOLOR`/`CLICOLOR_FORCE` environment variables.
 
 ### Call Stack Logging
 
@@ -550,7 +544,7 @@ tokens are ignored silently, so `json:"name,omitnull"` is a valid tag for both
 |-------------|---------------------------------------------------------------------------------|
 | `omitempty` | `false`, `0`, nil pointer/interface, empty array/slice/map/string. Exactly matches `encoding/json.Marshal`. Does **not** catch zero structs or `time.Time{}`. |
 | `omitzero`  | The type's `IsZero() bool` method returns true, **or** the value is the Go zero value (via `reflect.Value.IsZero`). Catches `time.Time{}` and any zero struct. Strict superset of `encoding/json`'s Go 1.24 `omitzero`. Both value-receiver and pointer-receiver `IsZero` methods are honored. |
-| `omitnull`  | The type's `IsNull() bool` method returns true. Falls back to `omitzero` semantics when the type has no `IsNull` method. Use for nullable wrappers (`golog.Timestamp`, `sql.NullString`, `uu.NullableID`) where "null" is richer than "all bytes zero". Both value-receiver and pointer-receiver `IsNull` methods are honored. |
+| `omitnull`  | The type's `IsNull() bool` method returns true. Falls back to `omitzero` semantics when the type has no `IsNull` method. Use for nullable wrappers with an `IsNull` method (`golog.Timestamp`, `uu.NullableID`) where "null" is richer than "all bytes zero". Both value-receiver and pointer-receiver `IsNull` methods are honored. |
 | `redact`    | (not a suppression modifier) — replaces the value with `"***REDACTED***"` before it reaches the writer. Also spelled `redacted`. Suppression modifiers win over redact: `json:",redact,omitempty"` on an empty string emits nothing, not the marker. |
 
 Modifiers OR together — any passing check suppresses the field.
@@ -581,13 +575,13 @@ log.Info("user").TaggedStructFields(user, "json").Log()
 // (DeletedAt suppressed by omitnull, Internal never considered.)
 ```
 
-> **Breaking changes in this release**
+> **Changed in v1.0.6**
 >
-> - `log:",redact"` (bare, single token) **no longer triggers redaction** — under the unified parser it names the field `"redact"`. Migrate to `golog:",redact"` (or combine with other modifiers: `golog:",redact,omitempty"`).
+> - `log:"redact"` (bare, no comma) **no longer triggers redaction** — under the unified parser it names the field `"redact"`. Put the modifier after a comma: `log:",redact"` or `golog:",redact"` (combinable with other modifiers: `golog:",redact,omitempty"`).
 > - `StructFields(s)` on an untagged struct now logs **nothing**. Previously it logged every exported field by its Go name. The cleanest replacement is `TaggedStructFields(s, "")`, the wildcard escape hatch documented above. Per-field, you can also add an empty tag like `json:""` or `golog:""` to opt in.
 > - `TaggedStructFields(s, "json")` with `json:""` now logs the field (Go field name), previously it skipped. This is `encoding/json.Marshal` parity.
 
-`omitnull` vs `omitzero`, concretely: `sql.NullString{Valid: false, String: ""}` and `sql.NullString{Valid: true, String: ""}` are both the reflect zero value, but only the first is actually null. `omitnull` with a proper `IsNull` method distinguishes the two; `omitzero` cannot.
+`omitnull` vs `omitzero`, concretely: take a type `NullString struct { String string; Valid bool }` with `func (n NullString) IsNull() bool { return !n.Valid }`. The value `NullString{String: "stale", Valid: false}` is null but not the Go zero value, so `omitnull` drops it and `omitzero` keeps it. Types without an `IsNull` method, such as `sql.NullString`, get `omitzero` semantics.
 
 ### Custom Levels
 
@@ -665,7 +659,7 @@ or any other place where the format varies. It wraps `time.Time` with JSON, `sql
 // JSON unmarshal: accepts RFC3339(+nano), golog's own
 // "2006-01-02 15:04:05.000", Apache/NGINX CLF, RFC1123(Z),
 // syslog Stamp, compact ISO 8601, Go log default, or a JSON
-// number interpreted as Unix epoch seconds. JSON null is zero.
+// integer interpreted as Unix epoch seconds. JSON null is zero.
 type logLine struct {
     Time    golog.Timestamp `json:"time"`
     Level   string          `json:"level"`
@@ -691,109 +685,38 @@ For storing the current request's event time in `context.Context`, use
 `golog.ContextWithTimestamp(ctx, t)` together with `golog.TimestampFromContextOrNow(ctx)`
 (returns `time.Now()` when no timestamp is stored or the stored value is zero).
 
-> **Upgrading from earlier versions:** the old `golog.Timestamp(ctx context.Context) time.Time`
+> **Changed in v1.0.6:** the old `golog.Timestamp(ctx context.Context) time.Time`
 > helper has been renamed to `golog.TimestampFromContextOrNow(ctx)` to free the `Timestamp`
 > identifier for the new type. `ContextWithTimestamp` is now generic over
 > `time.Time | golog.Timestamp`.
 
-## Performance
+## Comparison with zerolog and zap
 
-golog is designed for high performance:
+| Behavior                                                | zerolog              | zap             | golog |
+|---------------------------------------------------------|----------------------|-----------------|-------|
+| Zero allocations, JSON with fields                      | Yes                  | No (1 alloc)    | Yes   |
+| Zero allocations, uncolored text output                 | No (46 allocs)       | No (4 allocs)   | Yes   |
+| Drops message keys that repeat a logger or sub-logger key | No                   | No              | Yes   |
+| Merges attributes stored in `context.Context`           | No (stores a logger) | No              | Yes   |
 
-- Zero-allocation logging in most cases
-- Object pooling for message and writer instances
-- Efficient JSON encoding
-- Lazy evaluation of expensive operations
-- Minimal overhead for inactive log levels
+All three can write to several outputs: zerolog with `MultiLevelWriter`, zap with `zapcore.NewTee`, golog by passing several writer configs to `NewConfig`.
 
-### Benchmarks
+Choose something else when:
 
-Run internal benchmarks:
-```bash
-go test -bench=. -benchmem
-```
-
-For comparative benchmarks against other popular Go logging libraries (zerolog, zap, slog, logrus),
-the benchmarks are in a separate module to avoid adding those dependencies to the main golog module:
-```bash
-go test ./benchmarks -bench=. -benchmem -benchtime=1s
-```
-
-See [benchmarks/README.md](benchmarks/README.md) for detailed comparative analysis and performance insights.
-
-## Comparison with Other Logging Libraries
-
-golog is designed to strike a balance between performance and flexibility. While libraries like zerolog and zap prioritize raw speed, golog provides a richer feature set that makes it more adaptable to complex logging requirements.
-
-### Performance vs Flexibility Tradeoffs
-
-| Feature                                  | zerolog          | zap              | golog                 |
-|------------------------------------------|------------------|------------------|-----------------------|
-| **Multi-writer support**                 | Single output    | Limited          | Native, unlimited     |
-| **Duplicate key prevention** (inherited) | No               | No               | Yes                   |
-| **Context attribute integration**        | Manual           | Manual           | Automatic             |
-| **Sub-logger with inherited attributes** | Basic            | Basic            | Full support with attrib recording |
-| **Zero allocations (simple message)**    | Yes              | Yes              | Yes                   |
-| **Zero allocations (with fields)**       | Yes              | No (1 alloc)     | Yes                   |
-| **slog compatibility**                   | Separate adapter | Separate adapter | Native goslog package |
-
-### Architectural Differences
-
-**zerolog: Extreme Minimalism**
-- Optimized for a single use case: fast JSON logging to a single output
-- Minimal abstraction layers result in the fastest raw JSON performance
-- Disabled log levels have near-zero overhead (~5 ns/op)
-- Trade-off: Limited flexibility for complex logging scenarios
-- Trade-off: ConsoleWriter for text output is significantly slower (2363 ns/op vs 51 ns/op for JSON)
-
-**zap: Performance + Type Safety**
-- Typed `Field` structs provide compile-time safety
-- Separate "Sugar" logger offers convenience at the cost of performance
-- Trade-off: Allocates a slice for variadic field arguments (~1 alloc per log call with fields)
-
-**golog: Flexibility + Features**
-- **Native multi-writer architecture**: Log to console, files, and external services simultaneously with different formats and filters per destination
-- **Automatic context integration**: Attributes added to `context.Context` are automatically included in log messages without manual plumbing
-- **Sub-logger attribute recording**: The `With().SubLogger()` pattern creates child loggers that efficiently inherit and extend parent attributes
-- **Duplicate key prevention**: When a message sets a key already provided by the logger, a sub-logger, or the context, the inherited value is kept and the message-level duplicate is dropped, ensuring clean inherited structured data
-- **Zero allocations for standard logging**: Despite the richer feature set, golog achieves zero allocations for JSON logging with fields
-- **Nil-safe design**: A nil logger is safe to use and won't panic, simplifying error handling
-
-### When to Choose golog
-
-golog is the right choice when you need:
-
-- **Multiple output destinations**: Log to stdout with colors for development and JSON files for production simultaneously
-- **Request-scoped logging**: Automatically propagate correlation IDs, user IDs, and other context through your application
-- **Sub-loggers with inherited context**: Create child loggers for specific components that include parent attributes
-- **Clean structured data**: Prevent keys inherited from sub-loggers or context from being duplicated by message-level attributes
-- **slog compatibility**: Use golog as a backend for Go's standard library logging interface
-- **Rotating log files**: Built-in support for size-based log rotation
-
-### When to Choose Alternatives
-
-- **zerolog**: When raw JSON logging speed is the only priority and you don't need multi-writer support, context integration, or text/console output (zerolog's ConsoleWriter is slow at 2363 ns/op)
-- **zap**: When you prefer a variadic field API with compile-time type checking
-- **slog**: When you want zero external dependencies and good-enough performance from the standard library
-
-### Real-World Performance
-
-For most applications, the performance difference between logging libraries is negligible. At 250 ns/op for a simple JSON message, golog can handle 4 million log messages per second on a single core. With structured fields, golog (353 ns/op) is faster than zap (451 ns/op). With complex fields including error and time.Time, golog achieves 391 ns/op with zero allocations, outperforming zap's 475 ns/op with 1 allocation. The additional features golog provides—multi-writer support, context integration, and duplicate key prevention—often save more development time than the nanoseconds saved by faster alternatives.
-
-**Note on text output**: golog is the **fastest for text/console output** at 394 ns/op with **zero allocations**. This outperforms zap (514 ns/op, 4 allocs), slog (677 ns/op, 3 allocs), and especially zerolog's ConsoleWriter (2363 ns/op with 46 allocations).
-
-The performance gap for JSON output becomes meaningful only in extreme high-throughput scenarios (100K+ logs/second sustained), where zerolog's 51 ns/op provides measurable benefits. For typical applications, golog's flexibility and rich feature set make it a more productive choice.
+- **zerolog**: JSON throughput is the priority. It is about 2.4× faster than golog at JSON (145 vs 353 ns with 4 fields), but its `ConsoleWriter` text output is about 6× slower (2363 vs 394 ns).
+- **zap**: you prefer typed `zap.Field` values passed as variadic arguments over a fluent builder.
+- **slog**: you want no dependencies beyond the standard library. You can still add golog later as a `slog` backend through `goslog`.
 
 ## API Reference
 
 ### Core Types
 
-- **Logger**: Main logging interface
-- **Message**: Fluent message builder
-- **Config**: Logger configuration
-- **WriterConfig**: Output writer configuration
+- **Logger**: The logger; its level methods and `With` are safe to call on a nil `*Logger`
+- **Message**: Fluent message builder returned by the level methods
+- **Config**: Interface for logger configuration, created with `NewConfig`
+- **WriterConfig**: Interface for an output writer with its format and level filter
 - **Level**: Log level type
-- **LevelFilter**: Level filtering interface
+- **LevelFilter**: Bit mask of levels to filter out
 - **Format**: Layout config for timestamp keys, timestamp layouts, level keys, message keys, structured `time.Time` attributes, and an optional `*time.Location` to render every time value in a fixed timezone
 - **Timestamp**: `time.Time` wrapper with JSON, `database/sql.Scanner`/`driver.Valuer`, and null semantics, tuned for parsing log timestamps in many common formats
 
@@ -802,12 +725,16 @@ The performance gap for JSON output becomes meaningful only in extreme high-thro
 - **JSONWriter**: Structured JSON output
 - **TextWriter**: Human-readable text output
 - **CallbackWriter**: Custom callback-based writer
-- **MultiWriter**: Multiple writer composition
 - **NopWriter**: No-operation writer for testing
 
-For complete API documentation, see [pkg.go.dev](https://pkg.go.dev/github.com/domonda/golog).
+To write to several outputs, pass several writer configs to `NewConfig`.
+
+For complete API documentation, see [pkg.go.dev](https://pkg.go.dev/github.com/domonda/golog). Changes per release are listed in [CHANGELOG.md](CHANGELOG.md).
+
+## Contributing
+
+The repo is a Go workspace with several modules. `./test-workspace.sh` builds, vets and tests every module except `tools/`, and runs gosec on the same modules except `examples/`. [AGENTS.md](AGENTS.md) describes the module layout.
 
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
