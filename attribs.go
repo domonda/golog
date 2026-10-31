@@ -123,6 +123,9 @@ func AttribFromContext[T Attrib](ctx context.Context, key string) (attrib T, ok 
 // added to it, overwriting any attribs with the same keys
 // already added to the context.
 //
+// Clones of the passed attribs are added to the context,
+// so the caller keeps ownership of them, see Attribs.AddToContext.
+//
 // The added attribs can be retrieved from the context
 // with AttribsFromContext.
 func ContextWithAttribs(ctx context.Context, attribs ...Attrib) context.Context {
@@ -132,6 +135,9 @@ func ContextWithAttribs(ctx context.Context, attribs ...Attrib) context.Context 
 // RequestWithAttribs returns an http.Request with the Attribs
 // added to its context, overwriting any attribs with
 // the same keys already added to the request context.
+//
+// Clones of the passed attribs are added to the request context,
+// so the caller keeps ownership of them, see Attribs.AddToContext.
 func RequestWithAttribs(request *http.Request, attribs ...Attrib) *http.Request {
 	return Attribs(attribs).AddToRequest(request)
 }
@@ -139,6 +145,15 @@ func RequestWithAttribs(request *http.Request, attribs ...Attrib) *http.Request 
 // AddToContext returns a context with the Attribs
 // added to it, overwriting any attribs with the same keys
 // already added to the context.
+//
+// The returned context gets clones of the receiver's attribs and of the
+// attribs from the parent context that are not shadowed by a receiver attrib
+// with the same key. The receiver and the parent context therefore keep
+// ownership of their attribs and stay valid and usable independent of the
+// returned context. A context must own its attribs because it has no end of
+// life: an attrib that another owner may Free and return to the mempool
+// (Attribs.Free, Logger.RemoveAttribs) would be recycled while the context
+// still references it.
 //
 // The added attribs can be retrieved from the context
 // with AttribsFromContext.
@@ -153,6 +168,9 @@ func (a Attribs) AddToContext(ctx context.Context) context.Context {
 // AddToRequest returns an http.Request with the Attribs
 // added to its context, overwriting any attribs with
 // the same keys already added to the request context.
+//
+// Clones of the receiver's attribs are added to the request context,
+// so the receiver keeps ownership of them, see Attribs.AddToContext.
 func (a Attribs) AddToRequest(request *http.Request) *http.Request {
 	if len(a) == 0 {
 		return request
@@ -161,12 +179,45 @@ func (a Attribs) AddToRequest(request *http.Request) *http.Request {
 	return request.WithContext(ctx)
 }
 
+// appendNonExistingCloned appends clones of the attribs from b
+// that are not already present in a identified by their key.
+//
+// The attribs of a are transferred to the returned slice,
+// so a must not be used anymore, while b is not modified.
+// The clones from b are appended to the backing array of a when it has
+// spare capacity, and the slice of a is returned to the mempool when it
+// has to grow, so the caller must be the exclusive owner of a pooled a.
+// Use Attribs.CloneAndAppendNonExistingCloned for attribs owned by someone else.
+func (a Attribs) appendNonExistingCloned(b Attribs) Attribs {
+	if len(b) == 0 {
+		return a
+	}
+	if cap(a) < len(a)+len(b) {
+		// Transfer the attribs of a into a pooled slice with room for the
+		// clones from b instead of growing a with append or Attribs.Add,
+		// which could put a non-pooled slice into the mempool
+		grown := attribsPool.GetOrMake(len(a), len(a)+len(b))
+		copy(grown, a)
+		// The attribs are owned by grown now, so return the slice of a to the
+		// mempool instead of leaving it to the garbage collector. Clearing it
+		// does not affect the attribs that were copied to grown.
+		attribsPool.ClearAndPutBack(a)
+		a = grown
+	}
+	for _, bAttrib := range b {
+		if !a.Has(bAttrib.Key()) {
+			a = append(a, bAttrib.Clone())
+		}
+	}
+	return a
+}
+
 // CloneAndAppendNonExistingCloned clones a and appends clones of
 // attribs from b that are not already present in a
 // identified by their key.
 //
-// The result is a new slice and the slices a and b
-// are not modified.
+// The result is a new slice with cloned attribs and
+// the slices a and b are not modified.
 func (a Attribs) CloneAndAppendNonExistingCloned(b Attribs) Attribs {
 	if len(a) == 0 {
 		return b.Clone()
@@ -175,7 +226,9 @@ func (a Attribs) CloneAndAppendNonExistingCloned(b Attribs) Attribs {
 		return a.Clone()
 	}
 	result := attribsPool.GetOrMake(len(a), len(a)+len(b))
-	copy(result, a)
+	for i, aAttrib := range a {
+		result[i] = aAttrib.Clone()
+	}
 	for _, bAttrib := range b {
 		if !a.Has(bAttrib.Key()) {
 			result = append(result, bAttrib.Clone())

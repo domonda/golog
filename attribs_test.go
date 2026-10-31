@@ -2,9 +2,13 @@ package golog
 
 import (
 	"context"
+	"io"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/domonda/golog/mempool"
 )
 
 func TestAttribs_CloneAndAppendNonExisting(t *testing.T) {
@@ -77,6 +81,78 @@ func TestAttribs_CloneAndAppendNonExisting(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestAttribs_AddToContext_Clones pins the non-consuming contract of
+// Attribs.AddToContext: the returned context owns clones of the passed
+// attribs and of the ones inherited from the parent context.
+// A context must own its attribs because it has no end of life, so an
+// attrib shared with another owner would be recycled by the mempool while
+// the context still references it.
+func TestAttribs_AddToContext_Clones(t *testing.T) {
+	strA := NewString("a", "1")
+	ctx1 := ContextWithAttribs(context.Background(), strA)
+	require.NotSame(t, strA, AttribsFromContext(ctx1).Get("a"), "context cloned the passed attrib")
+	require.Equal(t, strA, AttribsFromContext(ctx1).Get("a"), "clone has the same key and value")
+
+	strB := NewString("b", "2")
+	ctx2 := ContextWithAttribs(ctx1, strB)
+	require.NotSame(t, strB, AttribsFromContext(ctx2).Get("b"), "context cloned the passed attrib")
+
+	inheritedA := AttribsFromContext(ctx2).Get("a")
+	require.NotSame(t, AttribsFromContext(ctx1).Get("a"), inheritedA, "attrib inherited from the parent context is a clone")
+	require.Equal(t, strA, inheritedA, "clone has the same key and value")
+
+	require.Len(t, AttribsFromContext(ctx1), 1, "parent context is unchanged")
+	require.Equal(t, strA, AttribsFromContext(ctx1).Get("a"), "parent context is unchanged")
+}
+
+// TestAttribs_AddToContext_CallerKeepsOwnership tests that a caller can keep
+// using and finally Free the Attribs it added to a context. Attribs.Add uses
+// a pooled slice with spare capacity, so a context that appended into that
+// slice instead of cloning would be corrupted by the next Add, and Free would
+// nil out the attribs the context still references.
+func TestAttribs_AddToContext_CallerKeepsOwnership(t *testing.T) {
+	var attribs Attribs
+	attribs.Add(NewString("a", "1"))
+	require.Greater(t, cap(attribs), len(attribs), "pooled slice has spare capacity")
+
+	parent := ContextWithAttribs(context.Background(), NewString("p", "parent"))
+	ctx := attribs.AddToContext(parent)
+	require.Equal(t, Attribs{NewString("a", "1"), NewString("p", "parent")}, AttribsFromContext(ctx))
+
+	// Reusing the caller's slice must not overwrite the inherited "p" attrib
+	attribs.Add(NewString("b", "2"))
+	require.Equal(t, Attribs{NewString("a", "1"), NewString("p", "parent")}, AttribsFromContext(ctx))
+
+	// Freeing the caller's attribs must not nil out the ones in the context
+	attribs.Free()
+	require.Equal(t, Attribs{NewString("a", "1"), NewString("p", "parent")}, AttribsFromContext(ctx))
+}
+
+// TestAttribs_appendNonExistingCloned_GrowReturnsSliceToMemPool tests that
+// the slice of the receiver is returned to the mempool when it has no spare
+// capacity for the clones from b, instead of being left to the garbage
+// collector like Attribs.Add would do it.
+func TestAttribs_appendNonExistingCloned_GrowReturnsSliceToMemPool(t *testing.T) {
+	DrainAllMemPools()
+	mempool.RegisterCallbacksWriterForTest(t, io.Discard)
+
+	// Fill up the pooled slice of a so that appending a clone from b has to grow it
+	var a Attribs
+	for i := range attribsPool.MinCap {
+		a.Add(NewInt("a"+strconv.Itoa(i), int64(i)))
+	}
+	require.Equal(t, len(a), cap(a), "no spare capacity left in the pooled slice of a")
+	var b Attribs
+	b.Add(NewString("b", "1"))
+
+	merged := a.appendNonExistingCloned(b)
+	require.Len(t, merged, attribsPool.MinCap+1)
+
+	merged.Free()
+	b.Free()
+	require.Zero(t, mempool.NumOutstanding(), "every pooled attrib and slice was returned")
 }
 
 func TestAttribFromContext(t *testing.T) {

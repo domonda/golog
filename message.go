@@ -97,6 +97,16 @@ func (m *Message) SubLogger() *Logger {
 // SubLoggerContext returns a new sub-logger with recorded per message attribs
 // in addition to any attribs from the passed ctx
 // and a context with those attribs added to it.
+// The returned sub-logger and context have the same union of attribs
+// attached to them, where the attribs recorded at the message
+// take precedence over attribs from the ctx with the same key.
+//
+// The attribs taken from the ctx are a snapshot that becomes a permanent
+// part of the sub-logger's attribs. Like all logger attribs they take
+// precedence over attribs with the same key from the context that the
+// sub-logger is used with later, so a sub-logger created from a request
+// scoped ctx must not outlive that request or it will keep logging the
+// attribs of the request it was created for.
 func (m *Message) SubLoggerContext(ctx context.Context) (*Logger, context.Context) {
 	if m == nil {
 		return nil, ctx
@@ -108,7 +118,14 @@ func (m *Message) SubLoggerContext(ctx context.Context) (*Logger, context.Contex
 		return m.logger, m.attribs.AddToContext(ctx)
 	}
 
+	// The context gets clones of the message attribs
+	// merged with the attribs already added to the passed ctx.
 	ctxWithAttribs := m.attribs.AddToContext(ctx)
+	// Add clones of the ctx attribs that are not already recorded
+	// at the message so that the sub-logger created from the
+	// message attribs ends up with the same attribs as ctxWithAttribs.
+	m.attribs = m.attribs.appendNonExistingCloned(AttribsFromContext(ctx))
+
 	subLog := m.SubLogger() // Puts the message back into the pool
 
 	if writerConfigsFromCtx := WriterConfigsFromContext(ctx); len(writerConfigsFromCtx) > 0 {
@@ -129,6 +146,7 @@ func (m *Message) SubLoggerContext(ctx context.Context) (*Logger, context.Contex
 
 // SubContext returns a new context with recorded per message attribs
 // added to the passed ctx argument.
+// The message keeps its attribs and can still be used.
 func (m *Message) SubContext(ctx context.Context) context.Context {
 	if m == nil {
 		return ctx

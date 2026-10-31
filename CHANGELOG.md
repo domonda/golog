@@ -10,6 +10,49 @@ lockstep with the root module, e.g. `v1.0.7`, `logsentry/v1.0.7`, `goslog/v1.0.7
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-10-25
+
+### Changed
+
+- `Message.SubLoggerContext` now also adds the attribs from the passed context
+  to the returned sub-logger, so that the sub-logger and the returned context
+  have the same union of attribs attached to them. Attribs recorded at the
+  message still take precedence over context attribs with the same key.
+  Previously the context attribs ended up only in the returned context, so the
+  sub-logger lost them when used with a different context.
+  The context attribs are a snapshot that becomes a permanent part of the
+  sub-logger's attribs and, like all logger attribs, takes precedence over
+  attribs with the same key from a context the sub-logger is used with later.
+  A sub-logger created from a request scoped context must therefore not outlive
+  that request.
+
+- `Attribs.AddToContext` now documents its non-consuming contract explicitly:
+  the returned context owns clones of the receiver's attribs and of the attribs
+  inherited from the parent context, so the caller keeps ownership of its
+  attribs and may keep using and finally `Free` them. A context must own its
+  attribs because it has no end of life: an attrib that another owner returns to
+  the mempool would be recycled while the context still references it. Same
+  contract for `ContextWithAttribs`, `RequestWithAttribs`, and
+  `Attribs.AddToRequest`. Behavior is unchanged from v1.2.1.
+
+### Fixed
+
+- `Attribs.CloneAndAppendNonExistingCloned` now clones the receiver's attribs as
+  documented instead of copying the pooled pointers, so the returned Attribs no
+  longer share attribs with the receiver that another owner may free
+  (`Logger.RemoveAttribs`, `Attribs.Free`). This affects `Logger.WithClonedAttribs`
+  and `Logger.WithCtx`, whose sub-logger no longer shares attribs with its parent.
+- `Message.SubContext` no longer hands the returned context the attribs that the
+  still usable message keeps ownership of.
+- `Logger.WithPrefix` now gets clones of the logger's attribs instead of sharing
+  the same slice, like every other method that derives a logger. Sharing it let
+  `Logger.RemoveAttribs` on either logger nil out the attribs of the other one
+  and return their slice to the mempool while it was still referenced, so the
+  next message of that logger panicked or logged recycled attribs.
+- `Message.SubLoggerContext` now returns the message's attribs slice to the
+  mempool when it has to grow to fit the attribs from the context, instead of
+  leaving it to the garbage collector.
+
 ## [1.3.1] - 2026-10-25
 
 ### Changed
@@ -227,7 +270,8 @@ lockstep with the root module, e.g. `v1.0.7`, `logsentry/v1.0.7`, `goslog/v1.0.7
   attrib type for zero-allocation `time.Time` logging, and the `tag-release`
   versioning script.
 
-[Unreleased]: https://github.com/domonda/golog/compare/v1.3.1...HEAD
+[Unreleased]: https://github.com/domonda/golog/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/domonda/golog/compare/v1.3.1...v1.4.0
 [1.3.1]: https://github.com/domonda/golog/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/domonda/golog/compare/v1.2.1...v1.3.0
 [1.2.1]: https://github.com/domonda/golog/compare/v1.2.0...v1.2.1
