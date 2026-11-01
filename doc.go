@@ -91,6 +91,19 @@ Store and retrieve log attributes in context:
 	ctxLogger := log.WithCtx(ctx)
 	ctxLogger.Info("Operation started").Log() // Includes context attributes
 
+The context gets clones of the passed attribs, so the caller keeps ownership
+of them. Use [ContextWithOwnedAttribs] or [RequestWithOwnedAttribs] to hand
+attribs that were built for the call over to the context instead of cloning
+them:
+
+	ctx = golog.ContextWithOwnedAttribs(ctx, golog.NewUUID("requestID", requestID))
+
+A sub-logger created with [Message.SubLoggerContext] inherits the attribs of
+the passed context and keeps logging them when used with another context.
+Those inherited attribs are written after the attribs of the context that a
+message is logged with, so an attrib with the same key from that context
+takes precedence over the inherited one, see [Logger.CtxAttribs].
+
 # Output Formats
 
 ## JSON Output

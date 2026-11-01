@@ -12,19 +12,25 @@ type Logger struct {
 	config  Config  // Can be shared between loggers
 	prefix  string  // Prefix for every log message
 	attribs Attribs // Attributes that will be repeated for every message
+	// Attributes inherited from a context that will be repeated for every
+	// message, but lose against an attrib with the same key from the context
+	// that the message is logged with, see Message.SubLoggerContext.
+	ctxAttribs Attribs
 }
 
 // NewLogger returns a Logger with the given config and per message attributes.
 // If config is nil, then a nil Logger will be returned.
 // A nil Logger is still valid to use but will not log anything.
 // The passed perMessageAttribs will be repeated for every new log message.
+// The logger gets clones of them, so the caller keeps ownership of the
+// passed attribs and may keep using and finally Free them.
 func NewLogger(config Config, perMessageAttribs ...Attrib) *Logger {
 	if config == nil {
 		return nil
 	}
 	return &Logger{
 		config:  config,
-		attribs: perMessageAttribs,
+		attribs: Attribs(perMessageAttribs).Clone(),
 	}
 }
 
@@ -33,6 +39,8 @@ func NewLogger(config Config, perMessageAttribs ...Attrib) *Logger {
 // A nil Logger is still valid to use but will not log anything.
 // Every log message will begin with the passed prefix.
 // The passed perMessageAttribs will be repeated for every new log message.
+// The logger gets clones of them, so the caller keeps ownership of the
+// passed attribs and may keep using and finally Free them.
 func NewLoggerWithPrefix(config Config, prefix string, perMessageAttribs ...Attrib) *Logger {
 	if config == nil {
 		return nil
@@ -40,7 +48,7 @@ func NewLoggerWithPrefix(config Config, prefix string, perMessageAttribs ...Attr
 	return &Logger{
 		config:  config,
 		prefix:  prefix,
-		attribs: perMessageAttribs,
+		attribs: Attribs(perMessageAttribs).Clone(),
 	}
 }
 
@@ -51,9 +59,10 @@ func (l *Logger) Clone() *Logger {
 		return nil
 	}
 	return &Logger{
-		config:  l.config,
-		prefix:  l.prefix,
-		attribs: l.attribs.Clone(),
+		config:     l.config,
+		prefix:     l.prefix,
+		attribs:    l.attribs.Clone(),
+		ctxAttribs: l.ctxAttribs.Clone(),
 	}
 }
 
@@ -80,7 +89,7 @@ func (l *Logger) With() *Message {
 	// logger with the recorded attribs.
 	// The new message takes ownership of the
 	// cloned logger attribs.
-	return newMessage(l, l.attribs.Clone(), nil, LevelInvalid, "")
+	return newAttribRecorderMessage(l, l.attribs.Clone())
 }
 
 // WithLevelFilter returns a clone of the logger using
@@ -90,9 +99,10 @@ func (l *Logger) WithLevelFilter(filter LevelFilter) *Logger {
 		return nil
 	}
 	return &Logger{
-		config:  NewDerivedConfigWithFilter(&l.config, filter),
-		prefix:  l.prefix,
-		attribs: l.attribs.Clone(),
+		config:     NewDerivedConfigWithFilter(&l.config, filter),
+		prefix:     l.prefix,
+		attribs:    l.attribs.Clone(),
+		ctxAttribs: l.ctxAttribs.Clone(),
 	}
 }
 
@@ -103,9 +113,10 @@ func (l *Logger) WithAdditionalWriterConfigs(writerConfigs ...WriterConfig) *Log
 		return l
 	}
 	return &Logger{
-		config:  ConfigWithAdditionalWriterConfigs(&l.config, writerConfigs...),
-		prefix:  l.prefix,
-		attribs: l.attribs.Clone(),
+		config:     ConfigWithAdditionalWriterConfigs(&l.config, writerConfigs...),
+		prefix:     l.prefix,
+		attribs:    l.attribs.Clone(),
+		ctxAttribs: l.ctxAttribs.Clone(),
 	}
 }
 
@@ -119,7 +130,13 @@ func (l *Logger) Config() Config {
 }
 
 // Attribs returns the attributes that will be repeated
-// for every message of the logger.
+// for every message of the logger and that take precedence over
+// attribs with the same key from the context of a message.
+// Attribs inherited from a context are not included,
+// see Logger.CtxAttribs.
+//
+// The returned Attribs are owned by the logger, so don't Add to them
+// and don't Free them, use Attribs.Clone for an owned copy.
 // See Logger.WithAttribs
 func (l *Logger) Attribs() Attribs {
 	if l == nil {
@@ -128,13 +145,31 @@ func (l *Logger) Attribs() Attribs {
 	return l.attribs
 }
 
-// RemoveAttribs removes all attribs from the logger.
+// CtxAttribs returns the attributes that the logger inherited from a
+// context via Message.SubLoggerContext and that will be repeated for
+// every message of the logger, unless the context of the message has
+// an attrib with the same key, which takes precedence over them.
+//
+// The returned Attribs are owned by the logger, so don't Add to them
+// and don't Free them, use Attribs.Clone for an owned copy.
+func (l *Logger) CtxAttribs() Attribs {
+	if l == nil {
+		return nil
+	}
+	return l.ctxAttribs
+}
+
+// RemoveAttribs removes all attribs from the logger,
+// including the ones inherited from a context,
+// and returns them to the mempool.
 func (l *Logger) RemoveAttribs() {
 	if l == nil {
 		return
 	}
 	l.attribs.Free()
 	l.attribs = nil
+	l.ctxAttribs.Free()
+	l.ctxAttribs = nil
 }
 
 // WithClonedAttribs returns a new Logger clones of the passed
@@ -145,10 +180,13 @@ func (l *Logger) WithClonedAttribs(perMessageAttribs ...Attrib) *Logger {
 	if l == nil || len(perMessageAttribs) == 0 {
 		return l
 	}
+	attribs := l.attribs.CloneAndAppendNonExistingCloned(perMessageAttribs)
 	return &Logger{
 		config:  l.config,
 		prefix:  l.prefix,
-		attribs: l.attribs.CloneAndAppendNonExistingCloned(perMessageAttribs),
+		attribs: attribs,
+		// The added attribs shadow the ctx attribs with the same key
+		ctxAttribs: attribs.clonesOfNonExisting(l.ctxAttribs),
 	}
 }
 
@@ -172,9 +210,10 @@ func (l *Logger) WithPrefix(prefix string) *Logger {
 		return nil
 	}
 	return &Logger{
-		config:  l.config,
-		attribs: l.attribs.Clone(),
-		prefix:  prefix,
+		config:     l.config,
+		attribs:    l.attribs.Clone(),
+		ctxAttribs: l.ctxAttribs.Clone(),
+		prefix:     prefix,
 	}
 }
 
@@ -223,7 +262,7 @@ func (l *Logger) NewMessageAt(ctx context.Context, timestamp time.Time, level Le
 	// Get new Message without attribs so that the logger
 	// attribs can get logged without detecting that
 	// attribs with their keys are already present
-	msg := newMessage(l, nil, writers, level, text)
+	msg := newMessage(l, writers, level, text)
 	if len(l.attribs) > 0 {
 		for _, attrib := range l.attribs {
 			attrib.Log(msg)
@@ -236,7 +275,15 @@ func (l *Logger) NewMessageAt(ctx context.Context, timestamp time.Time, level Le
 	// Context attribs are logged after logger attribs
 	// meaning they are ignored if attribs
 	// with the same key were already logged
-	AttribsFromContext(ctx).Log(msg)
+	ctxAttribs := AttribsFromContext(ctx)
+	ctxAttribs.Log(msg)
+	// Attribs inherited from a context are logged last, so that an attrib
+	// with the same key from the context of this message wins over them
+	for _, attrib := range l.ctxAttribs {
+		if !ctxAttribs.Has(attrib.Key()) {
+			attrib.Log(msg)
+		}
+	}
 	// After the attribs from the logger
 	// and the context have been logged,
 	// further attribs can be logged using

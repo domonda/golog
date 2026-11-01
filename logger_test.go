@@ -3,12 +3,15 @@ package golog
 import (
 	"bytes"
 	"context"
+	"io"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/domonda/golog/mempool"
 )
 
 func TestNewLogger(t *testing.T) {
@@ -87,18 +90,65 @@ func TestLogger_WithPrefix(t *testing.T) {
 	// Logger.RemoveAttribs on either logger nil out the attribs of the other
 	// one and return their slice to the mempool while it's still referenced.
 	t.Run("clones attribs", func(t *testing.T) {
+		DrainAllMemPools()
+		mempool.RegisterCallbacksWriterForTest(t, io.Discard)
+
 		config, buf := newTextTestConfig()
-		logger := NewLogger(config, NewString("key", "value"))
+		attrib := NewString("key", "value")
+		logger := NewLogger(config, attrib)
 		prefixed := logger.WithPrefix("newprefix")
 		require.Len(t, prefixed.Attribs(), 1)
 		require.NotSame(t, logger.Attribs()[0], prefixed.Attribs()[0], "prefixed logger has a clone of the attrib")
 
+		// Removing the attribs of the parent returns them to the mempool,
+		// which hands them out again for the next attrib of the same type,
+		// so a prefixed logger that shared them would log this value.
 		logger.RemoveAttribs()
+		recycled := NewString("recycled", "recycled")
 		require.Len(t, prefixed.Attribs(), 1, "prefixed logger kept its attrib")
 
 		prefixed.Info("test").Log()
 		assert.Contains(t, buf.String(), `key="value"`)
+		assert.NotContains(t, buf.String(), "recycled")
+
+		recycled.Free()
+		prefixed.RemoveAttribs()
+		attrib.Free()
+		assert.Zero(t, mempool.NumOutstanding(), "every pooled attrib and slice was returned")
 	})
+}
+
+// TestNewLogger_ClonesAttribs tests that the constructors store clones of the
+// passed attribs instead of the attribs and the variadic slice of the caller.
+// Sharing an attrib lets Logger.RemoveAttribs of one logger return an attrib
+// to the mempool that another owner still uses, and sharing the variadic
+// slice puts a slice that never came from the mempool into it, where it is
+// too small to be reused but is taken out and put back on every call.
+func TestNewLogger_ClonesAttribs(t *testing.T) {
+	DrainAllMemPools()
+	mempool.RegisterCallbacksWriterForTest(t, io.Discard)
+
+	config, buf := newTextTestConfig()
+	attrib := NewString("key", "value")
+
+	logger1 := NewLogger(config, attrib)
+	logger2 := NewLoggerWithPrefix(config, "prefix", attrib)
+	require.NotSame(t, attrib, logger1.Attribs()[0], "logger has a clone of the passed attrib")
+	require.NotSame(t, attrib, logger2.Attribs()[0], "logger has a clone of the passed attrib")
+	require.NotSame(t, logger1.Attribs()[0], logger2.Attribs()[0], "every logger has its own clone")
+	require.Greater(t, cap(logger1.Attribs()), len(logger1.Attribs()), "pooled slice with spare capacity")
+
+	// Removing the attribs of one owner must not affect the other ones
+	logger1.RemoveAttribs()
+	logger2.Info("test").Log()
+	assert.Contains(t, buf.String(), `key="value"`)
+	// Not comparing against NewString, that would allocate another pooled attrib
+	assert.Equal(t, "key", attrib.Key(), "the attrib of the caller is unchanged")
+	assert.Equal(t, "value", attrib.ValueString(), "the attrib of the caller is unchanged")
+
+	logger2.RemoveAttribs()
+	attrib.Free()
+	assert.Zero(t, mempool.NumOutstanding(), "every pooled attrib and slice was returned")
 }
 
 func TestLogger_Prefix(t *testing.T) {

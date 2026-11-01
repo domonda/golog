@@ -29,20 +29,36 @@ type Message struct {
 	writersArray [4]Writer // Backing store for writers slice - avoids heap allocation for ≤4 writers
 	level        Level
 	text         string // Used for LogAndPanic
+	// attribRecorder marks a Message created by Logger.With to record the
+	// logged attribs for a sub-logger instead of writing them. It can't be
+	// derived from an empty writers slice, because a message of a logger
+	// without writer configs, or whose writers all filtered out its level,
+	// has no writers either.
+	attribRecorder bool
 }
 
-func newMessage(logger *Logger, attribs Attribs, writers []Writer, level Level, text string) *Message {
+// newMessage returns a Message from the mempool
+// that writes the logged attribs to the passed writers.
+func newMessage(logger *Logger, writers []Writer, level Level, text string) *Message {
+	m := messagePool.GetOrNew()
+	m.logger = logger
+	// Use embedded array as backing store, append handles overflow to heap if >4
+	m.writers = append(m.writersArray[:0], writers...)
+	m.level = level
+	m.text = text
+	return m
+}
+
+// newAttribRecorderMessage returns a Message from the mempool that records
+// the logged attribs for a sub-logger instead of writing them,
+// see Logger.With and Message.SubLogger.
+// The returned Message takes over ownership of the passed attribs.
+func newAttribRecorderMessage(logger *Logger, attribs Attribs) *Message {
 	m := messagePool.GetOrNew()
 	m.logger = logger
 	m.attribs = attribs
-	if writers == nil {
-		m.writers = nil // attrib recorder case
-	} else {
-		// Use embedded array as backing store, append handles overflow to heap if >4
-		m.writers = append(m.writersArray[:0], writers...)
-	}
-	m.level = level
-	m.text = text
+	m.attribRecorder = true
+	m.level = LevelInvalid
 	return m
 }
 
@@ -61,12 +77,16 @@ func (m *Message) IsActive() bool {
 // IsAttribRecorder returns true if the Message was created by Logger.With()
 // for recording attribs instead of immediately logging them.
 func (m *Message) IsAttribRecorder() bool {
-	return m != nil && len(m.writers) == 0
+	return m != nil && m.attribRecorder
 }
 
 // SubLogger returns a new sub-logger with recorded per message attribs.
 // Don't use the Message after calling this method,
 // it will be put back into the pool.
+//
+// If the Message was not created by Logger.With for recording attribs,
+// then the logger of the message is returned unchanged and the message is
+// not put back into the pool, so that it can still be logged.
 func (m *Message) SubLogger() *Logger {
 	if m == nil {
 		return nil
@@ -77,14 +97,25 @@ func (m *Message) SubLogger() *Logger {
 		// and don't put the message back into the pool
 		return m.logger
 	}
+	// Attribs recorded at the message shadow the ctx attribs that the
+	// parent logger inherited, so don't pass those on to the sub-logger
+	return m.subLogger(m.attribs.clonesOfNonExisting(m.logger.ctxAttribs))
+}
+
+// subLogger returns a sub-logger that takes over ownership of the attribs
+// recorded at the message and of the passed ctxAttribs, and puts the
+// message back into the mempool.
+// Only call it for a Message that is an attrib recorder.
+func (m *Message) subLogger(ctxAttribs Attribs) *Logger {
 	// The message has ownership of the cloned parent logger attribs
 	// and those added by methods of the message.
 	// Transfer attribs ownership to sub-logger by direct assignment
 	// (no Clone needed since message will be reset and pooled).
 	subLog := &Logger{
-		config:  m.logger.config,
-		prefix:  m.logger.prefix,
-		attribs: m.attribs,
+		config:     m.logger.config,
+		prefix:     m.logger.prefix,
+		attribs:    m.attribs,
+		ctxAttribs: ctxAttribs,
 	}
 	// Nil out attribs before reset() to prevent freeing
 	// the attribs that are now owned by subLog.
@@ -101,12 +132,19 @@ func (m *Message) SubLogger() *Logger {
 // attached to them, where the attribs recorded at the message
 // take precedence over attribs from the ctx with the same key.
 //
-// The attribs taken from the ctx are a snapshot that becomes a permanent
-// part of the sub-logger's attribs. Like all logger attribs they take
-// precedence over attribs with the same key from the context that the
-// sub-logger is used with later, so a sub-logger created from a request
-// scoped ctx must not outlive that request or it will keep logging the
-// attribs of the request it was created for.
+// The attribs taken from the ctx stay context attribs of the sub-logger
+// instead of becoming logger attribs: they are logged after the attribs of
+// the context that a message is logged with, so an attrib with the same key
+// from that context takes precedence over the inherited one. A sub-logger
+// created from a request scoped ctx can therefore be used with the context
+// of another request without mislabeling its messages.
+// See Logger.CtxAttribs.
+//
+// If the Message was not created by Logger.With for recording attribs, then
+// the logger of the message is returned unchanged, which has none of the
+// attribs, together with a context with the message attribs added to it,
+// and the message is not put back into the pool so that it can still be
+// logged.
 func (m *Message) SubLoggerContext(ctx context.Context) (*Logger, context.Context) {
 	if m == nil {
 		return nil, ctx
@@ -118,15 +156,26 @@ func (m *Message) SubLoggerContext(ctx context.Context) (*Logger, context.Contex
 		return m.logger, m.attribs.AddToContext(ctx)
 	}
 
+	// Add the ctx attribs that the parent logger inherited to the passed ctx,
+	// so that the sub-logger doesn't lose them and the returned context has
+	// them too. The attribs of the passed ctx are the fresher ones, so they
+	// take precedence over the inherited ones.
+	if inherited := m.logger.ctxAttribs; len(inherited) > 0 {
+		ctxAttribs := AttribsFromContext(ctx)
+		if ctxAttribs.numNonExisting(inherited) > 0 {
+			ctx = context.WithValue(ctx, &attribsCtxKey, ctxAttribs.CloneAndAppendNonExistingCloned(inherited))
+		}
+	}
+
 	// The context gets clones of the message attribs
 	// merged with the attribs already added to the passed ctx.
 	ctxWithAttribs := m.attribs.AddToContext(ctx)
-	// Add clones of the ctx attribs that are not already recorded
-	// at the message so that the sub-logger created from the
-	// message attribs ends up with the same attribs as ctxWithAttribs.
-	m.attribs = m.attribs.appendNonExistingCloned(AttribsFromContext(ctx))
+	// The ctx attribs that the message attribs don't shadow become the ctx
+	// attribs of the sub-logger, so that the sub-logger and the returned
+	// context have the same union of attribs attached to them.
+	ctxAttribs := m.attribs.clonesOfNonExisting(AttribsFromContext(ctx))
 
-	subLog := m.SubLogger() // Puts the message back into the pool
+	subLog := m.subLogger(ctxAttribs) // Puts the message back into the pool
 
 	if writerConfigsFromCtx := WriterConfigsFromContext(ctx); len(writerConfigsFromCtx) > 0 {
 		writerConfigs := subLog.config.WriterConfigs()
