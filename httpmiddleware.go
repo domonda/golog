@@ -87,13 +87,13 @@ func GetOrCreateRequestUUIDFromContext(ctx context.Context) [16]byte {
 // ContextWithRequestUUID adds the passed requestID as UUID
 // attribute with the key "requestID" to the context.
 func ContextWithRequestUUID(ctx context.Context, requestID [16]byte) context.Context {
-	return ContextWithAttribs(ctx, NewUUID(requestIDKey, requestID))
+	return ContextWithOwnedAttribs(ctx, NewUUID(requestIDKey, requestID))
 }
 
 // ContextWithRequestID adds the passed requestID as string
 // attribute with the key "requestID" to the context.
 func ContextWithRequestID(ctx context.Context, requestID string) context.Context {
-	return ContextWithAttribs(ctx, NewString(requestIDKey, requestID))
+	return ContextWithOwnedAttribs(ctx, NewString(requestIDKey, requestID))
 }
 
 // HTTPMiddlewareHandler returns a HTTP middleware handler that passes through a UUID requestID.
@@ -114,7 +114,7 @@ func HTTPMiddlewareHandler(next http.Handler, logger *Logger, level Level, messa
 			requestID := GetOrCreateRequestUUID(request)
 			response.Header().Set("X-Request-ID", FormatUUID(requestID))
 
-			requestWithID := RequestWithAttribs(request, NewUUID(requestIDKey, requestID))
+			requestWithID := RequestWithOwnedAttribs(request, NewUUID(requestIDKey, requestID))
 
 			logger.NewMessage(request.Context(), level, message).
 				Request(requestWithID, onlyHeaders...).

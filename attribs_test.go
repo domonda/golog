@@ -3,6 +3,7 @@ package golog
 import (
 	"context"
 	"io"
+	"net/http/httptest"
 	"strconv"
 	"testing"
 
@@ -114,6 +115,177 @@ func TestAttribs_growPooled(t *testing.T) {
 	grown.Free()
 	attribs.Free()
 	require.Zero(t, mempool.NumOutstanding(), "every pooled attrib and slice was returned")
+}
+
+// TestAttribs_AddToContext_Clones pins the non-consuming contract of
+// Attribs.AddToContext: the returned context owns clones of the passed
+// attribs and of the ones inherited from the parent context.
+// A context must own its attribs because it has no end of life, so an
+// attrib shared with another owner would be recycled by the mempool while
+// the context still references it.
+func TestAttribs_AddToContext_Clones(t *testing.T) {
+	strA := NewString("a", "1")
+	ctx1 := ContextWithAttribs(context.Background(), strA)
+	require.NotSame(t, strA, AttribsFromContext(ctx1).Get("a"), "context cloned the passed attrib")
+	require.Equal(t, strA, AttribsFromContext(ctx1).Get("a"), "clone has the same key and value")
+
+	strB := NewString("b", "2")
+	ctx2 := ContextWithAttribs(ctx1, strB)
+	require.NotSame(t, strB, AttribsFromContext(ctx2).Get("b"), "context cloned the passed attrib")
+
+	inheritedA := AttribsFromContext(ctx2).Get("a")
+	require.NotSame(t, AttribsFromContext(ctx1).Get("a"), inheritedA, "attrib inherited from the parent context is a clone")
+	require.Equal(t, strA, inheritedA, "clone has the same key and value")
+
+	require.Len(t, AttribsFromContext(ctx1), 1, "parent context is unchanged")
+	require.Equal(t, strA, AttribsFromContext(ctx1).Get("a"), "parent context is unchanged")
+}
+
+// TestAttribs_AddToContext_CallerKeepsOwnership tests that a caller can keep
+// using and finally Free the Attribs it added to a context. Attribs.Add uses
+// a pooled slice with spare capacity, so a context that appended into that
+// slice instead of cloning would be corrupted by the next Add, and Free would
+// nil out the attribs the context still references.
+func TestAttribs_AddToContext_CallerKeepsOwnership(t *testing.T) {
+	var attribs Attribs
+	attribs.Add(NewString("a", "1"))
+	require.Greater(t, cap(attribs), len(attribs), "pooled slice has spare capacity")
+
+	parent := ContextWithAttribs(context.Background(), NewString("p", "parent"))
+	ctx := attribs.AddToContext(parent)
+	require.Equal(t, Attribs{NewString("a", "1"), NewString("p", "parent")}, AttribsFromContext(ctx))
+
+	// Reusing the caller's slice must not overwrite the inherited "p" attrib
+	attribs.Add(NewString("b", "2"))
+	require.Equal(t, Attribs{NewString("a", "1"), NewString("p", "parent")}, AttribsFromContext(ctx))
+
+	// Freeing the caller's attribs must not nil out the ones in the context
+	attribs.Free()
+	require.Equal(t, Attribs{NewString("a", "1"), NewString("p", "parent")}, AttribsFromContext(ctx))
+}
+
+// TestAttribs_appendNonExistingCloned_GrowsPooled tests that appending the
+// clones from b to a receiver without spare capacity grows it via
+// Attribs.growPooled, so that the replaced slice is returned to the mempool
+// instead of being left to the garbage collector, and that append can't
+// allocate a non-pooled backing array that Attribs.Free would put back.
+func TestAttribs_appendNonExistingCloned_GrowsPooled(t *testing.T) {
+	DrainAllMemPools()
+	mempool.RegisterCallbacksWriterForTest(t, io.Discard)
+
+	// Fill up the pooled slice of a so that appending a clone from b has to grow it
+	var a Attribs
+	for i := range attribsPool.MinCap {
+		a.Add(NewInt("a"+strconv.Itoa(i), int64(i)))
+	}
+	require.Equal(t, len(a), cap(a), "no spare capacity left in the pooled slice of a")
+	var b Attribs
+	b.Add(NewString("b", "1"))
+
+	merged := a.appendNonExistingCloned(b)
+	require.Len(t, merged, attribsPool.MinCap+1)
+
+	merged.Free()
+	b.Free()
+	require.Zero(t, mempool.NumOutstanding(), "every pooled attrib and slice was returned")
+}
+
+// TestAttribs_mergeDuplicateKeys tests that the merging methods of Attribs
+// agree about attribs with a duplicate key, which Attribs explicitly allows.
+// Message.SubLoggerContext uses appendNonExistingCloned for the attribs of
+// the sub-logger and CloneAndAppendNonExistingCloned for the attribs of the
+// returned context, so the two would carry a different set of attribs if one
+// of them skipped a duplicate key that the other one appends.
+func TestAttribs_mergeDuplicateKeys(t *testing.T) {
+	a := Attribs{NewString("a", "1")}
+	b := Attribs{
+		NewString("k", "1"),
+		NewString("k", "2"), // Duplicate key within b
+		NewString("a", "2"), // Already present in a
+	}
+	expected := Attribs{NewString("a", "1"), NewString("k", "1"), NewString("k", "2")}
+
+	// Clone a because appendNonExistingCloned takes over
+	// ownership of a pooled receiver
+	require.Equal(t, expected, a.Clone().appendNonExistingCloned(b), "appendNonExistingCloned")
+	require.Equal(t, expected, a.CloneAndAppendNonExistingCloned(b), "CloneAndAppendNonExistingCloned")
+	require.Equal(t, expected[1:], a.clonesOfNonExisting(b), "clonesOfNonExisting")
+}
+
+// TestAttribs_appendNonExistingCloned_NoGrowWithoutAppend tests that a
+// receiver without spare capacity is not replaced by a larger pooled slice
+// when every key of b is already present, so that nothing is appended.
+func TestAttribs_appendNonExistingCloned_NoGrowWithoutAppend(t *testing.T) {
+	DrainAllMemPools()
+	mempool.RegisterCallbacksWriterForTest(t, io.Discard)
+
+	// Fill up the pooled slice of a so that appending anything has to grow it
+	var a Attribs
+	for i := range attribsPool.MinCap {
+		a.Add(NewInt("a"+strconv.Itoa(i), int64(i)))
+	}
+	require.Equal(t, len(a), cap(a), "no spare capacity left in the pooled slice of a")
+	b := a.Clone() // Same keys, so nothing can be appended
+	first := &a[0]
+
+	merged := a.appendNonExistingCloned(b)
+	require.Same(t, first, &merged[0], "the slice of a was not replaced")
+	require.Len(t, merged, attribsPool.MinCap)
+
+	merged.Free()
+	b.Free()
+	require.Zero(t, mempool.NumOutstanding(), "every pooled attrib and slice was returned")
+}
+
+// TestContextWithOwnedAttribs tests that the returned context takes over the
+// passed attribs instead of cloning them, while attribs inherited from the
+// parent context are still cloned so that parent and child context stay
+// independent.
+func TestContextWithOwnedAttribs(t *testing.T) {
+	DrainAllMemPools()
+	mempool.RegisterCallbacksWriterForTest(t, io.Discard)
+
+	strA := NewString("a", "1")
+	ctx1 := ContextWithOwnedAttribs(context.Background(), strA)
+	require.Same(t, strA, AttribsFromContext(ctx1).Get("a"), "context took over the passed attrib")
+
+	strB := NewString("b", "2")
+	ctx2 := ContextWithOwnedAttribs(ctx1, strB)
+	require.Same(t, strB, AttribsFromContext(ctx2).Get("b"), "context took over the passed attrib")
+
+	inheritedA := AttribsFromContext(ctx2).Get("a")
+	require.NotSame(t, strA, inheritedA, "attrib inherited from the parent context is a clone")
+	require.Equal(t, strA, inheritedA, "clone has the same key and value")
+	require.Equal(t, Attribs{strA}, AttribsFromContext(ctx1), "parent context is unchanged")
+
+	require.Equal(t, context.Background(), ContextWithOwnedAttribs(context.Background()), "no attribs returns the context unchanged")
+
+	// Not cloning the passed attrib is the point of ContextWithOwnedAttribs:
+	// ContextWithAttribs allocates a clone for the context and leaves the
+	// passed attrib orphaned when it was built for the call, because a
+	// context never returns its attribs to the mempool and the caller has
+	// no reference left to free them with.
+	before := mempool.NumOutstanding()
+	ContextWithAttribs(context.Background(), NewString("c", "3"))
+	numCloning := mempool.NumOutstanding() - before
+
+	before = mempool.NumOutstanding()
+	ContextWithOwnedAttribs(context.Background(), NewString("c", "3"))
+	numOwned := mempool.NumOutstanding() - before
+
+	require.Equal(t, numCloning-1, numOwned, "one pooled attrib less than ContextWithAttribs")
+}
+
+// TestRequestWithOwnedAttribs tests that the context of the returned request
+// takes over the passed attribs, see TestContextWithOwnedAttribs.
+func TestRequestWithOwnedAttribs(t *testing.T) {
+	request := httptest.NewRequest("GET", "/", nil)
+	str := NewString("a", "1")
+
+	requestWithAttribs := RequestWithOwnedAttribs(request, str)
+	require.Same(t, str, AttribsFromContext(requestWithAttribs.Context()).Get("a"), "request context took over the passed attrib")
+	require.Nil(t, AttribsFromContext(request.Context()), "passed request is unchanged")
+	require.Same(t, request, RequestWithOwnedAttribs(request), "no attribs returns the request unchanged")
 }
 
 func TestAttribFromContext(t *testing.T) {

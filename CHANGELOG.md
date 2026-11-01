@@ -10,8 +10,57 @@ lockstep with the root module, e.g. `v1.0.7`, `logsentry/v1.0.7`, `goslog/v1.0.7
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-11-01
+
+### Added
+
+- `ContextWithOwnedAttribs` and `RequestWithOwnedAttribs` hand the passed
+  attribs over to the context instead of cloning them, for attribs that are
+  built for the call like
+  `ContextWithOwnedAttribs(ctx, NewUUID("requestID", requestID))`. Cloning
+  those allocates a second attrib and orphans the passed one, because a
+  context never returns its attribs to the mempool and the caller has no
+  reference left to `Free` them with. Attribs inherited from the parent
+  context are still cloned. The HTTP middleware, `ContextWithRequestUUID`
+  and `ContextWithRequestID` use them now, so they no longer orphan a pooled
+  attrib per request.
+- `Logger.CtxAttribs` returns the attribs that a logger inherited from a
+  context via `Message.SubLoggerContext`.
+
 ### Changed
 
+- **Breaking:** `Message.SubLoggerContext` now also adds the attribs from the
+  passed context to the returned sub-logger, so that the sub-logger and the
+  returned context have the same union of attribs attached to them. Attribs
+  recorded at the message still take precedence over context attribs with the
+  same key. Previously the context attribs ended up only in the returned
+  context, so the sub-logger lost them when used with a different context.
+  Existing code that keeps such a sub-logger therefore logs attribs that it
+  did not log before.
+  The attribs taken from the context stay context attribs of the sub-logger
+  instead of becoming logger attribs: they are logged after the attribs of the
+  context that a message is logged with, so an attrib with the same key from
+  that context takes precedence over the inherited one. A sub-logger created
+  from a request scoped context can therefore be used with the context of
+  another request without mislabeling its messages.
+- `NewLogger` and `NewLoggerWithPrefix` now store clones of the passed per
+  message attribs instead of the attribs and the variadic slice of the caller,
+  like every other method that derives a logger. Sharing an attrib let
+  `Logger.RemoveAttribs` of one logger return an attrib to the mempool that
+  another logger or the caller still used, and sharing the variadic slice put
+  a slice that never came from the mempool into it, where it is too small to
+  be reused but is taken out and put back on every call. The caller now keeps
+  ownership of the passed attribs and may keep using and finally `Free` them.
+- `Logger.RemoveAttribs` now also removes and frees the attribs that the
+  logger inherited from a context.
+- `Attribs.AddToContext` now documents its non-consuming contract explicitly:
+  the returned context owns clones of the receiver's attribs and of the attribs
+  inherited from the parent context, so the caller keeps ownership of its
+  attribs and may keep using and finally `Free` them. A context must own its
+  attribs because it has no end of life: an attrib that another owner returns to
+  the mempool would be recycled while the context still references it. Same
+  contract for `ContextWithAttribs`, `RequestWithAttribs`, and
+  `Attribs.AddToRequest`. Behavior is unchanged from v1.2.1.
 - `mempool.Slice.GetOrMake` now returns a slice with at least the requested
   capacity. It used to reuse a pooled slice that only fit the requested
   length, so appending up to the requested capacity could allocate a new,
@@ -23,8 +72,47 @@ lockstep with the root module, e.g. `v1.0.7`, `logsentry/v1.0.7`, `goslog/v1.0.7
 
 ### Fixed
 
+- `Message.IsAttribRecorder` no longer reports true for a message whose
+  writers all filtered out its level, or that was created by a logger without
+  writer configs. Such a message has no writers, which used to be the marker
+  of an attrib recorder, so `Message.SubLogger` and `Message.SubLoggerContext`
+  returned a sub-logger fabricated from the attribs of a message that the
+  caller still owns and logs, and put that message back into the mempool,
+  which could then hand the same message to two callers at once.
+- `Attribs.CloneAndAppendNonExistingCloned` now clones the receiver's attribs as
+  documented instead of copying the pooled pointers, so the returned Attribs no
+  longer share attribs with the receiver that another owner may free
+  (`Logger.RemoveAttribs`, `Attribs.Free`). This affects `Logger.WithClonedAttribs`
+  and `Logger.WithCtx`, whose sub-logger no longer shares attribs with its parent.
+- `Message.SubContext` no longer hands the returned context the attribs that the
+  still usable message keeps ownership of.
+- `Logger.WithPrefix` now gets clones of the logger's attribs instead of sharing
+  the same slice, like every other method that derives a logger. Sharing it let
+  `Logger.RemoveAttribs` on either logger nil out the attribs of the other one
+  and return their slice to the mempool while it was still referenced, so the
+  next message of that logger panicked or logged recycled attribs.
+- Merging attribs with the same key now works the same for the attribs of a
+  sub-logger and of a context: both append every attrib of the merged attribs
+  whose key is not present in the attribs merged into. `Attribs` explicitly
+  allows duplicate keys, and for those the sub-logger created by
+  `Message.SubLoggerContext` used to end up with fewer attribs than the
+  returned context.
+- Merging attribs only grows the pooled slice by the number of attribs that
+  are actually appended, and returns the replaced slice to the mempool.
+  A slice without spare capacity used to be replaced by a larger pooled one
+  even when every key was already present and nothing was appended, and the
+  replaced slice was left to the garbage collector instead of being reused.
 - `mempool.Slice.GetOrMake` no longer panics when it allocates a new slice
   for a capacity smaller than the length while `MinCap` is zero.
+
+### Documentation
+
+- `AttribsFromContext`, `AttribFromContext`, `Logger.Attribs` and
+  `Logger.CtxAttribs` document that the returned attribs are owned by the
+  context or logger they come from: don't `Add` to them and don't `Free`
+  them, because both return attribs and their slice to the mempool while the
+  context or logger still references them. Use `Attribs.Clone` for an owned
+  copy.
 
 ## [1.3.1] - 2026-10-25
 
@@ -243,7 +331,8 @@ lockstep with the root module, e.g. `v1.0.7`, `logsentry/v1.0.7`, `goslog/v1.0.7
   attrib type for zero-allocation `time.Time` logging, and the `tag-release`
   versioning script.
 
-[Unreleased]: https://github.com/domonda/golog/compare/v1.3.1...HEAD
+[Unreleased]: https://github.com/domonda/golog/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/domonda/golog/compare/v1.3.1...v1.4.0
 [1.3.1]: https://github.com/domonda/golog/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/domonda/golog/compare/v1.2.1...v1.3.0
 [1.2.1]: https://github.com/domonda/golog/compare/v1.2.0...v1.2.1

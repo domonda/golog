@@ -216,7 +216,21 @@ ctxLogger.Info("Operation started").Log() // Includes context attributes
 log.InfoCtx(ctx, "Operation started").Log() // Includes context attributes
 ```
 
+The context gets clones of the passed attributes, so the caller keeps ownership of them. For attributes that are built for the call, like the example above, use `ContextWithOwnedAttribs` (or `RequestWithOwnedAttribs`), which hands the attributes over to the context instead of cloning them:
+
+```go
+ctx = golog.ContextWithOwnedAttribs(ctx, golog.NewUUID("requestID", requestID))
+```
+
+A sub-logger created with `SubLoggerContext(ctx)` inherits the attributes of that context and keeps logging them when it is used with another context:
+
+```go
+subLog, ctx := log.With().Str("service", "user-management").SubLoggerContext(ctx)
+```
+
 If a message sets a key that the logger or a sub-logger already provides, the message's attribute is dropped and the inherited value is kept. Context attributes that repeat a logger key are dropped the same way. A message attribute that repeats a context key is written as a second field, unless the logger was created with `WithCtx(ctx)`, which turns the context attributes into logger attributes.
+
+Attributes that a sub-logger inherited from a context via `SubLoggerContext` are written last, so an attribute with the same key from the context that the message is logged with takes precedence over the inherited one. A sub-logger created from a request scoped context can therefore be reused for another request without mislabeling its messages.
 
 ## Multiple Writers and Filtering
 
