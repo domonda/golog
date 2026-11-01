@@ -2,9 +2,13 @@ package golog
 
 import (
 	"context"
+	"io"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/domonda/golog/mempool"
 )
 
 func TestAttribs_CloneAndAppendNonExisting(t *testing.T) {
@@ -77,6 +81,39 @@ func TestAttribs_CloneAndAppendNonExisting(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestAttribs_growPooled tests that growPooled only moves the attribs
+// into a larger pooled slice when there is not enough spare capacity,
+// and that the replaced slice is returned to the mempool.
+func TestAttribs_growPooled(t *testing.T) {
+	DrainAllMemPools()
+	mempool.RegisterCallbacksWriterForTest(t, io.Discard)
+
+	var nilAttribs Attribs
+	grown := nilAttribs.growPooled(1)
+	require.Empty(t, grown)
+	require.GreaterOrEqual(t, cap(grown), 1)
+	grown.Free()
+	require.Zero(t, mempool.NumOutstanding(), "nil attribs are not put back")
+
+	var a Attribs
+	a.Add(NewString("a", "1"))
+	require.Greater(t, cap(a), len(a))
+	require.Same(t, &a[0], &a.growPooled(cap(a) - len(a))[0], "spare capacity is used in place")
+
+	// Fill up the pooled slice so that it has to grow
+	for i := len(a); i < cap(a); i++ {
+		a.Add(NewInt("a"+strconv.Itoa(i), int64(i)))
+	}
+	attribs := a.Clone()
+	grown = a.growPooled(2)
+	require.Equal(t, attribs, grown, "grown slice has the same attribs")
+	require.GreaterOrEqual(t, cap(grown), len(grown)+2)
+
+	grown.Free()
+	attribs.Free()
+	require.Zero(t, mempool.NumOutstanding(), "every pooled attrib and slice was returned")
 }
 
 func TestAttribFromContext(t *testing.T) {

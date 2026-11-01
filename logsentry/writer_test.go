@@ -16,6 +16,7 @@ import (
 	"github.com/getsentry/sentry-go"
 
 	"github.com/domonda/golog"
+	"github.com/domonda/golog/mempool"
 )
 
 // captureTransport implements sentry.Transport and records every event that
@@ -585,5 +586,44 @@ func TestWriterTimeDefaultFormat(t *testing.T) {
 	want := ts.Format(golog.DefaultTimeFormat)
 	if got := transport.events[0].Contexts["log"]["when"]; got != want {
 		t.Errorf(`log["when"] = %#v, want %q`, got, want)
+	}
+}
+
+// TestWriterReturnsPooledObjects verifies that CommitMessage returns the
+// Writer and its values map to their mempools so they are reused by the
+// next message, including after messages that write a slice value or no
+// value at all.
+func TestWriterReturnsPooledObjects(t *testing.T) {
+	transport := &captureTransport{}
+	hub := newTestHub(t, transport)
+
+	config := NewWriterConfig(hub, golog.NewDefaultFormat(), golog.AllLevelsActive, false, nil)
+	logger := golog.NewLogger(golog.NewConfig(&golog.DefaultLevels, golog.AllLevelsActive, config))
+
+	var poolLog strings.Builder
+	mempool.RegisterCallbacksWriterForTest(t, &poolLog)
+
+	for range 3 {
+		logger.Error("with values").Str("key", "value").Ints("ints", []int{1, 2}).Log()
+		logger.Error("without values").Log()
+	}
+	hub.Flush(time.Second)
+
+	if len(transport.events) != 6 {
+		t.Fatalf("expected 6 events, got %d", len(transport.events))
+	}
+	if got := transport.events[2].Contexts["log"]["key"]; got != "value" {
+		t.Errorf(`log["key"] of a message with a reused values map = %#v, want "value"`, got)
+	}
+	if _, ok := transport.events[3].Contexts["log"]; ok {
+		t.Errorf("message without values has a log context: %v", transport.events[3].Contexts["log"])
+	}
+	for _, reused := range []string{"Reused *logsentry.Writer", "Reused map[string]interface {}"} {
+		if !strings.Contains(poolLog.String(), reused) {
+			t.Errorf("mempool log has no %q:\n%s", reused, poolLog.String())
+		}
+	}
+	if n := mempool.NumOutstanding(); n != 0 {
+		t.Errorf("mempool.NumOutstanding() = %d, want 0:\n%s", n, poolLog.String())
 	}
 }

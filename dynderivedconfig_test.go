@@ -28,8 +28,7 @@ func TestDynDerivedConfig_SetParent(t *testing.T) {
 }
 
 func TestDynDerivedConfig_SetFilter(t *testing.T) {
-	buf := bytes.NewBuffer(nil)
-	parentConfig := NewConfig(&DefaultLevels, AllLevelsActive, NewTextWriterConfig(buf, nil, nil))
+	parentConfig, _ := newTextTestConfig()
 	derived := NewDynDerivedConfig(&parentConfig)
 	ctx := context.Background()
 

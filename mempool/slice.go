@@ -30,20 +30,20 @@ type Slice[T any] struct {
 // and resized to the requested length. If the pool is empty or the first
 // available slice has insufficient capacity, a new slice is allocated.
 //
-// The capacity parameter is only used when allocating a new slice. The actual
-// capacity of the returned slice may be larger than requested due to MinCap.
+// The returned slice has at least the requested capacity, or the length if
+// that is larger, so callers can append up to the capacity without the
+// append allocating a new, non-pooled backing array. The actual capacity
+// may be larger than requested due to MinCap or a reused slice.
 //
 // Parameters:
 //   - length: the desired length of the slice
-//   - capacity: the desired capacity (only used for new allocations)
+//   - capacity: the minimum capacity of the slice
 //
 // Returns a []T with the specified length, ready for immediate use.
 func (p *Slice[T]) GetOrMake(length, capacity int) []T {
 	slice, ok := p.pool.Get().([]T)
 	if ok {
-		if length <= cap(slice) {
-			// cap(slice) might be smaller than the passed capacity,
-			// but we can live with that
+		if max(length, capacity) <= cap(slice) {
 			slice = slice[:length]
 			if onSliceGetOrMake != nil {
 				onSliceGetOrMake(slice, true, length, capacity)
@@ -54,9 +54,9 @@ func (p *Slice[T]) GetOrMake(length, capacity int) []T {
 		// so put it back and allocate a new one.
 		p.pool.Put(slice)
 	}
-	slice = make([]T, length, max(capacity, p.MinCap))
+	slice = make([]T, length, max(length, capacity, p.MinCap))
 	if onSliceGetOrMake != nil {
-		onSliceGetOrMake(slice, false, length, max(capacity, p.MinCap))
+		onSliceGetOrMake(slice, false, length, cap(slice))
 	}
 	return slice
 }

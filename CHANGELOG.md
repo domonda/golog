@@ -10,6 +10,22 @@ lockstep with the root module, e.g. `v1.0.7`, `logsentry/v1.0.7`, `goslog/v1.0.7
 
 ## [Unreleased]
 
+### Changed
+
+- `mempool.Slice.GetOrMake` now returns a slice with at least the requested
+  capacity. It used to reuse a pooled slice that only fit the requested
+  length, so appending up to the requested capacity could allocate a new,
+  non-pooled backing array. `Attribs.Add` and
+  `Attribs.CloneAndAppendNonExistingCloned` depend on this guarantee.
+- **logsentry:** the `Writer` instances and their key-value maps are pooled
+  with `mempool.Pointer` and `mempool.Map` instead of hand-rolled
+  `sync.Pool`s, so the `mempool` test callbacks also track them.
+
+### Fixed
+
+- `mempool.Slice.GetOrMake` no longer panics when it allocates a new slice
+  for a capacity smaller than the length while `MinCap` is zero.
+
 ## [1.3.1] - 2026-10-25
 
 ### Changed

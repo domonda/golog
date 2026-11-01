@@ -36,6 +36,13 @@ func newTestConfig(textOut, jsonOut io.Writer) Config {
 	return NewConfig(&DefaultLevels, AllLevelsActive, textWriterConfig, jsonWriterConfig)
 }
 
+// newTextTestConfig returns a Config with the DefaultLevels, all levels active
+// and a TextWriterConfig with the default format and colorizer writing to buf.
+func newTextTestConfig() (config Config, buf *bytes.Buffer) {
+	buf = bytes.NewBuffer(nil)
+	return NewConfig(&DefaultLevels, AllLevelsActive, NewTextWriterConfig(buf, nil, nil)), buf
+}
+
 func newTestLogger() (log *Logger, textOut, jsonOut *bytes.Buffer) {
 	textOut = bytes.NewBuffer(nil)
 	jsonOut = bytes.NewBuffer(nil)
@@ -181,7 +188,7 @@ func TestMessageSubLogger(t *testing.T) {
 
 		exptectedMempoolOutput := `Allocated *golog.Message
 Allocated *golog.String
-Allocated []golog.Attrib len:1 cap:16
+Allocated []golog.Attrib len:0 cap:16
 Allocated *golog.Strings
 Allocated *golog.Nil
 Returned *golog.Message
@@ -278,7 +285,7 @@ Returned []golog.Attrib
 
 		exptectedMempoolOutput := `Allocated *golog.Message
 Allocated *golog.UUID
-Allocated []golog.Attrib len:1 cap:16
+Allocated []golog.Attrib len:0 cap:16
 Returned *golog.Message
 Allocated []golog.Attrib len:1 cap:16
 Allocated *golog.UUID
@@ -381,7 +388,7 @@ func TestMessageSubLoggerContext(t *testing.T) {
 
 		exptectedMempoolOutput := `Allocated *golog.Message
 Allocated *golog.String
-Allocated []golog.Attrib len:1 cap:16
+Allocated []golog.Attrib len:0 cap:16
 Allocated *golog.Strings
 Allocated *golog.Nil
 Allocated []golog.Attrib len:3 cap:16

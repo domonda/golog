@@ -29,21 +29,26 @@ func (a *Attribs) Add(attrib Attrib) {
 	if a == nil || attrib == nil {
 		return // Be conservative and don't panic
 	}
-	if *a == nil {
-		*a = attribsPool.GetOrMake(1, 1)
-		(*a)[0] = attrib
-		return
+	*a = append(a.growPooled(1), attrib)
+}
+
+// growPooled returns the attribs of a in a slice
+// with spare capacity for at least n more attribs.
+//
+// If a has not enough spare capacity, then its attribs are moved
+// into a larger slice from the mempool and the slice of a is
+// returned to the mempool, so the caller must be the exclusive
+// owner of a and must not use it anymore.
+func (a Attribs) growPooled(n int) Attribs {
+	if len(a)+n <= cap(a) {
+		return a
 	}
-	newLen := len(*a) + 1
-	if newLen <= cap(*a) {
-		*a = append(*a, attrib)
-		return
+	grown := attribsPool.GetOrMake(len(a), len(a)+n)
+	copy(grown, a)
+	if a != nil {
+		attribsPool.ClearAndPutBack(a)
 	}
-	added := attribsPool.GetOrMake(newLen, newLen)
-	copy(added, *a)
-	attribsPool.ClearAndPutBack(*a)
-	added[newLen-1] = attrib
-	*a = added
+	return grown
 }
 
 // Clone returns a new Attribs slice with the same attributes.
