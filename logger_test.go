@@ -18,16 +18,14 @@ func TestNewLogger(t *testing.T) {
 	})
 
 	t.Run("valid config returns logger", func(t *testing.T) {
-		buf := bytes.NewBuffer(nil)
-		config := NewConfig(&DefaultLevels, AllLevelsActive, NewTextWriterConfig(buf, nil, nil))
+		config, _ := newTextTestConfig()
 		logger := NewLogger(config)
 		require.NotNil(t, logger)
 		assert.NotNil(t, logger.Config())
 	})
 
 	t.Run("with per-message attribs", func(t *testing.T) {
-		buf := bytes.NewBuffer(nil)
-		config := NewConfig(&DefaultLevels, AllLevelsActive, NewTextWriterConfig(buf, nil, nil))
+		config, _ := newTextTestConfig()
 		attrib := NewString("key", "value")
 		logger := NewLogger(config, attrib)
 		require.NotNil(t, logger)
@@ -42,8 +40,7 @@ func TestNewLoggerWithPrefix(t *testing.T) {
 	})
 
 	t.Run("valid config with prefix", func(t *testing.T) {
-		buf := bytes.NewBuffer(nil)
-		config := NewConfig(&DefaultLevels, AllLevelsActive, NewTextWriterConfig(buf, nil, nil))
+		config, _ := newTextTestConfig()
 		logger := NewLoggerWithPrefix(config, "myprefix")
 		require.NotNil(t, logger)
 		assert.Equal(t, "myprefix", logger.Prefix())
@@ -58,8 +55,7 @@ func TestLogger_Clone(t *testing.T) {
 	})
 
 	t.Run("clone creates independent copy", func(t *testing.T) {
-		buf := bytes.NewBuffer(nil)
-		config := NewConfig(&DefaultLevels, AllLevelsActive, NewTextWriterConfig(buf, nil, nil))
+		config, _ := newTextTestConfig()
 		attrib := NewString("key", "value")
 		logger := NewLoggerWithPrefix(config, "prefix", attrib)
 		clone := logger.Clone()
@@ -78,8 +74,7 @@ func TestLogger_WithPrefix(t *testing.T) {
 	})
 
 	t.Run("sets new prefix", func(t *testing.T) {
-		buf := bytes.NewBuffer(nil)
-		config := NewConfig(&DefaultLevels, AllLevelsActive, NewTextWriterConfig(buf, nil, nil))
+		config, _ := newTextTestConfig()
 		logger := NewLogger(config)
 		newLogger := logger.WithPrefix("newprefix")
 
@@ -96,8 +91,7 @@ func TestLogger_Prefix(t *testing.T) {
 	})
 
 	t.Run("returns prefix", func(t *testing.T) {
-		buf := bytes.NewBuffer(nil)
-		config := NewConfig(&DefaultLevels, AllLevelsActive, NewTextWriterConfig(buf, nil, nil))
+		config, _ := newTextTestConfig()
 		logger := NewLoggerWithPrefix(config, "test")
 		assert.Equal(t, "test", logger.Prefix())
 	})
@@ -110,8 +104,7 @@ func TestLogger_Config(t *testing.T) {
 	})
 
 	t.Run("returns config", func(t *testing.T) {
-		buf := bytes.NewBuffer(nil)
-		config := NewConfig(&DefaultLevels, AllLevelsActive, NewTextWriterConfig(buf, nil, nil))
+		config, _ := newTextTestConfig()
 		logger := NewLogger(config)
 		assert.NotNil(t, logger.Config())
 	})
@@ -124,8 +117,7 @@ func TestLogger_Attribs(t *testing.T) {
 	})
 
 	t.Run("returns attribs", func(t *testing.T) {
-		buf := bytes.NewBuffer(nil)
-		config := NewConfig(&DefaultLevels, AllLevelsActive, NewTextWriterConfig(buf, nil, nil))
+		config, _ := newTextTestConfig()
 		logger := NewLogger(config, NewString("key", "value"))
 		attribs := logger.Attribs()
 		require.Len(t, attribs, 1)
@@ -142,8 +134,7 @@ func TestLogger_RemoveAttribs(t *testing.T) {
 	})
 
 	t.Run("removes attribs", func(t *testing.T) {
-		buf := bytes.NewBuffer(nil)
-		config := NewConfig(&DefaultLevels, AllLevelsActive, NewTextWriterConfig(buf, nil, nil))
+		config, _ := newTextTestConfig()
 		logger := NewLogger(config, NewString("key", "value"))
 		require.Len(t, logger.Attribs(), 1)
 		logger.RemoveAttribs()
@@ -159,16 +150,14 @@ func TestLogger_WithClonedAttribs(t *testing.T) {
 	})
 
 	t.Run("empty attribs returns same logger", func(t *testing.T) {
-		buf := bytes.NewBuffer(nil)
-		config := NewConfig(&DefaultLevels, AllLevelsActive, NewTextWriterConfig(buf, nil, nil))
+		config, _ := newTextTestConfig()
 		logger := NewLogger(config)
 		result := logger.WithClonedAttribs()
 		assert.Same(t, logger, result)
 	})
 
 	t.Run("adds new attribs", func(t *testing.T) {
-		buf := bytes.NewBuffer(nil)
-		config := NewConfig(&DefaultLevels, AllLevelsActive, NewTextWriterConfig(buf, nil, nil))
+		config, _ := newTextTestConfig()
 		logger := NewLogger(config)
 		newLogger := logger.WithClonedAttribs(NewString("key", "value"))
 
@@ -180,8 +169,7 @@ func TestLogger_WithClonedAttribs(t *testing.T) {
 
 func TestLogger_WithCtx(t *testing.T) {
 	t.Run("adds context attribs", func(t *testing.T) {
-		buf := bytes.NewBuffer(nil)
-		config := NewConfig(&DefaultLevels, AllLevelsActive, NewTextWriterConfig(buf, nil, nil))
+		config, _ := newTextTestConfig()
 		logger := NewLogger(config)
 
 		ctx := ContextWithAttribs(context.Background(), NewString("ctxKey", "ctxValue"))
@@ -200,8 +188,7 @@ func TestLogger_WithLevelFilter(t *testing.T) {
 	})
 
 	t.Run("creates logger with filter", func(t *testing.T) {
-		buf := bytes.NewBuffer(nil)
-		config := NewConfig(&DefaultLevels, AllLevelsActive, NewTextWriterConfig(buf, nil, nil))
+		config, _ := newTextTestConfig()
 		logger := NewLogger(config)
 		filteredLogger := logger.WithLevelFilter(LevelFilterOutBelow(DefaultLevels.Error))
 
@@ -220,8 +207,7 @@ func TestLogger_WithAdditionalWriterConfigs(t *testing.T) {
 	})
 
 	t.Run("empty configs returns same logger", func(t *testing.T) {
-		buf := bytes.NewBuffer(nil)
-		config := NewConfig(&DefaultLevels, AllLevelsActive, NewTextWriterConfig(buf, nil, nil))
+		config, _ := newTextTestConfig()
 		logger := NewLogger(config)
 		result := logger.WithAdditionalWriterConfigs()
 		assert.Same(t, logger, result)
@@ -257,8 +243,7 @@ func TestLogger_IsActive(t *testing.T) {
 	})
 
 	t.Run("respects context level decider", func(t *testing.T) {
-		buf := bytes.NewBuffer(nil)
-		config := NewConfig(&DefaultLevels, AllLevelsActive, NewTextWriterConfig(buf, nil, nil))
+		config, _ := newTextTestConfig()
 		logger := NewLogger(config)
 
 		ctx := ContextWithoutLogging(context.Background())
@@ -275,8 +260,7 @@ func TestLogger_Flush(t *testing.T) {
 	})
 
 	t.Run("flushes writers", func(t *testing.T) {
-		buf := bytes.NewBuffer(nil)
-		config := NewConfig(&DefaultLevels, AllLevelsActive, NewTextWriterConfig(buf, nil, nil))
+		config, _ := newTextTestConfig()
 		logger := NewLogger(config)
 		assert.NotPanics(t, func() {
 			logger.Flush()
@@ -292,8 +276,7 @@ func TestLogger_With(t *testing.T) {
 	})
 
 	t.Run("creates message for sub-logger building", func(t *testing.T) {
-		buf := bytes.NewBuffer(nil)
-		config := NewConfig(&DefaultLevels, AllLevelsActive, NewTextWriterConfig(buf, nil, nil))
+		config, _ := newTextTestConfig()
 		logger := NewLogger(config)
 
 		subLogger := logger.With().
@@ -323,8 +306,7 @@ func TestLogger_NewMessage(t *testing.T) {
 	})
 
 	t.Run("creates message for active level", func(t *testing.T) {
-		buf := bytes.NewBuffer(nil)
-		config := NewConfig(&DefaultLevels, AllLevelsActive, NewTextWriterConfig(buf, nil, nil))
+		config, buf := newTextTestConfig()
 		logger := NewLogger(config)
 
 		msg := logger.NewMessage(context.Background(), DefaultLevels.Info, "test message")
@@ -339,8 +321,7 @@ func TestLogger_NewMessageAt(t *testing.T) {
 	timestamp := time.Date(2024, 1, 15, 10, 30, 0, 0, time.UTC)
 
 	t.Run("with nil context uses background context", func(t *testing.T) {
-		buf := bytes.NewBuffer(nil)
-		config := NewConfig(&DefaultLevels, AllLevelsActive, NewTextWriterConfig(buf, nil, nil))
+		config, buf := newTextTestConfig()
 		logger := NewLogger(config)
 
 		var nilCtx context.Context
@@ -372,8 +353,7 @@ func TestLogger_NewMessageAt(t *testing.T) {
 
 func TestLogger_NewMessagef(t *testing.T) {
 	t.Run("formats message", func(t *testing.T) {
-		buf := bytes.NewBuffer(nil)
-		config := NewConfig(&DefaultLevels, AllLevelsActive, NewTextWriterConfig(buf, nil, nil))
+		config, buf := newTextTestConfig()
 		logger := NewLogger(config)
 
 		msg := logger.NewMessagef(context.Background(), DefaultLevels.Info, "hello %s %d", "world", 42)
@@ -385,8 +365,7 @@ func TestLogger_NewMessagef(t *testing.T) {
 }
 
 func TestLogger_LevelMethods(t *testing.T) {
-	buf := bytes.NewBuffer(nil)
-	config := NewConfig(&DefaultLevels, AllLevelsActive, NewTextWriterConfig(buf, nil, nil))
+	config, buf := newTextTestConfig()
 	logger := NewLogger(config)
 	ctx := context.Background()
 	timestamp := time.Date(2024, 1, 15, 10, 30, 0, 0, time.UTC)
@@ -439,8 +418,7 @@ func TestLogger_LevelMethods(t *testing.T) {
 }
 
 func TestLogger_LevelWriters(t *testing.T) {
-	buf := bytes.NewBuffer(nil)
-	config := NewConfig(&DefaultLevels, AllLevelsActive, NewTextWriterConfig(buf, nil, nil))
+	config, _ := newTextTestConfig()
 	logger := NewLogger(config)
 
 	tests := []struct {
@@ -464,8 +442,7 @@ func TestLogger_LevelWriters(t *testing.T) {
 }
 
 func TestLogger_NewLevelWriter(t *testing.T) {
-	buf := bytes.NewBuffer(nil)
-	config := NewConfig(&DefaultLevels, AllLevelsActive, NewTextWriterConfig(buf, nil, nil))
+	config, buf := newTextTestConfig()
 	logger := NewLogger(config)
 
 	writer := logger.NewLevelWriter(DefaultLevels.Info)
@@ -514,8 +491,7 @@ func TestLogger_PrefixInOutput(t *testing.T) {
 }
 
 func TestLogger_AttribsLoggedCorrectly(t *testing.T) {
-	buf := bytes.NewBuffer(nil)
-	config := NewConfig(&DefaultLevels, AllLevelsActive, NewTextWriterConfig(buf, nil, nil))
+	config, buf := newTextTestConfig()
 	logger := NewLogger(config, NewString("service", "api"))
 
 	logger.Info("test").Str("key", "value").Log()
@@ -526,8 +502,7 @@ func TestLogger_AttribsLoggedCorrectly(t *testing.T) {
 }
 
 func TestLogger_ContextAttribsLoggedAfterLoggerAttribs(t *testing.T) {
-	buf := bytes.NewBuffer(nil)
-	config := NewConfig(&DefaultLevels, AllLevelsActive, NewTextWriterConfig(buf, nil, nil))
+	config, buf := newTextTestConfig()
 	logger := NewLogger(config, NewString("logger_attr", "logger_value"))
 
 	ctx := ContextWithAttribs(context.Background(), NewString("ctx_attr", "ctx_value"))
@@ -546,8 +521,7 @@ func TestLogger_ContextAttribsLoggedAfterLoggerAttribs(t *testing.T) {
 }
 
 func TestLogger_DuplicateKeyHandling(t *testing.T) {
-	buf := bytes.NewBuffer(nil)
-	config := NewConfig(&DefaultLevels, AllLevelsActive, NewTextWriterConfig(buf, nil, nil))
+	config, buf := newTextTestConfig()
 	logger := NewLogger(config, NewString("key", "original"))
 
 	// Context attribs with duplicate keys are filtered out to prevent key collisions.

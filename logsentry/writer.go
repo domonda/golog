@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"runtime/debug"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/getsentry/sentry-go"
 
 	"github.com/domonda/golog"
+	"github.com/domonda/golog/mempool"
 )
 
 var (
@@ -52,7 +52,7 @@ type WriterConfig struct {
 	valsAsMsg  bool
 	extra      map[string]any
 	onError    func(error)
-	writerPool sync.Pool
+	writerPool mempool.Pointer[Writer]
 }
 
 // NewWriterConfig returns a new WriterConfig for a sentry.Hub.
@@ -88,10 +88,9 @@ func (c *WriterConfig) WriterForNewMessage(ctx context.Context, level golog.Leve
 	if c.filter.IsInactive(ctx, level) || IsContextWithoutLogging(ctx) {
 		return nil
 	}
-	if w, _ := c.writerPool.Get().(golog.Writer); w != nil {
-		return w
-	}
-	return &Writer{config: c}
+	w := c.writerPool.GetOrNew()
+	w.config = c
+	return w
 }
 
 func (c *WriterConfig) FlushUnderlying() {
@@ -200,13 +199,13 @@ func (w *Writer) CommitMessage() {
 		// Reset and return to pool
 		w.message.Reset()
 		if w.values != nil {
-			valueMapPool.Put(w.values)
+			valueMapPool.ClearAndPutBack(w.values)
 			w.values = nil
 		}
 		w.slice = nil
 		w.err = nil
 		w.key = ""
-		w.config.writerPool.Put(w)
+		w.config.writerPool.PutBack(w)
 	}()
 
 	// Flush w.message
@@ -426,37 +425,15 @@ func (w *Writer) writeVal(val any) {
 	}
 }
 
-// valueMapPool is a global pool for reusing map[string]any instances
-// to reduce memory allocations when storing key-value pairs.
-var valueMapPool sync.Pool
+// valueMapPool is a global pool for reusing the map[string]any
+// instances that store the key-value pairs of a Writer.
+var valueMapPool mempool.Map[string, any]
 
-// writeFinalVal is an internal method that stores a value as a key-value pair
-// in the Writer's values map. It uses object pooling to efficiently manage
-// the map instances.
-//
-// The method first tries to reuse an existing map from the pool, clearing
-// it before use. If no pooled map is available, it creates a new one.
-//
-// Parameters:
-//   - val: the value to store with the current key
+// writeFinalVal stores val with the current key in the Writer's values map,
+// taking the map from valueMapPool for the first value of a message.
 func (w *Writer) writeFinalVal(val any) {
-	// If we already have a values map, just add the key-value pair
-	if w.values != nil {
-		w.values[w.key] = val
-		return
+	if w.values == nil {
+		w.values = valueMapPool.GetOrMake()
 	}
-
-	// Try to get a reusable map from the pool
-	if m, _ := valueMapPool.Get().(map[string]any); m != nil {
-		// Clear the map before reuse
-		for k := range m {
-			delete(m, k)
-		}
-		// Add the new key-value pair
-		m[w.key] = val
-		w.values = m
-	} else {
-		// Create a new map if pool is empty
-		w.values = map[string]any{w.key: val}
-	}
+	w.values[w.key] = val
 }

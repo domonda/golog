@@ -30,8 +30,7 @@ func TestNewConfig(t *testing.T) {
 	})
 
 	t.Run("creates valid config", func(t *testing.T) {
-		buf := bytes.NewBuffer(nil)
-		config := NewConfig(&DefaultLevels, AllLevelsActive, NewTextWriterConfig(buf, nil, nil))
+		config, _ := newTextTestConfig()
 		require.NotNil(t, config)
 	})
 
@@ -64,8 +63,7 @@ func TestConfig_WriterConfigs(t *testing.T) {
 }
 
 func TestConfig_Levels(t *testing.T) {
-	buf := bytes.NewBuffer(nil)
-	config := NewConfig(&DefaultLevels, AllLevelsActive, NewTextWriterConfig(buf, nil, nil))
+	config, _ := newTextTestConfig()
 
 	levels := config.Levels()
 	assert.Equal(t, &DefaultLevels, levels)
@@ -113,8 +111,7 @@ func TestConfig_IsActive(t *testing.T) {
 }
 
 func TestConfig_LevelMethods(t *testing.T) {
-	buf := bytes.NewBuffer(nil)
-	config := NewConfig(&DefaultLevels, AllLevelsActive, NewTextWriterConfig(buf, nil, nil))
+	config, _ := newTextTestConfig()
 
 	assert.Equal(t, DefaultLevels.Fatal, config.FatalLevel())
 	assert.Equal(t, DefaultLevels.Error, config.ErrorLevel())

@@ -10,17 +10,17 @@ import (
 
 const HTTPNoHeaders = "HTTPNoHeaders"
 
+// requestIDKey is the attrib key of the request ID
+// that the HTTP middleware adds to the request context.
+const requestIDKey = "requestID"
+
 // GetOrCreateRequestUUID gets a UUID from a http.Request or creates one.
 // The X-Request-ID or X-Correlation-ID HTTP request headers will be
 // parsed as UUID in the format "994d5800-afca-401f-9c2f-d9e3e106e9ef".
 // If the request has no properly formatted ID,
 // then a random v4 UUID will be returned.
 func GetOrCreateRequestUUID(request *http.Request) [16]byte {
-	xRequestID := request.Header.Get("X-Request-ID")
-	if xRequestID == "" {
-		xRequestID = request.Header.Get("X-Correlation-ID")
-	}
-	requestID, err := ParseUUID(xRequestID)
+	requestID, err := ParseUUID(requestIDHeader(request))
 	if err != nil {
 		return UUIDv4()
 	}
@@ -33,15 +33,19 @@ func GetOrCreateRequestUUID(request *http.Request) [16]byte {
 // will be returned if available,
 // else a random v4 UUID will be returned formatted as string.
 func GetOrCreateRequestID(request *http.Request) string {
-	requestID := request.Header.Get("X-Request-ID")
-	if requestID != "" {
-		return requestID
-	}
-	requestID = request.Header.Get("X-Correlation-ID")
-	if requestID != "" {
+	if requestID := requestIDHeader(request); requestID != "" {
 		return requestID
 	}
 	return FormatUUID(UUIDv4())
+}
+
+// requestIDHeader returns the value of the X-Request-ID HTTP request header,
+// or of the X-Correlation-ID header if X-Request-ID is empty.
+func requestIDHeader(request *http.Request) string {
+	if requestID := request.Header.Get("X-Request-ID"); requestID != "" {
+		return requestID
+	}
+	return request.Header.Get("X-Correlation-ID")
 }
 
 // GetRequestUUIDFromContext returns a UUID that was added
@@ -49,7 +53,7 @@ func GetOrCreateRequestID(request *http.Request) string {
 // If the context has no requestID attribute
 // then false will be returned for ok.
 func GetRequestUUIDFromContext(ctx context.Context) (requestID [16]byte, ok bool) {
-	attrib, ok := AttribsFromContext(ctx).Get("requestID").(*UUID)
+	attrib, ok := AttribsFromContext(ctx).Get(requestIDKey).(*UUID)
 	if !ok {
 		return [16]byte{}, false
 	}
@@ -61,7 +65,7 @@ func GetRequestUUIDFromContext(ctx context.Context) (requestID [16]byte, ok bool
 // If the context has no requestID attribute
 // then and empty string will be returned.
 func GetRequestIDFromContext(ctx context.Context) string {
-	requestID := AttribsFromContext(ctx).Get("requestID")
+	requestID := AttribsFromContext(ctx).Get(requestIDKey)
 	if requestID == nil {
 		return ""
 	}
@@ -73,23 +77,23 @@ func GetRequestIDFromContext(ctx context.Context) string {
 // If the context has no requestID attribute
 // then a new random v4 UUID will be returned.
 func GetOrCreateRequestUUIDFromContext(ctx context.Context) [16]byte {
-	requestID, ok := AttribsFromContext(ctx).Get("requestID").(*UUID)
+	requestID, ok := GetRequestUUIDFromContext(ctx)
 	if !ok {
 		return UUIDv4()
 	}
-	return requestID.val
+	return requestID
 }
 
 // ContextWithRequestUUID adds the passed requestID as UUID
 // attribute with the key "requestID" to the context.
 func ContextWithRequestUUID(ctx context.Context, requestID [16]byte) context.Context {
-	return ContextWithAttribs(ctx, NewUUID("requestID", requestID))
+	return ContextWithAttribs(ctx, NewUUID(requestIDKey, requestID))
 }
 
 // ContextWithRequestID adds the passed requestID as string
 // attribute with the key "requestID" to the context.
 func ContextWithRequestID(ctx context.Context, requestID string) context.Context {
-	return ContextWithAttribs(ctx, NewString("requestID", requestID))
+	return ContextWithAttribs(ctx, NewString(requestIDKey, requestID))
 }
 
 // HTTPMiddlewareHandler returns a HTTP middleware handler that passes through a UUID requestID.
@@ -110,7 +114,7 @@ func HTTPMiddlewareHandler(next http.Handler, logger *Logger, level Level, messa
 			requestID := GetOrCreateRequestUUID(request)
 			response.Header().Set("X-Request-ID", FormatUUID(requestID))
 
-			requestWithID := RequestWithAttribs(request, NewUUID("requestID", requestID))
+			requestWithID := RequestWithAttribs(request, NewUUID(requestIDKey, requestID))
 
 			logger.NewMessage(request.Context(), level, message).
 				Request(requestWithID, onlyHeaders...).

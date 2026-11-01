@@ -10,8 +10,7 @@ import (
 )
 
 func TestDerivedConfig(t *testing.T) {
-	buf := bytes.NewBuffer(nil)
-	parentConfig := NewConfig(&DefaultLevels, AllLevelsActive, NewTextWriterConfig(buf, nil, nil))
+	parentConfig, _ := newTextTestConfig()
 
 	t.Run("panics with nil parent", func(t *testing.T) {
 		assert.Panics(t, func() {
@@ -61,8 +60,7 @@ func TestDerivedConfig(t *testing.T) {
 }
 
 func TestNewDerivedConfigWithFilter(t *testing.T) {
-	buf := bytes.NewBuffer(nil)
-	parentConfig := NewConfig(&DefaultLevels, AllLevelsActive, NewTextWriterConfig(buf, nil, nil))
+	parentConfig, _ := newTextTestConfig()
 
 	t.Run("panics with nil parent", func(t *testing.T) {
 		assert.Panics(t, func() {
