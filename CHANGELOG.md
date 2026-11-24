@@ -10,8 +10,29 @@ lockstep with the root module, e.g. `v1.0.7`, `logsentry/v1.0.7`, `goslog/v1.0.7
 
 ## [Unreleased]
 
+## [1.3.2] - 2026-11-24
+
+### Added
+
+- **logfile:** `RotatingWriter.SetWriteCallback` registers a `WriteCallback`
+  that is called after every `Write`, including writes that rotate the file,
+  with the log file path, the data passed to `Write`, and the byte count and
+  error returned by `Write`. Use it to report log write errors by other means,
+  retry or redirect the unwritten part `data[n:]` of failed writes, or check
+  the free disk space after writes. A panic in the callback
+  is recovered and passed to `golog.ErrorHandler`.
+- **logfile:** `NewRotatingWriterWithCallback` creates a `RotatingWriter`
+  with a `WriteCallback` that is set before the first write.
+- **logfile:** `RotateError` is returned by `RotatingWriter.Write` when
+  rotating the log file fails, wrapping the error of closing or renaming it.
+  Detect it with `errors.As`, also in a `WriteCallback`, to tell a failed
+  rotation apart from a failed write.
+
 ### Changed
 
+- Updated dependencies: `golang.org/x/term` v0.48.0, `golang.org/x/sys`
+  v0.50.0 and `go.yaml.in/yaml/v3` v3.0.6, and for **logsentry**
+  `golang.org/x/text` v0.44.0.
 - `mempool.Slice.GetOrMake` now returns a slice with at least the requested
   capacity. It used to reuse a pooled slice that only fit the requested
   length, so appending up to the requested capacity could allocate a new,
@@ -23,6 +44,15 @@ lockstep with the root module, e.g. `v1.0.7`, `logsentry/v1.0.7`, `goslog/v1.0.7
 
 ### Fixed
 
+- **logfile:** a `RotatingWriter` whose log file could not be renamed
+  dropped every write after the file reached the rotation size, because each
+  write retried the rotation, failed again and skipped the data. The data is
+  now written to the current file, which grows past the rotation size, and
+  the rotation is retried at most once per minute.
+- **logfile:** a `RotatingWriter` no longer stops working for good when
+  closing the file or opening it again during a rotation fails. The next
+  write opens the log file again, and `Close` keeps later writes from
+  reopening it.
 - `mempool.Slice.GetOrMake` no longer panics when it allocates a new slice
   for a capacity smaller than the length while `MinCap` is zero.
 
@@ -243,7 +273,8 @@ lockstep with the root module, e.g. `v1.0.7`, `logsentry/v1.0.7`, `goslog/v1.0.7
   attrib type for zero-allocation `time.Time` logging, and the `tag-release`
   versioning script.
 
-[Unreleased]: https://github.com/domonda/golog/compare/v1.3.1...HEAD
+[Unreleased]: https://github.com/domonda/golog/compare/v1.3.2...HEAD
+[1.3.2]: https://github.com/domonda/golog/compare/v1.3.1...v1.3.2
 [1.3.1]: https://github.com/domonda/golog/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/domonda/golog/compare/v1.2.1...v1.3.0
 [1.2.1]: https://github.com/domonda/golog/compare/v1.2.0...v1.2.1
