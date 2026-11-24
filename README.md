@@ -384,6 +384,12 @@ logger.Info("Application started").Log()
 Before a write that would make the file reach 10MB:
 - The current file is renamed with a timestamp (e.g., `myapp.log.2024-01-15_10:30:45`)
 - A new file is created at the original path, and the write goes to the new file
+- If the rotation fails, the write still goes to the current file, `Write` returns a
+  `*logfile.RotateError`, and the rotation is retried by the first write at least a minute later
+
+`logfile.NewRotatingWriterWithCallback` or `writer.SetWriteCallback` registers a callback that is called after every write
+with the log file path, the data passed to `Write`, the number of bytes written and the write error,
+to report write errors by other means, retry failed writes, or watch the free disk space.
 
 ### Multiple Writers with Rotation
 
