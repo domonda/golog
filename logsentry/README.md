@@ -14,6 +14,8 @@ The `logsentry` package implements the `golog.Writer` and `golog.WriterConfig` i
 - **Stack Trace Filtering**: Automatically filters out golog internal frames from stack traces
 - **Memory Pooling**: Uses object pooling for efficient memory management
 - **Context-Aware Logging**: Supports disabling Sentry logging via context
+- **Request-Scoped Hubs**: With `WithContextHub`, events of messages logged with a request context go to the request's own hub, like the one `sentryhttp` creates, with its user, tags and breadcrumbs (see [Request-Scoped Hubs](#request-scoped-hubs))
+- **Log File Error Reports**: `NewLogfileWriteCallback` sends failed writes and rotations of a `logfile.RotatingWriter` to Sentry, at most one event per interval (see [Report log file errors to Sentry](#report-log-file-errors-to-sentry))
 - **Configurable Formatting**: Supports both message-only and key-value message formats
 
 ## Installation
@@ -231,13 +233,48 @@ You can disable Sentry logging for specific contexts:
 ctx := logsentry.ContextWithoutLogging(context.Background())
 
 // This will not be sent to Sentry
-logger.WithContext(ctx).Error("This won't go to Sentry").Log()
+logger.ErrorCtx(ctx, "This won't go to Sentry").Log()
 
 // Check if context has Sentry disabled
 if logsentry.IsContextWithoutLogging(ctx) {
     // Handle accordingly
 }
 ```
+
+### Request-Scoped Hubs
+
+Sentry HTTP integrations like `sentryhttp` give every request its own clone of the hub
+with the request data, user, tags and breadcrumbs in its scope, and put it in the request
+context. By default the writer sends every event to the hub passed to `NewWriterConfig`,
+so events of messages logged with the request context don't get that scope.
+
+Pass `WithContextHub()` to send the events of messages logged with a context that has a hub
+(`sentry.GetHubFromContext`) to that hub. Messages logged with a context without a hub
+still go to the hub passed to `NewWriterConfig`:
+
+```go
+sentryWriter := logsentry.NewWriterConfig(
+    sentry.CurrentHub(),
+    golog.NewDefaultFormat(),
+    golog.DefaultLevels.Error.FilterOutBelow(),
+    false,
+    nil,
+    logsentry.WithContextHub(),
+)
+
+func handler(w http.ResponseWriter, r *http.Request) {
+    // The event gets the scope of the request hub set by sentryhttp
+    logger.ErrorCtx(r.Context(), "request failed").Err(err).Log()
+}
+```
+
+Don't set per-request data on the scope of a shared hub like `sentry.CurrentHub()` instead:
+concurrent requests overwrite it, so events get the user or tags of another request.
+
+A hub of the context can be bound to a different client than the hub passed to
+`NewWriterConfig`, and then sends events to the project of that client.
+`FlushUnderlying` only flushes the client of the hub passed to `NewWriterConfig`;
+hubs cloned with `Hub.Clone`, like those of `sentryhttp`, share its client.
 
 ### Context-Aware Filtering
 
@@ -275,8 +312,8 @@ func NewWriterConfig(
 - **`format`**: golog format configuration for message formatting. Use `golog.NewDefaultFormat()` for standard formatting.
 - **`filter`**: Level filter to control which log levels are sent to Sentry. Use `golog.AllLevelsActive` to send all levels.
 - **`valsAsMsg`**: If `true`, includes key-value pairs in the message text. If `false`, only sends them in the `log` context.
-- **`extra`**: Additional data to include in the `log` context of every Sentry event (e.g., service name, version).
-- **`opts`**: Optional settings. Use `WithErrorHandler(func(error))` to route errors that occur while logging to Sentry into your normal logs (defaults to `golog.ErrorHandler()`).
+- **`extra`**: Additional data to include in the `log` context of every Sentry event (e.g., service name, version). The map is copied; don't change its values afterwards.
+- **`opts`**: Optional settings. Use `WithErrorHandler(func(error))` to route errors that occur while logging to Sentry into your normal logs (defaults to `golog.ErrorHandler()`), and `WithContextHub()` to send events to the Sentry hub of the message context (see [Request-Scoped Hubs](#request-scoped-hubs)).
 
 ### Global Configuration
 
@@ -287,6 +324,32 @@ logsentry.UnknownLevel = sentry.LevelWarning
 // Customize flush timeout
 logsentry.FlushTimeout = 5 * time.Second
 ```
+
+## Report log file errors to Sentry
+
+`NewLogfileWriteCallback` returns a `logfile.WriteCallback` for a `logfile.RotatingWriter`
+that sends every failed rotation or write of the log file as a Sentry error event,
+so a full disk or a log directory without write permission doesn't go unnoticed:
+
+```go
+fileWriter, err := logfile.NewRotatingWriterWithCallback(
+    "/var/log/app.log", "", 0644, 10*1024*1024,
+    logsentry.NewLogfileWriteCallback(sentry.CurrentHub(), time.Minute),
+)
+```
+
+- The event title is `error rotating log file` when only the rotation failed and the data
+  was still written, or `error writing log file` when data was not written completely.
+- The `logfile` context holds `file_path`, `bytes_total`, `bytes_written`, `rotate_failed`,
+  `write_failed` and, for a failed write, the start of the `unwritten` log data
+  (at most `LogfileUnwrittenMaxBytes`, 4096 by default), because that message is lost otherwise.
+- A full disk makes every write fail, so the second argument limits events to one per interval.
+  Errors in between are counted and reported as `skipped_errors` with the next event.
+  Pass `0` to send every error.
+- A `nil` hub uses `sentry.CurrentHub()` at the time of the error.
+
+Don't route Sentry's `DebugWriter` into a logger that writes to the same log file:
+its output for a failed send would call the callback again.
 
 ## How to route Sentry logging errors into your normal logs
 
@@ -486,7 +549,7 @@ sentry logging error: sentry: error sending envelope: ...
 
 2. **Format Dependencies**: Message formatting depends on the provided `golog.Format`. Changes to format affect Sentry message content.
 
-3. **Context Propagation**: Context-based logging control only works when explicitly using `WithContext()`.
+3. **Context Propagation**: Context-based logging control only works for messages logged with the context, like with `logger.ErrorCtx(ctx, ...)`.
 
 4. **Stack Trace Filtering**: Only filters frames from `github.com/domonda/golog` module. Other logging-related frames may still appear.
 
@@ -498,7 +561,7 @@ sentry logging error: sentry: error sending envelope: ...
 
 3. **No Compression**: Large log messages are not compressed before sending.
 
-4. **Single Hub**: Each writer config is tied to a single Sentry hub instance.
+4. **Single Hub**: Each writer config is tied to a single Sentry hub instance, unless the `WithContextHub` option sends events to the hub of the message context.
 
 ## Troubleshooting
 

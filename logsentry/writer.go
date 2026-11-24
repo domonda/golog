@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"runtime/debug"
 	"strings"
 	"time"
@@ -35,6 +36,8 @@ var (
 //   - Additional metadata included with every event (via extra)
 //   - Where errors that occur while logging to Sentry are reported
 //     (via [WithErrorHandler]; defaults to [golog.ErrorHandler])
+//   - Whether a hub of the message context is used instead of the hub
+//     of the config (via [WithContextHub])
 //
 // Example usage:
 //
@@ -52,11 +55,14 @@ type WriterConfig struct {
 	valsAsMsg  bool
 	extra      map[string]any
 	onError    func(error)
+	contextHub bool // Set by WithContextHub
 	writerPool mempool.Pointer[Writer]
 }
 
 // NewWriterConfig returns a new WriterConfig for a sentry.Hub.
 // Any values passed as extra will be added to every log messsage.
+// The map is copied, so changing it afterwards has no effect,
+// but the values in it are shared with every event and must not be changed.
 //
 // Errors that occur while writing to Sentry (recovered panics in the writer)
 // are reported to the handler set via [WithErrorHandler], or to
@@ -76,12 +82,34 @@ func NewWriterConfig(hub *sentry.Hub, format *golog.Format, filter golog.LevelFi
 		format:    format,
 		filter:    filter,
 		valsAsMsg: valsAsMsg,
-		extra:     extra,
+		extra:     maps.Clone(extra), // Changing the caller's map would race with logging
 	}
 	for _, opt := range opts {
 		opt(c)
 	}
 	return c
+}
+
+// WithContextHub makes the writer send the events of messages logged with
+// a context that has a Sentry hub (see sentry.GetHubFromContext) to that hub
+// instead of the hub passed to [NewWriterConfig], which is still used
+// for messages logged with a context without a hub.
+//
+// Sentry HTTP integrations like sentryhttp put a clone of the hub
+// with the scope of the request (request data, user, tags, breadcrumbs)
+// in the request context, so with this option the events of messages logged
+// with the request context get that scope, like the events that the
+// application captures itself with the hub of the context.
+// Without it, data that an application sets on the scope of a shared hub
+// per request ends up in the events of other concurrent requests.
+//
+// The hub of a context can be bound to a different client than the hub
+// passed to NewWriterConfig, which sends the events to the project of that
+// client. [WriterConfig.FlushUnderlying] only flushes the client of the hub
+// passed to NewWriterConfig. Hubs cloned with sentry.Hub.Clone share the
+// client of the original hub, so they are flushed with it.
+func WithContextHub() Option {
+	return func(c *WriterConfig) { c.contextHub = true }
 }
 
 func (c *WriterConfig) WriterForNewMessage(ctx context.Context, level golog.Level) golog.Writer {
@@ -90,6 +118,12 @@ func (c *WriterConfig) WriterForNewMessage(ctx context.Context, level golog.Leve
 	}
 	w := c.writerPool.GetOrNew()
 	w.config = c
+	w.hub = c.hub
+	if c.contextHub {
+		if hub := sentry.GetHubFromContext(ctx); hub != nil {
+			w.hub = hub
+		}
+	}
 	return w
 }
 
@@ -132,6 +166,7 @@ func (c *WriterConfig) FlushUnderlying() {
 //	// and a "log" context: {"query": sql, "error": err.Error()}
 type Writer struct {
 	config    *WriterConfig
+	hub       *sentry.Hub // Hub of the config or of the message context, see WithContextHub
 	timestamp time.Time
 	level     sentry.Level
 	message   strings.Builder
@@ -205,6 +240,7 @@ func (w *Writer) CommitMessage() {
 		w.slice = nil
 		w.err = nil
 		w.key = ""
+		w.hub = nil
 		w.config.writerPool.PutBack(w)
 	}()
 
@@ -217,9 +253,11 @@ func (w *Writer) CommitMessage() {
 		event.Fingerprint = []string{event.Message}
 		// sentry-go v0.46.0 removed Event.Extra; attach the key-value pairs
 		// as a named context instead (sentry.Context is map[string]any).
-		// logCtx is a fresh map, independent of w.values, so returning
-		// w.values to valueMapPool in the deferred cleanup cannot mutate the
-		// captured event. CaptureEvent serializes the event synchronously.
+		// The Sentry client may serialize the event after CaptureEvent
+		// returned, on another goroutine, so the event must not reference
+		// anything that the writer reuses: logCtx is a fresh map,
+		// independent of w.values, so returning w.values to valueMapPool
+		// in the deferred cleanup cannot mutate the captured event.
 		logCtx := make(sentry.Context, len(w.config.extra)+len(w.values))
 		copyContextValues(logCtx, w.config.extra)
 		copyContextValues(logCtx, w.values)
@@ -238,7 +276,7 @@ func (w *Writer) CommitMessage() {
 			stackTrace = sentry.ExtractStacktrace(w.err)
 		}
 		if stackTrace == nil {
-			if client := w.config.hub.Client(); client.IsEnabled() && client.Options().AttachStacktrace {
+			if client := w.hub.Client(); client.IsEnabled() && client.Options().AttachStacktrace {
 				stackTrace = sentry.NewStacktrace()
 			}
 		}
@@ -262,7 +300,7 @@ func (w *Writer) CommitMessage() {
 				Current:    true,
 			}}
 		}
-		w.config.hub.CaptureEvent(event)
+		w.hub.CaptureEvent(event)
 	}
 }
 

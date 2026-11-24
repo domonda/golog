@@ -2,6 +2,7 @@ package golog
 
 import (
 	"context"
+	"slices"
 	"sync"
 )
 
@@ -21,8 +22,12 @@ var _ Config = new(DynDerivedConfig)
 // if a log message should be written or not. If the DynDerivedConfig has no filter,
 // the filter of the parent Config will be used.
 type DynDerivedConfig struct {
-	parent        *Config
-	filter        *LevelFilter
+	parent *Config
+	filter *LevelFilter
+	// additionalWriterConfigs are the configs set with SetAdditionalWriterConfigs
+	additionalWriterConfigs []WriterConfig
+	// writerConfigs are the writer configs of the parent merged
+	// with additionalWriterConfigs, or nil if there are none
 	writerConfigs []WriterConfig
 	mutex         sync.RWMutex
 }
@@ -68,6 +73,7 @@ func (c *DynDerivedConfig) SetParent(parent *Config) {
 	}
 	c.mutex.Lock()
 	c.parent = parent
+	c.mergeWriterConfigs()
 	c.mutex.Unlock()
 }
 
@@ -83,14 +89,25 @@ func (c *DynDerivedConfig) SetFilter(filters ...LevelFilter) {
 // SetAdditionalWriterConfigs sets writer configs to be used in addition to the parent's.
 // The configs are combined with the parent's writer configs, with duplicates removed.
 // Pass no arguments to clear additional writers and use only the parent's writers.
+// The configs stay set when the parent is changed with SetParent.
 func (c *DynDerivedConfig) SetAdditionalWriterConfigs(configs ...WriterConfig) {
+	// Clone so that the caller can't change the configs without locking
+	configs = slices.Clone(configs)
 	c.mutex.Lock()
-	if len(configs) == 0 {
-		c.writerConfigs = nil
-	} else {
-		c.writerConfigs = mergeWriterConfigs((*c.parent).WriterConfigs(), configs)
-	}
+	c.additionalWriterConfigs = configs
+	c.mergeWriterConfigs()
 	c.mutex.Unlock()
+}
+
+// mergeWriterConfigs sets c.writerConfigs to the writer configs
+// of the parent merged with the additional writer configs.
+// The caller must hold the write lock of c.mutex.
+func (c *DynDerivedConfig) mergeWriterConfigs() {
+	if len(c.additionalWriterConfigs) == 0 {
+		c.writerConfigs = nil
+		return
+	}
+	c.writerConfigs = mergeWriterConfigs((*c.parent).WriterConfigs(), c.additionalWriterConfigs)
 }
 
 // WriterConfigs returns the writer configs for this DynDerivedConfig.

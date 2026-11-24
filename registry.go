@@ -1,7 +1,9 @@
 package golog
 
 import (
-	"sort"
+	"maps"
+	"slices"
+	"strings"
 	"sync"
 )
 
@@ -52,21 +54,20 @@ func (r *Registry) ConfigOrNilByPackagePath(pkgPath string) *DerivedConfig {
 	return r.pkgPathConfigs[pkgPath]
 }
 
+// PackagesSortedByName returns the paths and names of the registered
+// packages sorted by name, where paths[i] is the path of names[i].
 func (r *Registry) PackagesSortedByName() (paths, names []string) {
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()
 
-	names = make([]string, 0, len(r.pkgPathNames))
-	for _, name := range r.pkgPathNames {
-		names = append(names, name)
+	// Package names are unique, see AddPackageConfig
+	paths = slices.SortedFunc(maps.Keys(r.pkgPathNames), func(a, b string) int {
+		return strings.Compare(r.pkgPathNames[a], r.pkgPathNames[b])
+	})
+	names = make([]string, len(paths))
+	for i, path := range paths {
+		names[i] = r.pkgPathNames[path]
 	}
-	sort.Strings(names)
-
-	paths = make([]string, len(r.pkgPathNames))
-	for i, name := range names {
-		paths[i] = r.pkgPathNames[name]
-	}
-
 	return paths, names
 }
 

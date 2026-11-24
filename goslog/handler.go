@@ -49,6 +49,7 @@ package goslog
 import (
 	"context"
 	"log/slog"
+	"slices"
 
 	"github.com/domonda/golog"
 )
@@ -110,10 +111,10 @@ func Handler(logger *golog.Logger, convertLevel ConvertLevelFunc) slog.Handler {
 
 // handler implements slog.Handler by routing to a golog.Logger.
 type handler struct {
-	logger       *golog.Logger      // The underlying golog logger
-	convertLevel ConvertLevelFunc   // Function to convert slog levels to golog levels
-	attrs        []slog.Attr        // Pre-configured attributes (from WithAttrs)
-	groupPrefix  string             // Current group prefix (from WithGroup)
+	logger       *golog.Logger    // The underlying golog logger
+	convertLevel ConvertLevelFunc // Function to convert slog levels to golog levels
+	attrs        []slog.Attr      // Pre-configured attributes (from WithAttrs)
+	groupPrefix  string           // Current group prefix (from WithGroup)
 }
 
 // clone creates a shallow copy of the handler.
@@ -179,7 +180,10 @@ func (h *handler) WithAttrs(attrs []slog.Attr) slog.Handler {
 			attrs[i].Key = prefixKey(h.groupPrefix, attrs[i].Key)
 		}
 	}
-	with.attrs = append(with.attrs, attrs...)
+	// Clip the attrs of h so that append copies them to a new array
+	// instead of writing into spare capacity that h and all other
+	// handlers derived from h share
+	with.attrs = append(slices.Clip(h.attrs), attrs...)
 	return with
 }
 

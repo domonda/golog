@@ -45,6 +45,48 @@ Supported field types include:
   - Err: Error values
   - Any: Generic values (uses reflection)
 
+Bytes have one meaning everywhere: a string if they are valid UTF-8,
+else encoded with [BinaryEncoder] (base64.RawURLEncoding by default),
+as [Message.StrBytes] logs them. This applies to bytes
+logged with [Message.Any] or as struct fields too. A byte slice type with
+a format of its own, like net.IP, is logged as one value with that format
+instead of as bytes: as error or [Loggable], else with its MarshalJSON,
+MarshalText or String method. Three methods exist for
+other purposes: [Message.Bytes] always logs binary data encoded with [BinaryEncoder],
+[Message.JSON] logs JSON, and [Message.Uint8s] logs a []uint8 (the same Go
+type as []byte) as numbers.
+Only a struct or map passed as a whole to [Message.Any] is encoded by
+encoding/json, which writes its bytes as standard base64 with padding.
+
+[Message.Any] logs other values like the matching typed method:
+a [time.Time] like [Message.Time], with the TimeFormat and Location of the
+writer's [Format] and null for the zero time, and a [encoding/json.RawMessage]
+like [Message.JSON]. The elements of a []any keep their own types.
+
+A type implements [Loggable] with a Log method that logs its fields,
+for example to leave out personal data:
+
+	type User struct {
+		ID    int
+		Name  string
+		Email string
+	}
+
+	func (u User) Log(m *golog.Message) {
+		m.Int("id", u.ID).Str("name", u.Name)
+	}
+
+	log.Info("Signed in").Loggable(user).Log()   // "id":7,"name":"Alice"
+	log.Info("Signed in").Any("user", user).Log() // "user":{"id":7,"name":"Alice"}
+
+[Message.Loggable] logs the fields as fields of the message,
+[Message.Any] logs them as JSON object under the key, also for the elements
+of a slice, and a nil pointer as null. [LoggableFunc] turns a function into
+a Loggable, and [Attribs] is a Loggable as well.
+A Log method declared on the pointer type *User is only called for a *User:
+[Message.Any] encodes a User value with encoding/json instead,
+which logs all exported fields, Email included.
+
 # Log Levels
 
 Six standard log levels are supported:
@@ -90,6 +132,23 @@ Store and retrieve log attributes in context:
 	// Create logger from context
 	ctxLogger := log.WithCtx(ctx)
 	ctxLogger.Info("Operation started").Log() // Includes context attributes
+
+The context gets clones of the passed attribs, so the caller keeps ownership
+of them. Use [ContextWithOwnedAttribs] or [RequestWithOwnedAttribs] to hand
+attribs that were built for the call over to the context instead of cloning
+them:
+
+	ctx = golog.ContextWithOwnedAttribs(ctx, golog.NewUUID("requestID", requestID))
+
+A sub-logger created with [Message.SubLoggerContext] inherits the attribs of
+the passed context and keeps logging them when used with another context.
+Those inherited attribs are written after the attribs of the context that a
+message is logged with, so an attrib with the same key from that context
+takes precedence over the inherited one, see [Logger.CtxAttribs].
+Once an attrib of the logger, of an inherited context or of the context of
+the message was written, [Message.Ctx] and the field methods of the message
+drop attribs with the same key. The fields of a message are not checked
+against each other: a message that sets the same key twice writes it twice.
 
 # Output Formats
 
@@ -257,8 +316,26 @@ The package provides an error handler for internal errors:
 
 # Thread Safety
 
-Logger is safe for concurrent use. Multiple goroutines can log
-simultaneously without external synchronization.
+A Logger is safe for concurrent use. Multiple goroutines can log with the
+same Logger, derive sub-loggers from it and share contexts with attribs
+without external synchronization, because loggers, configs, writer configs
+and the attribs of contexts are not changed after they were created.
+The guarantee depends on these rules:
+
+  - A Message belongs to the goroutine that created it.
+    Don't use it after Log, LogAndPanic or SubLogger.
+  - The io.Writer passed to [NewJSONWriterConfig] or [NewTextWriterConfig]
+    gets one Write call per message, concurrently from all logging goroutines.
+    An *os.File and a logfile.RotatingWriter are safe for that;
+    guard other writers, like a bytes.Buffer, with a mutex.
+  - The callback of [NewCallbackWriterConfig] is called concurrently.
+  - [Logger.RemoveAttribs] returns the attribs of the logger to the mempool,
+    so call it only when no other goroutine uses the logger.
+  - Package variables like [GlobalPanicLevel], [FilterHTTPHeaders],
+    [TrimCallStackPathPrefix] and the variables of the log package
+    are read without synchronization: set them before logging starts.
+    Change the parent, level filter or writer configs of a logger at runtime
+    with a [DynDerivedConfig]. [SetErrorHandler] is safe to call at any time.
 
 # Compatibility
 

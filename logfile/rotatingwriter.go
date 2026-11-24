@@ -47,7 +47,7 @@ to the file, and the error of the rotation or write, or nil on success.
 Use it to report log write errors by other means, to retry or redirect
 the unwritten part of failed writes, or to check the free disk space
 and send an alarm when the log volume fills up.
-Use errors.As with a *RotateError to tell a failed rotation
+Use errors.AsType with *RotateError to tell a failed rotation
 apart from a failed write:
 
 	writer.SetWriteCallback(func(filePath string, data []byte, n int, err error) {
@@ -55,6 +55,10 @@ apart from a failed write:
 			fmt.Fprintf(os.Stderr, "error writing log file %s: %s\n%s", filePath, err, data[n:])
 		}
 	})
+
+FreeDiskSpace returns the free space of the volume of the log file,
+use it in the callback to warn before the disk is full.
+See the example of FreeDiskSpace for how to report low disk space only once.
 
 # Thread Safety
 
@@ -106,11 +110,10 @@ var statFile = (*os.File).Stat
 // Write returns a *RotateError as is when the data was written completely,
 // and joined with errors.Join with the error of opening or writing
 // the log file when that failed too.
-// Use errors.As to detect a failed rotation,
+// Use errors.AsType to detect a failed rotation,
 // and the byte count n returned by Write to detect a failed write:
 //
-//	var rotateErr *logfile.RotateError
-//	if errors.As(err, &rotateErr) {
+//	if _, ok := errors.AsType[*logfile.RotateError](err); ok {
 //		// The log file could not be rotated and grows past the rotation size
 //	}
 //	if n < len(data) {
@@ -138,7 +141,7 @@ func (e *RotateError) Unwrap() error {
 // and the byte count n and error returned by Write.
 // On success n is len(data) and err is nil.
 // If rotating the file before the write failed, err is or wraps
-// a *RotateError (detect it with errors.As) and data is still written
+// a *RotateError (detect it with errors.AsType) and data is still written
 // to the current log file, so n is len(data) unless writing failed too.
 // If opening or writing the log file failed, data[:n] was written
 // and data[n:] was not, so n < len(data) always means a failed write.

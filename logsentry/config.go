@@ -1,6 +1,14 @@
 // Package logsentry provides Sentry integration for golog structured logging.
 // It implements the golog.Writer and golog.WriterConfig interfaces to bridge
 // golog's logging capabilities with Sentry's error tracking and monitoring system.
+//
+// NewWriterConfig creates the writer config. Its WithContextHub option sends
+// the events of messages logged with a context that has a Sentry hub,
+// like the per-request hub of sentryhttp, to that hub instead of the one
+// passed to NewWriterConfig.
+//
+// NewLogfileWriteCallback returns a logfile.WriteCallback that reports
+// failed writes and rotations of a logfile.RotatingWriter as Sentry events.
 package logsentry
 
 import (
@@ -15,12 +23,14 @@ var (
 	// to a known Sentry level. This typically happens with custom log levels
 	// that don't match the standard golog levels (TRACE, DEBUG, INFO, WARN, ERROR, FATAL).
 	// Defaults to sentry.LevelError to ensure unknown levels are treated as errors.
+	// Set it before logging starts, it is read without synchronization.
 	UnknownLevel = sentry.LevelError
 
 	// FlushTimeout specifies how long to wait when flushing Sentry events
 	// before giving up. This is used when the application is shutting down
 	// to ensure pending events are sent to Sentry before termination.
 	// Defaults to 3 seconds, which should be sufficient for most network conditions.
+	// Set it before logging starts, it is read without synchronization.
 	FlushTimeout time.Duration = 3 * time.Second
 )
 

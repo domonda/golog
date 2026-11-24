@@ -17,8 +17,12 @@ import "sync"
 //	slice[0] = "value"
 //	pool.ClearAndPutBack(slice)
 type Slice[T any] struct {
-	// pool stores reusable slice instances
+	// pool stores reusable slices as *[]T, because putting a slice
+	// value into a sync.Pool would allocate to box its slice header
 	pool sync.Pool
+	// boxes stores the emptied *[]T of slices taken from pool,
+	// to box the next slice put back without allocating
+	boxes sync.Pool
 	// MinCap is the minimum capacity for newly allocated slices
 	MinCap int
 }
@@ -41,10 +45,11 @@ type Slice[T any] struct {
 //
 // Returns a []T with the specified length, ready for immediate use.
 func (p *Slice[T]) GetOrMake(length, capacity int) []T {
-	slice, ok := p.pool.Get().([]T)
-	if ok {
-		if max(length, capacity) <= cap(slice) {
-			slice = slice[:length]
+	if box, ok := p.pool.Get().(*[]T); ok {
+		if max(length, capacity) <= cap(*box) {
+			slice := (*box)[:length]
+			*box = nil
+			p.boxes.Put(box)
 			if onSliceGetOrMake != nil {
 				onSliceGetOrMake(slice, true, length, capacity)
 			}
@@ -52,9 +57,9 @@ func (p *Slice[T]) GetOrMake(length, capacity int) []T {
 		}
 		// The capacity of the slice from the pool is too small,
 		// so put it back and allocate a new one.
-		p.pool.Put(slice)
+		p.pool.Put(box)
 	}
-	slice = make([]T, length, max(length, capacity, p.MinCap))
+	slice := make([]T, length, max(length, capacity, p.MinCap))
 	if onSliceGetOrMake != nil {
 		onSliceGetOrMake(slice, false, length, cap(slice))
 	}
@@ -77,7 +82,12 @@ func (p *Slice[T]) ClearAndPutBack(slice []T) {
 	}
 	if slice != nil {
 		clear(slice[:cap(slice)]) // Clear complete capacity of the slice
-		p.pool.Put(slice[:0])
+		box, _ := p.boxes.Get().(*[]T)
+		if box == nil {
+			box = new([]T) // Only until enough boxes are in circulation
+		}
+		*box = slice[:0]
+		p.pool.Put(box)
 	}
 }
 
@@ -93,6 +103,8 @@ func (p *Slice[T]) Drain() int {
 	count := 0
 	for p.pool.Get() != nil {
 		count++
+	}
+	for p.boxes.Get() != nil {
 	}
 	return count
 }

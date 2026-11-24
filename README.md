@@ -49,12 +49,12 @@ Set the `LOG_LEVEL` environment variable to `TRACE`, `DEBUG`, `INFO`, `WARN`, `E
 
 ## Features
 
-- **Logs without allocating** — 0 allocations per message for JSON and uncolored text output, including errors and `time.Time` fields.
+- **Logs without allocating** — 0 allocations per message for JSON and uncolored text output, including errors and `time.Time` fields. See [Performance](#performance).
 - **Picks the output format** — the `log` package writes colored text to a terminal and JSON when output is piped, with no setup.
 - **Writes to several places at once** — for example colored text on stdout plus warnings and errors as JSON in a size-rotated file, each writer with its own format and level filter.
 - **Reports errors to Sentry** — the `logsentry` module turns errors logged with `Err` into Sentry exceptions, keeping the stack trace the error carries.
 - **Carries request context** — attributes stored in a `context.Context` appear on every message logged with it. The HTTP middleware puts a request ID there, taken from `X-Request-ID` or generated.
-- **Protects inherited keys** — a message can't duplicate or override a key its logger or sub-logger already set, such as `service`.
+- **Protects inherited keys** — a message can't duplicate or override a key its logger, sub-logger or context already set, such as `service` or `requestID`.
 - **Logs structs by their tags** — reuses your `json` tags (or `golog` and `log` tags) with `omitempty`-style modifiers, and prints `***REDACTED***` for fields tagged `redact`.
 - **Backs `log/slog`** — the `goslog` module turns a golog logger into a `slog.Handler` that passes the standard library's `slogtest` suite.
 - **Ignores a nil logger** — `Info`, `Error` and the other level methods on a nil `*Logger` return a message that logs nothing, instead of panicking.
@@ -68,22 +68,40 @@ go get github.com/domonda/golog/logsentry
 
 ## Performance
 
-| Apple M2, per message | golog            | zerolog            | zap              | slog             |
-|-----------------------|------------------|--------------------|------------------|------------------|
-| JSON, 4 fields        | 353 ns, 0 allocs | 145 ns, 0 allocs   | 451 ns, 1 alloc  | 860 ns, 9 allocs |
-| Text, no colors       | 394 ns, 0 allocs | 2363 ns, 46 allocs | 514 ns, 4 allocs | 677 ns, 3 allocs |
-| Level disabled        | 42 ns, 0 allocs  | 6 ns, 0 allocs     | 35 ns, 1 alloc   | 47 ns, 3 allocs  |
+**No heap allocation per message, in JSON and in text. Faster than zap and slog in 6 of 7 benchmarks; zerolog is faster at JSON.**
 
-zerolog is faster at JSON. golog is the fastest at uncolored text output in these benchmarks and allocates nothing for either. Messages and writers come from object pools, which is how the per-message allocations reach zero. Colored terminal output allocates a few strings per message for the color codes.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="benchmarks/charts/speed-dark.svg">
+  <img src="benchmarks/charts/speed-light.svg" alt="Nanoseconds per log message on an Apple M5 Pro. JSON with 4 fields: zerolog 95, golog 216, zap 315, slog 507, logrus 1428. JSON with 10 fields: zerolog 164, golog 296, zap 493, slog 798, logrus 2634. Text without colors: golog 237, zap 323, slog 361, logrus 663, zerolog 1390. Level disabled: zerolog 2.9, slog 25, golog 30, zap 35, logrus 156.">
+</picture>
 
-The comparative benchmarks live in their own module, so zerolog, zap and logrus never become dependencies of golog:
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="benchmarks/charts/allocs-dark.svg">
+  <img src="benchmarks/charts/allocs-light.svg" alt="Heap allocations per log message. golog: 0 in all 7 scenarios. zerolog: 0, except 42 for text. zap: 0 to 4. slog: 0 to 8. logrus: 6 to 54.">
+</picture>
+
+Messages, attributes and writers come from object pools, so a message allocates nothing, with errors, `time.Time` fields and the attributes of a sub-logger included. Only colored terminal output allocates, a few strings for the color codes.
+
+- **zap and slog**: golog is faster in 6 of 7 scenarios against each. zap is faster with a sub-logger (250 vs 255 ns), slog when the level is disabled (25 vs 30 ns, with 3 allocations).
+- **zerolog**: about 2.3× faster at JSON (95 vs 216 ns with 4 fields), and about 6× slower at text (1390 vs 237 ns, with 42 allocations).
+
+The charts measure one writer, as the other libraries are configured. golog does more per message without allocating, measured with the same 4 fields:
+
+| golog, 4 fields                                            | per message      |
+|------------------------------------------------------------|------------------|
+| One JSON writer                                            | 209 ns, 0 allocs |
+| JSON and uncolored text writer in the same call            | 430 ns, 0 allocs |
+| Plus 2 attributes from the `context.Context`               | 260 ns, 0 allocs |
+| Sub-logger attribute, 2 context attributes and both writers | 631 ns, 0 allocs |
+
+The comparative benchmarks live in their own module, so zerolog, zap and logrus never become dependencies of golog. Run them from a clone of this repository:
 
 ```bash
-go test ./benchmarks -bench=. -benchmem   # golog vs zerolog, zap, slog, logrus
-go test -bench=. -benchmem                # golog's own benchmarks
+go test ./benchmarks -bench=. -benchmem -benchtime=2s   # golog vs zerolog, zap, slog, logrus
+go test ./goslog -bench=. -benchmem                     # golog as slog.Handler
 ```
 
-All scenarios and results: [benchmarks/README.md](benchmarks/README.md).
+All scenarios, the raw results and how to redraw the charts: [benchmarks/README.md](benchmarks/README.md).
 
 ## Configuring a Logger
 
@@ -159,6 +177,44 @@ log.Info("Processing request").
     Log()
 ```
 
+Bytes have one meaning everywhere: a string if they are valid UTF-8, else encoded with `golog.BinaryEncoder`, as `StrBytes` logs them. That includes bytes passed to `Any` or logged as struct fields. A byte slice type with a format of its own, like `net.IP` or `net.HardwareAddr`, is logged as one value with that format instead of as bytes: as error or `Loggable`, else with its `MarshalJSON`, `MarshalText` or `String` method. Three methods exist for other purposes: `Bytes` always logs binary data encoded with `golog.BinaryEncoder`, `JSON` logs JSON, and `Uint8s` logs a `[]uint8` (the same Go type as `[]byte`) as numbers. `golog.BinaryEncoder` defaults to unpadded URL-safe base64; set it at program start for another encoding, for example `golog.BinaryEncoder = hex.EncodeToString`. Only a struct or map passed as a whole to `Any` is encoded by `encoding/json`, which writes its bytes as standard base64 with padding; `StructFields` logs struct fields with golog's rules.
+
+`Any` logs other values like the matching typed method: a `time.Time` like `Time`, formatted with the writer's `TimeFormat` and `Location` and `null` for the zero time, and a `json.RawMessage` like `JSON`. The elements of a `[]any` keep their own types, so `Any("vals", []any{1, "two", true, nil})` logs `[1,"two",true,null]`.
+
+### Types That Log Themselves
+
+A type implements `golog.Loggable` with a `Log(*golog.Message)` method that logs its fields. Use it to decide which fields of a type belong in the log, for example to leave out personal data:
+
+```go
+type User struct {
+    ID    int
+    Name  string
+    Email string
+}
+
+// Log implements golog.Loggable without the email address
+func (u User) Log(m *golog.Message) {
+    m.Int("id", u.ID).Str("name", u.Name)
+}
+```
+
+`Loggable` logs the fields as fields of the message. `Any` logs them as a JSON object under a key, also for the elements of a slice:
+
+```go
+log.Info("Signed in").Loggable(user).Log()
+// {"time":"…","level":"INFO","message":"Signed in","id":7,"name":"Alice"}
+
+log.Info("Signed in").Any("user", user).Log()
+// {"time":"…","level":"INFO","message":"Signed in","user":{"id":7,"name":"Alice"}}
+
+log.Info("Team").Any("members", []User{alice, bob}).Log()
+// {"time":"…","level":"INFO","message":"Team","members":[{"id":7,"name":"Alice"},{"id":8,"name":"Bob"}]}
+```
+
+`Any` logs a nil pointer to a `Loggable` as `null`. `golog.LoggableFunc` turns a `func(*golog.Message)` into a `Loggable`, and `golog.Attribs` is a `Loggable` as well.
+
+Declare `Log` with a value receiver as above. A `Log` method declared on `*User` is only called for a `*User`: `Any` encodes a `User` value with `encoding/json` instead, which logs all exported fields, `Email` included.
+
 ## Log Levels
 
 golog supports six standard log levels:
@@ -216,7 +272,23 @@ ctxLogger.Info("Operation started").Log() // Includes context attributes
 log.InfoCtx(ctx, "Operation started").Log() // Includes context attributes
 ```
 
-If a message sets a key that the logger or a sub-logger already provides, the message's attribute is dropped and the inherited value is kept. Context attributes that repeat a logger key are dropped the same way. A message attribute that repeats a context key is written as a second field, unless the logger was created with `WithCtx(ctx)`, which turns the context attributes into logger attributes.
+The context gets clones of the passed attributes, so the caller keeps ownership of them. For attributes that are built for the call, like the example above, use `ContextWithOwnedAttribs` (or `RequestWithOwnedAttribs`), which hands the attributes over to the context instead of cloning them:
+
+```go
+ctx = golog.ContextWithOwnedAttribs(ctx, golog.NewUUID("requestID", requestID))
+```
+
+A sub-logger created with `SubLoggerContext(ctx)` inherits the attributes of that context and keeps logging them when it is used with another context:
+
+```go
+subLog, ctx := log.With().Str("service", "user-management").SubLoggerContext(ctx)
+```
+
+If a message sets a key that the logger or a sub-logger already provides, the message's attribute is dropped and the inherited value is kept. Context attributes that repeat a logger key are dropped the same way, and so is a message attribute or a `Ctx(ctx)` attribute that repeats a key already written from a context.
+
+Attributes that a sub-logger inherited from a context via `SubLoggerContext` are written last, so an attribute with the same key from the context that the message is logged with takes precedence over the inherited one. A sub-logger created from a request scoped context can therefore be reused for another request without mislabeling its messages. Once written, an inherited attribute is protected like any other written key. `subLog.CtxAttribs()` returns the attributes that a sub-logger inherited from a context, which `subLog.Attribs()` does not include.
+
+The fields of a message are checked against the attributes of its logger and of the contexts, not against each other: a message that sets the same key twice, for example with `Str("id", …)` and a `Loggable` that also logs `id`, writes it twice.
 
 ## Multiple Writers and Filtering
 
@@ -390,6 +462,9 @@ Before a write that would make the file reach 10MB:
 `logfile.NewRotatingWriterWithCallback` or `writer.SetWriteCallback` registers a callback that is called after every write
 with the log file path, the data passed to `Write`, the number of bytes written and the write error,
 to report write errors by other means, retry failed writes, or watch the free disk space.
+`logsentry.NewLogfileWriteCallback` returns such a callback that reports the errors to Sentry.
+`logfile.FreeDiskSpace` returns the free space of the volume of a file or directory on Windows and Unix systems,
+for a callback that warns before the disk is full.
 
 ### Multiple Writers with Rotation
 
@@ -443,7 +518,7 @@ Code written against `slog` keeps its API and gets golog's writers and level fil
 
 ## Sentry
 
-The `logsentry` module provides a writer that sends log messages to Sentry. An error logged with `Err` becomes a Sentry exception. Its stack trace comes from the error when it carries one, otherwise from the call site if the Sentry client has `AttachStacktrace` enabled. See the [logsentry package documentation](logsentry/README.md) for setup.
+The `logsentry` module provides a writer that sends log messages to Sentry. An error logged with `Err` becomes a Sentry exception. Its stack trace comes from the error when it carries one, otherwise from the call site if the Sentry client has `AttachStacktrace` enabled. The `WithContextHub` option sends events of messages logged with a request context to the request's own Sentry hub, like the one `sentryhttp` creates, so they get its user, tags and breadcrumbs. `logsentry.NewLogfileWriteCallback` reports failed writes of a rotating log file to Sentry. See the [logsentry package documentation](logsentry/README.md) for setup.
 
 ## HTTP Middleware
 
@@ -696,20 +771,40 @@ For storing the current request's event time in `context.Context`, use
 > identifier for the new type. `ContextWithTimestamp` is now generic over
 > `time.Time | golog.Timestamp`.
 
+## Thread Safety
+
+A `Logger` is safe for concurrent use: goroutines can log with the same logger,
+derive sub-loggers from it and share contexts with attribs without locking.
+The guarantee depends on these rules:
+
+- A `Message` belongs to the goroutine that created it. Don't use it after `Log()`.
+- The `io.Writer` of `NewJSONWriterConfig` and `NewTextWriterConfig` gets one
+  `Write` call per message, concurrently from all logging goroutines.
+  `*os.File` and `logfile.RotatingWriter` are safe for that; guard other writers,
+  like a `bytes.Buffer`, with a mutex.
+- The callback of `NewCallbackWriterConfig` is called concurrently.
+- `Logger.RemoveAttribs` returns the attribs to the mempool: call it only when
+  no other goroutine uses the logger.
+- Package variables like `golog.GlobalPanicLevel`, `golog.FilterHTTPHeaders`
+  and those of the `log` package are read without synchronization: set them
+  before logging starts. Use a `golog.DynDerivedConfig` to change the parent,
+  level filter or writer configs at runtime. `golog.SetErrorHandler` is safe
+  to call at any time.
+
 ## Comparison with zerolog and zap
 
 | Behavior                                                | zerolog              | zap             | golog |
 |---------------------------------------------------------|----------------------|-----------------|-------|
 | Zero allocations, JSON with fields                      | Yes                  | No (1 alloc)    | Yes   |
-| Zero allocations, uncolored text output                 | No (46 allocs)       | No (4 allocs)   | Yes   |
-| Drops message keys that repeat a logger or sub-logger key | No                   | No              | Yes   |
+| Zero allocations, uncolored text output                 | No (42 allocs)       | No (4 allocs)   | Yes   |
+| Drops message keys that repeat a logger, sub-logger or context key | No          | No              | Yes   |
 | Merges attributes stored in `context.Context`           | No (stores a logger) | No              | Yes   |
 
 All three can write to several outputs: zerolog with `MultiLevelWriter`, zap with `zapcore.NewTee`, golog by passing several writer configs to `NewConfig`.
 
 Choose something else when:
 
-- **zerolog**: JSON throughput is the priority. It is about 2.4× faster than golog at JSON (145 vs 353 ns with 4 fields), but its `ConsoleWriter` text output is about 6× slower (2363 vs 394 ns).
+- **zerolog**: JSON throughput is the priority. It is about 2.3× faster than golog at JSON (95 vs 216 ns with 4 fields), but its `ConsoleWriter` text output is about 6× slower (1390 vs 237 ns).
 - **zap**: you prefer typed `zap.Field` values passed as variadic arguments over a fluent builder.
 - **slog**: you want no dependencies beyond the standard library. You can still add golog later as a `slog` backend through `goslog`.
 
@@ -719,6 +814,8 @@ Choose something else when:
 
 - **Logger**: The logger; its level methods and `With` are safe to call on a nil `*Logger`
 - **Message**: Fluent message builder returned by the level methods
+- **Loggable**: Interface for a type that logs its own fields with `Log(*Message)`; `LoggableFunc` adapts a function
+- **Attrib, Attribs**: Attributes recorded for sub-loggers and contexts; `Attribs` is a `Loggable`
 - **Config**: Interface for logger configuration, created with `NewConfig`
 - **WriterConfig**: Interface for an output writer with its format and level filter
 - **Level**: Log level type

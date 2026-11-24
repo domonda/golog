@@ -3,7 +3,7 @@ package golog
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
+	"encoding"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -23,27 +23,62 @@ import (
 // Messages should not be reused after calling Log() or SubLogger()
 // as they are returned to an internal pool.
 type Message struct {
-	logger       *Logger
-	attribs      Attribs
+	logger  *Logger
+	attribs Attribs
+	// ctxAttribs are the attribs of the context that the message was logged
+	// with. They are owned by the context and only borrowed, which is safe
+	// because a context never returns its attribs to the mempool.
+	// Together with attribs they hold the keys that were already written.
+	ctxAttribs   Attribs
 	writers      []Writer
 	writersArray [4]Writer // Backing store for writers slice - avoids heap allocation for ≤4 writers
 	level        Level
 	text         string // Used for LogAndPanic
+	// attribRecorder marks a Message created by Logger.With to record the
+	// logged attribs for a sub-logger instead of writing them. It can't be
+	// derived from an empty writers slice, because a message of a logger
+	// without writer configs, or whose writers all filtered out its level,
+	// has no writers either.
+	attribRecorder bool
 }
 
-func newMessage(logger *Logger, attribs Attribs, writers []Writer, level Level, text string) *Message {
+// newMessage returns a Message from the mempool
+// that writes the logged attribs to the passed writers.
+func newMessage(logger *Logger, writers []Writer, level Level, text string) *Message {
 	m := messagePool.GetOrNew()
 	m.logger = logger
-	m.attribs = attribs
-	if writers == nil {
-		m.writers = nil // attrib recorder case
-	} else {
-		// Use embedded array as backing store, append handles overflow to heap if >4
-		m.writers = append(m.writersArray[:0], writers...)
-	}
+	// Use embedded array as backing store, append handles overflow to heap if >4
+	m.writers = append(m.writersArray[:0], writers...)
 	m.level = level
 	m.text = text
 	return m
+}
+
+// newAttribRecorderMessage returns a Message from the mempool that records
+// the logged attribs for a sub-logger instead of writing them,
+// see Logger.With and Message.SubLogger.
+// The returned Message takes over ownership of the passed attribs.
+func newAttribRecorderMessage(logger *Logger, attribs Attribs) *Message {
+	m := messagePool.GetOrNew()
+	m.logger = logger
+	m.attribs = attribs
+	m.attribRecorder = true
+	m.level = LevelInvalid
+	return m
+}
+
+// hasKey returns true if an attrib with the passed key was already
+// written or recorded, so that no key is written twice.
+// It is called by every field method, so the common case
+// of a message without attribs is inlined.
+func (m *Message) hasKey(key string) bool {
+	return (len(m.attribs) > 0 || len(m.ctxAttribs) > 0) && m.attribsHaveKey(key)
+}
+
+// attribsHaveKey returns true if the attribs or ctxAttribs
+// of the message have an attrib with the passed key.
+func (m *Message) attribsHaveKey(key string) bool {
+	return m.attribs.Has(key) || m.ctxAttribs.Has(key)
 }
 
 func (m *Message) reset() {
@@ -61,12 +96,16 @@ func (m *Message) IsActive() bool {
 // IsAttribRecorder returns true if the Message was created by Logger.With()
 // for recording attribs instead of immediately logging them.
 func (m *Message) IsAttribRecorder() bool {
-	return m != nil && len(m.writers) == 0
+	return m != nil && m.attribRecorder
 }
 
 // SubLogger returns a new sub-logger with recorded per message attribs.
 // Don't use the Message after calling this method,
 // it will be put back into the pool.
+//
+// If the Message was not created by Logger.With for recording attribs,
+// then the logger of the message is returned unchanged and the message is
+// not put back into the pool, so that it can still be logged.
 func (m *Message) SubLogger() *Logger {
 	if m == nil {
 		return nil
@@ -77,14 +116,25 @@ func (m *Message) SubLogger() *Logger {
 		// and don't put the message back into the pool
 		return m.logger
 	}
+	// Attribs recorded at the message shadow the ctx attribs that the
+	// parent logger inherited, so don't pass those on to the sub-logger
+	return m.subLogger(m.attribs.clonesOfNonExisting(m.logger.ctxAttribs))
+}
+
+// subLogger returns a sub-logger that takes over ownership of the attribs
+// recorded at the message and of the passed ctxAttribs, and puts the
+// message back into the mempool.
+// Only call it for a Message that is an attrib recorder.
+func (m *Message) subLogger(ctxAttribs Attribs) *Logger {
 	// The message has ownership of the cloned parent logger attribs
 	// and those added by methods of the message.
 	// Transfer attribs ownership to sub-logger by direct assignment
 	// (no Clone needed since message will be reset and pooled).
 	subLog := &Logger{
-		config:  m.logger.config,
-		prefix:  m.logger.prefix,
-		attribs: m.attribs,
+		config:     m.logger.config,
+		prefix:     m.logger.prefix,
+		attribs:    m.attribs,
+		ctxAttribs: ctxAttribs,
 	}
 	// Nil out attribs before reset() to prevent freeing
 	// the attribs that are now owned by subLog.
@@ -97,6 +147,23 @@ func (m *Message) SubLogger() *Logger {
 // SubLoggerContext returns a new sub-logger with recorded per message attribs
 // in addition to any attribs from the passed ctx
 // and a context with those attribs added to it.
+// The returned sub-logger and context have the same union of attribs
+// attached to them, where the attribs recorded at the message
+// take precedence over attribs from the ctx with the same key.
+//
+// The attribs taken from the ctx stay context attribs of the sub-logger
+// instead of becoming logger attribs: they are logged after the attribs of
+// the context that a message is logged with, so an attrib with the same key
+// from that context takes precedence over the inherited one. A sub-logger
+// created from a request scoped ctx can therefore be used with the context
+// of another request without mislabeling its messages.
+// See Logger.CtxAttribs.
+//
+// If the Message was not created by Logger.With for recording attribs, then
+// the logger of the message is returned unchanged, which has none of the
+// attribs, together with a context with the message attribs added to it,
+// and the message is not put back into the pool so that it can still be
+// logged.
 func (m *Message) SubLoggerContext(ctx context.Context) (*Logger, context.Context) {
 	if m == nil {
 		return nil, ctx
@@ -108,8 +175,26 @@ func (m *Message) SubLoggerContext(ctx context.Context) (*Logger, context.Contex
 		return m.logger, m.attribs.AddToContext(ctx)
 	}
 
+	// Add the ctx attribs that the parent logger inherited to the passed ctx,
+	// so that the sub-logger doesn't lose them and the returned context has
+	// them too. The attribs of the passed ctx are the fresher ones, so they
+	// take precedence over the inherited ones.
+	if inherited := m.logger.ctxAttribs; len(inherited) > 0 {
+		ctxAttribs := AttribsFromContext(ctx)
+		if ctxAttribs.numNonExisting(inherited) > 0 {
+			ctx = context.WithValue(ctx, &attribsCtxKey, ctxAttribs.CloneAndAppendNonExistingCloned(inherited))
+		}
+	}
+
+	// The context gets clones of the message attribs
+	// merged with the attribs already added to the passed ctx.
 	ctxWithAttribs := m.attribs.AddToContext(ctx)
-	subLog := m.SubLogger() // Puts the message back into the pool
+	// The ctx attribs that the message attribs don't shadow become the ctx
+	// attribs of the sub-logger, so that the sub-logger and the returned
+	// context have the same union of attribs attached to them.
+	ctxAttribs := m.attribs.clonesOfNonExisting(AttribsFromContext(ctx))
+
+	subLog := m.subLogger(ctxAttribs) // Puts the message back into the pool
 
 	if writerConfigsFromCtx := WriterConfigsFromContext(ctx); len(writerConfigsFromCtx) > 0 {
 		writerConfigs := subLog.config.WriterConfigs()
@@ -129,6 +214,7 @@ func (m *Message) SubLoggerContext(ctx context.Context) (*Logger, context.Contex
 
 // SubContext returns a new context with recorded per message attribs
 // added to the passed ctx argument.
+// The message keeps its attribs and can still be used.
 func (m *Message) SubContext(ctx context.Context) context.Context {
 	if m == nil {
 		return ctx
@@ -136,17 +222,42 @@ func (m *Message) SubContext(ctx context.Context) context.Context {
 	return m.attribs.AddToContext(ctx)
 }
 
-// Ctx logs any attribs that were added to the context
-// and that are not already in the logger's attribs.
+// Ctx logs the attribs that were added to the context
+// with a key that the message has not written yet,
+// like a key of the logger's attribs, of the attribs the logger
+// inherited from a context (see Message.SubLoggerContext),
+// or of the context the message was logged with.
+// Later attribs with the key of a logged context attrib are dropped.
 func (m *Message) Ctx(ctx context.Context) *Message {
 	if m == nil {
 		return nil
 	}
-	AttribsFromContext(ctx).Log(m)
+	ctxAttribs := AttribsFromContext(ctx)
+	if m.IsAttribRecorder() {
+		// The Message methods record clones of the attribs
+		ctxAttribs.Log(m)
+		return m
+	}
+	if len(m.ctxAttribs) == 0 {
+		ctxAttribs.Log(m)
+		// Borrow the attribs of the context like Logger.NewMessageAt does
+		m.ctxAttribs = ctxAttribs
+		return m
+	}
+	// The message borrows the attribs of one context only,
+	// so it records clones of the attribs of any further context
+	for _, attrib := range ctxAttribs {
+		if !m.hasKey(attrib.Key()) {
+			attrib.Log(m)
+			m.attribs.Add(attrib.Clone())
+		}
+	}
 	return m
 }
 
 // Loggable lets an implementation of the Loggable interface log itself
+// by logging its attribs as attribs of the message.
+// Use Message.Any to log them as JSON object under a key instead.
 func (m *Message) Loggable(loggable Loggable) *Message {
 	if m == nil || loggable == nil {
 		return m
@@ -169,7 +280,7 @@ func (m *Message) Err(val error) *Message {
 }
 
 func (m *Message) Error(key string, val error) *Message {
-	if m == nil || m.attribs.Has(key) {
+	if m == nil || m.hasKey(key) {
 		return m
 	}
 	if m.IsAttribRecorder() {
@@ -192,7 +303,7 @@ func (m *Message) Errs(vals []error) *Message {
 }
 
 func (m *Message) Errors(key string, vals []error) *Message {
-	if m == nil || m.attribs.Has(key) {
+	if m == nil || m.hasKey(key) {
 		return m
 	}
 	if m.IsAttribRecorder() {
@@ -224,8 +335,24 @@ func (m *Message) CallStackSkip(key string, skip int) *Message {
 
 // Any logs val with the best matching typed log method
 // or uses Print if none was found.
+// A time.Time is logged like with Message.Time,
+// bytes like with Message.StrBytes,
+// and a json.RawMessage like with Message.JSON.
+// A byte slice type with a format of its own, like net.IP,
+// is logged as one value with that format instead of as bytes:
+// as error or Loggable, else with its MarshalJSON, MarshalText
+// or String method in this order, like encoding/json uses them.
+// The attribs that a Loggable logs are written as JSON object
+// under the key, use Message.Loggable to log them as attribs
+// of the message instead.
+//
+// A struct or map is encoded as a whole by encoding/json, so its fields
+// and values follow the rules of encoding/json instead of golog's:
+// a []byte in them is written as standard base64 with padding,
+// also when it holds text. Use Message.StructFields to log the fields
+// of a struct as attribs with golog's rules.
 func (m *Message) Any(key string, val any) *Message {
-	if m == nil || m.attribs.Has(key) {
+	if m == nil || m.hasKey(key) {
 		return m
 	}
 	if m.IsAttribRecorder() {
@@ -236,8 +363,43 @@ func (m *Message) Any(key string, val any) *Message {
 	if val == nil {
 		return m.Nil(key)
 	}
+	if raw, ok := val.(json.RawMessage); ok {
+		return m.JSON(key, raw)
+	}
 
 	v := reflect.ValueOf(val)
+
+	// Bytes are logged like Message.StrBytes instead of as slice of numbers
+	if b, ok := byteSliceOf(v); ok {
+		if isNullValue(v) {
+			return m.Nil(key)
+		}
+		return m.StrBytes(key, b)
+	}
+
+	// A Loggable like Attribs is written as JSON object even if it's a slice.
+	// Record its attribs once for all writers instead of once per writer.
+	if loggable, ok := val.(Loggable); ok {
+		if isNullValue(v) {
+			return m.Nil(key)
+		}
+		j := appendLoggableJSON(nil, m.logger, loggable)
+		for _, w := range m.writers {
+			w.WriteKey(key)
+			w.WriteJSON(j)
+		}
+		return m
+	}
+
+	// A byte slice type with a format of its own, like net.IP,
+	// is one value instead of a slice of numbers
+	if hasOwnByteSliceFormat(v) {
+		for _, w := range m.writers {
+			w.WriteKey(key)
+			m.writeAny(w, v, false)
+		}
+		return m
+	}
 
 	if isSlice(v) {
 		for _, w := range m.writers {
@@ -272,11 +434,17 @@ func (m *Message) writeAny(w Writer, val reflect.Value, nestedSlice bool) {
 		return
 	}
 
-	// Deref pointers
+	// Deref pointers and unwrap interface values,
+	// for example the elements of a []any
 	dereferenced := false
-	for val.Kind() == reflect.Pointer && !val.IsNil() {
+	for (val.Kind() == reflect.Pointer || val.Kind() == reflect.Interface) && !val.IsNil() {
 		val = val.Elem()
 		dereferenced = true
+		if implementsOwnFormat(val.Type()) && isByteSliceType(val.Type()) {
+			// Stop at a pointer to a byte slice type with a format of its
+			// own, its methods with pointer receiver would be lost below
+			break
+		}
 	}
 	if dereferenced {
 		// Try if dereferenced val implements a loggable interface or is nil
@@ -354,9 +522,14 @@ func (m *Message) writeAny(w Writer, val reflect.Value, nestedSlice bool) {
 }
 
 func (m *Message) tryWriteInterface(w Writer, val reflect.Value) (written bool) {
-	if nullable, ok := val.Interface().(interface{ IsNull() bool }); ok && nullable.IsNull() {
+	if isNullValue(val) {
 		w.WriteNil()
 		return true
+	}
+	// Like encoding/json, use the format methods with pointer receiver of
+	// an addressable byte slice value, for example an element of a slice
+	if val.CanAddr() && val.Kind() != reflect.Pointer && isByteSliceType(val.Type()) && implementsOwnFormat(reflect.PointerTo(val.Type())) {
+		val = val.Addr()
 	}
 
 	switch x := val.Interface().(type) {
@@ -365,11 +538,24 @@ func (m *Message) tryWriteInterface(w Writer, val reflect.Value) (written bool) 
 		return true
 
 	case Loggable:
-		x.Log(m)
+		// A Loggable logs attribs with keys of its own, which can't be
+		// written at the position of a value, so write them as JSON object.
+		// Check x instead of val for a nil pointer, because val is an
+		// interface value for the elements of a []any.
+		if rv := reflect.ValueOf(x); rv.Kind() == reflect.Pointer && rv.IsNil() {
+			w.WriteNil()
+		} else {
+			w.WriteJSON(appendLoggableJSON(nil, m.logger, x))
+		}
 		return true
 
 	case error:
-		w.WriteError(x)
+		// A nil pointer would panic in an Error method with value receiver
+		if rv := reflect.ValueOf(x); rv.Kind() == reflect.Pointer && rv.IsNil() {
+			w.WriteNil()
+		} else {
+			w.WriteError(x)
+		}
 		return true
 
 	case [16]byte:
@@ -377,6 +563,62 @@ func (m *Message) tryWriteInterface(w Writer, val reflect.Value) (written bool) 
 			w.WriteNil()
 		} else {
 			w.WriteUUID(x)
+		}
+		return true
+
+	case json.RawMessage:
+		// Like Message.JSON, for example for the elements of a []json.RawMessage
+		writeRawJSON(w, x)
+		return true
+
+	case time.Time:
+		// Like Message.Time, using the TimeFormat and Location
+		// configured for the writer instead of time.Time.MarshalJSON
+		if x.IsZero() {
+			w.WriteNil()
+		} else {
+			w.WriteTime(x)
+		}
+		return true
+	}
+
+	// A byte slice type with a format of its own, like net.IP,
+	// in the order that encoding/json uses the methods
+	if hasOwnByteSliceFormat(val) {
+		x := val.Interface()
+		if rv := reflect.ValueOf(x); rv.Kind() == reflect.Pointer && rv.IsNil() {
+			w.WriteNil()
+			return true
+		}
+		switch x := x.(type) {
+		case json.Marshaler:
+			j, err := x.MarshalJSON()
+			if err != nil {
+				w.WriteError(err)
+			} else {
+				writeRawJSON(w, j)
+			}
+			return true
+		case encoding.TextMarshaler:
+			text, err := x.MarshalText()
+			if err != nil {
+				w.WriteError(err)
+			} else {
+				w.WriteString(string(text))
+			}
+			return true
+		case fmt.Stringer:
+			w.WriteString(x.String())
+			return true
+		}
+	}
+
+	// Like Message.StrBytes, for example for the elements of a [][]byte
+	if b, ok := byteSliceOf(val); ok {
+		if b == nil {
+			w.WriteNil()
+		} else {
+			w.WriteString(bytesAsString(b))
 		}
 		return true
 	}
@@ -516,7 +758,7 @@ func (m *Message) structFields(v reflect.Value, keyTags ...string) {
 // If only one value is passed for vals, then it will be logged as single string,
 // else a slice of strings will be logged for vals.
 func (m *Message) Print(key string, vals ...any) *Message {
-	if m == nil || m.attribs.Has(key) {
+	if m == nil || m.hasKey(key) {
 		return m
 	}
 	if m.IsAttribRecorder() {
@@ -549,7 +791,7 @@ func (m *Message) Print(key string, vals ...any) *Message {
 }
 
 func (m *Message) Nil(key string) *Message {
-	if m == nil || m.attribs.Has(key) {
+	if m == nil || m.hasKey(key) {
 		return m
 	}
 	if m.IsAttribRecorder() {
@@ -564,7 +806,7 @@ func (m *Message) Nil(key string) *Message {
 }
 
 func (m *Message) Bool(key string, val bool) *Message {
-	if m == nil || m.attribs.Has(key) {
+	if m == nil || m.hasKey(key) {
 		return m
 	}
 	if m.IsAttribRecorder() {
@@ -586,7 +828,7 @@ func (m *Message) BoolPtr(key string, val *bool) *Message {
 }
 
 func (m *Message) Bools(key string, vals []bool) *Message {
-	if m == nil || m.attribs.Has(key) {
+	if m == nil || m.hasKey(key) {
 		return m
 	}
 	if m.IsAttribRecorder() {
@@ -604,7 +846,7 @@ func (m *Message) Bools(key string, vals []bool) *Message {
 }
 
 func (m *Message) Int(key string, val int) *Message {
-	if m == nil || m.attribs.Has(key) {
+	if m == nil || m.hasKey(key) {
 		return m
 	}
 	if m.IsAttribRecorder() {
@@ -626,7 +868,7 @@ func (m *Message) IntPtr(key string, val *int) *Message {
 }
 
 func (m *Message) Ints(key string, vals []int) *Message {
-	if m == nil || m.attribs.Has(key) {
+	if m == nil || m.hasKey(key) {
 		return m
 	}
 	if m.IsAttribRecorder() {
@@ -644,7 +886,7 @@ func (m *Message) Ints(key string, vals []int) *Message {
 }
 
 func (m *Message) Int8(key string, val int8) *Message {
-	if m == nil || m.attribs.Has(key) {
+	if m == nil || m.hasKey(key) {
 		return m
 	}
 	if m.IsAttribRecorder() {
@@ -666,7 +908,7 @@ func (m *Message) Int8Ptr(key string, val *int8) *Message {
 }
 
 func (m *Message) Int8s(key string, vals []int8) *Message {
-	if m == nil || m.attribs.Has(key) {
+	if m == nil || m.hasKey(key) {
 		return m
 	}
 	if m.IsAttribRecorder() {
@@ -684,7 +926,7 @@ func (m *Message) Int8s(key string, vals []int8) *Message {
 }
 
 func (m *Message) Int16(key string, val int16) *Message {
-	if m == nil || m.attribs.Has(key) {
+	if m == nil || m.hasKey(key) {
 		return m
 	}
 	if m.IsAttribRecorder() {
@@ -706,7 +948,7 @@ func (m *Message) Int16Ptr(key string, val *int16) *Message {
 }
 
 func (m *Message) Int16s(key string, vals []int16) *Message {
-	if m == nil || m.attribs.Has(key) {
+	if m == nil || m.hasKey(key) {
 		return m
 	}
 	if m.IsAttribRecorder() {
@@ -724,7 +966,7 @@ func (m *Message) Int16s(key string, vals []int16) *Message {
 }
 
 func (m *Message) Int32(key string, val int32) *Message {
-	if m == nil || m.attribs.Has(key) {
+	if m == nil || m.hasKey(key) {
 		return m
 	}
 	if m.IsAttribRecorder() {
@@ -746,7 +988,7 @@ func (m *Message) Int32Ptr(key string, val *int32) *Message {
 }
 
 func (m *Message) Int32s(key string, vals []int32) *Message {
-	if m == nil || m.attribs.Has(key) {
+	if m == nil || m.hasKey(key) {
 		return m
 	}
 	if m.IsAttribRecorder() {
@@ -764,7 +1006,7 @@ func (m *Message) Int32s(key string, vals []int32) *Message {
 }
 
 func (m *Message) Int64(key string, val int64) *Message {
-	if m == nil || m.attribs.Has(key) {
+	if m == nil || m.hasKey(key) {
 		return m
 	}
 	if m.IsAttribRecorder() {
@@ -786,7 +1028,7 @@ func (m *Message) Int64Ptr(key string, val *int64) *Message {
 }
 
 func (m *Message) Int64s(key string, vals []int64) *Message {
-	if m == nil || m.attribs.Has(key) {
+	if m == nil || m.hasKey(key) {
 		return m
 	}
 	if m.IsAttribRecorder() {
@@ -804,7 +1046,7 @@ func (m *Message) Int64s(key string, vals []int64) *Message {
 }
 
 func (m *Message) Uint(key string, val uint) *Message {
-	if m == nil || m.attribs.Has(key) {
+	if m == nil || m.hasKey(key) {
 		return m
 	}
 	if m.IsAttribRecorder() {
@@ -826,7 +1068,7 @@ func (m *Message) UintPtr(key string, val *uint) *Message {
 }
 
 func (m *Message) Uints(key string, vals []uint) *Message {
-	if m == nil || m.attribs.Has(key) {
+	if m == nil || m.hasKey(key) {
 		return m
 	}
 	if m.IsAttribRecorder() {
@@ -844,7 +1086,7 @@ func (m *Message) Uints(key string, vals []uint) *Message {
 }
 
 func (m *Message) Uint8(key string, val uint8) *Message {
-	if m == nil || m.attribs.Has(key) {
+	if m == nil || m.hasKey(key) {
 		return m
 	}
 	if m.IsAttribRecorder() {
@@ -865,8 +1107,14 @@ func (m *Message) Uint8Ptr(key string, val *uint8) *Message {
 	return m.Uint8(key, *val)
 }
 
+// Uint8s logs the values as a slice of numbers.
+//
+// A []uint8 is the same Go type as []byte, but Uint8s never interprets the
+// values as text or binary data. All other methods logging bytes do:
+// use Message.StrBytes for bytes that hold text (the meaning Message.Any
+// uses for bytes), Message.Bytes for binary data and Message.JSON for JSON.
 func (m *Message) Uint8s(key string, vals []uint8) *Message {
-	if m == nil || m.attribs.Has(key) {
+	if m == nil || m.hasKey(key) {
 		return m
 	}
 	if m.IsAttribRecorder() {
@@ -884,7 +1132,7 @@ func (m *Message) Uint8s(key string, vals []uint8) *Message {
 }
 
 func (m *Message) Uint16(key string, val uint16) *Message {
-	if m == nil || m.attribs.Has(key) {
+	if m == nil || m.hasKey(key) {
 		return m
 	}
 	if m.IsAttribRecorder() {
@@ -906,7 +1154,7 @@ func (m *Message) Uint16Ptr(key string, val *uint16) *Message {
 }
 
 func (m *Message) Uint16s(key string, vals []uint16) *Message {
-	if m == nil || m.attribs.Has(key) {
+	if m == nil || m.hasKey(key) {
 		return m
 	}
 	if m.IsAttribRecorder() {
@@ -924,7 +1172,7 @@ func (m *Message) Uint16s(key string, vals []uint16) *Message {
 }
 
 func (m *Message) Uint32(key string, val uint32) *Message {
-	if m == nil || m.attribs.Has(key) {
+	if m == nil || m.hasKey(key) {
 		return m
 	}
 	if m.IsAttribRecorder() {
@@ -946,7 +1194,7 @@ func (m *Message) Uint32Ptr(key string, val *uint32) *Message {
 }
 
 func (m *Message) Uint32s(key string, vals []uint32) *Message {
-	if m == nil || m.attribs.Has(key) {
+	if m == nil || m.hasKey(key) {
 		return m
 	}
 	if m.IsAttribRecorder() {
@@ -964,7 +1212,7 @@ func (m *Message) Uint32s(key string, vals []uint32) *Message {
 }
 
 func (m *Message) Uint64(key string, val uint64) *Message {
-	if m == nil || m.attribs.Has(key) {
+	if m == nil || m.hasKey(key) {
 		return m
 	}
 	if m.IsAttribRecorder() {
@@ -986,7 +1234,7 @@ func (m *Message) Uint64Ptr(key string, val *uint64) *Message {
 }
 
 func (m *Message) Uint64s(key string, vals []uint64) *Message {
-	if m == nil || m.attribs.Has(key) {
+	if m == nil || m.hasKey(key) {
 		return m
 	}
 	if m.IsAttribRecorder() {
@@ -1004,7 +1252,7 @@ func (m *Message) Uint64s(key string, vals []uint64) *Message {
 }
 
 func (m *Message) Float32(key string, val float32) *Message {
-	if m == nil || m.attribs.Has(key) {
+	if m == nil || m.hasKey(key) {
 		return m
 	}
 	if m.IsAttribRecorder() {
@@ -1026,7 +1274,7 @@ func (m *Message) Float32Ptr(key string, val *float32) *Message {
 }
 
 func (m *Message) Float32s(key string, vals []float32) *Message {
-	if m == nil || m.attribs.Has(key) {
+	if m == nil || m.hasKey(key) {
 		return m
 	}
 	if m.IsAttribRecorder() {
@@ -1045,7 +1293,7 @@ func (m *Message) Float32s(key string, vals []float32) *Message {
 
 // Float is not called Float64 on purpose
 func (m *Message) Float(key string, val float64) *Message {
-	if m == nil || m.attribs.Has(key) {
+	if m == nil || m.hasKey(key) {
 		return m
 	}
 	if m.IsAttribRecorder() {
@@ -1067,7 +1315,7 @@ func (m *Message) FloatPtr(key string, val *float64) *Message {
 }
 
 func (m *Message) Floats(key string, vals []float64) *Message {
-	if m == nil || m.attribs.Has(key) {
+	if m == nil || m.hasKey(key) {
 		return m
 	}
 	if m.IsAttribRecorder() {
@@ -1085,7 +1333,7 @@ func (m *Message) Floats(key string, vals []float64) *Message {
 }
 
 func (m *Message) Str(key, val string) *Message {
-	if m == nil || m.attribs.Has(key) {
+	if m == nil || m.hasKey(key) {
 		return m
 	}
 	if m.IsAttribRecorder() {
@@ -1123,7 +1371,7 @@ func (m *Message) StrPtr(key string, val *string) *Message {
 }
 
 func (m *Message) Strs(key string, vals []string) *Message {
-	if m == nil || m.attribs.Has(key) {
+	if m == nil || m.hasKey(key) {
 		return m
 	}
 	if m.IsAttribRecorder() {
@@ -1150,7 +1398,7 @@ func (m *Message) Stringer(key string, val fmt.Stringer) *Message {
 // Time logs a time.Time formatted using the configured TimeFormat,
 // or logs nil if val.IsZero().
 func (m *Message) Time(key string, val time.Time) *Message {
-	if m == nil || m.attribs.Has(key) {
+	if m == nil || m.hasKey(key) {
 		return m
 	}
 	if val.IsZero() {
@@ -1178,7 +1426,7 @@ func (m *Message) TimePtr(key string, val *time.Time) *Message {
 
 // Times logs a slice of time.Time formatted using the configured TimeFormat.
 func (m *Message) Times(key string, vals []time.Time) *Message {
-	if m == nil || m.attribs.Has(key) {
+	if m == nil || m.hasKey(key) {
 		return m
 	}
 	if len(vals) == 0 {
@@ -1245,7 +1493,7 @@ func (m *Message) MicrosSince(key string, t time.Time) *Message {
 // UUID logs a UUID or nil in case of a "Nil UUID" containing only zero bytes.
 // See IsNilUUID.
 func (m *Message) UUID(key string, val [16]byte) *Message {
-	if m == nil || m.attribs.Has(key) {
+	if m == nil || m.hasKey(key) {
 		return m
 	}
 	if m.IsAttribRecorder() {
@@ -1278,7 +1526,7 @@ func (m *Message) UUIDPtr(key string, val *[16]byte) *Message {
 // UUID logs a slice of UUIDs using nil in case of a "Nil UUID" containing only zero bytes.
 // See IsNilUUID.
 func (m *Message) UUIDs(key string, vals [][16]byte) *Message {
-	if m == nil || m.attribs.Has(key) {
+	if m == nil || m.hasKey(key) {
 		return m
 	}
 	if m.IsAttribRecorder() {
@@ -1299,9 +1547,14 @@ func (m *Message) UUIDs(key string, vals [][16]byte) *Message {
 	return m
 }
 
-// JSON logs JSON encoded bytes
+// JSON logs JSON encoded bytes as JSON value, compacted,
+// nil as null, and invalid JSON as error.
+// A json.RawMessage logged with Message.Any is logged the same way.
+//
+// Use Message.StrBytes for bytes that hold text, Message.Bytes for
+// binary data, and Message.Uint8s to log the bytes as numbers.
 func (m *Message) JSON(key string, val []byte) *Message {
-	if m == nil || m.attribs.Has(key) {
+	if m == nil || m.hasKey(key) {
 		return m
 	}
 	if val == nil {
@@ -1328,9 +1581,24 @@ func (m *Message) JSON(key string, val []byte) *Message {
 	return m
 }
 
+// writeRawJSON writes val compacted like Message.JSON,
+// null for nil, or val as error if it is no valid JSON.
+func writeRawJSON(w Writer, val json.RawMessage) {
+	if val == nil {
+		w.WriteNil()
+		return
+	}
+	var compacted bytes.Buffer
+	if err := json.Compact(&compacted, val); err != nil {
+		w.WriteError(errors.New(string(val)))
+		return
+	}
+	w.WriteJSON(compacted.Bytes())
+}
+
 // AsJSON logs the JSON marshaled val.
 func (m *Message) AsJSON(key string, val any) *Message {
-	if m == nil || m.attribs.Has(key) {
+	if m == nil || m.hasKey(key) {
 		return m
 	}
 	jsonVal, err := json.Marshal(val)
@@ -1348,46 +1616,207 @@ func (m *Message) AsJSON(key string, val any) *Message {
 	return m
 }
 
-// Bytes logs binary data as string encoded using base64.RawURLEncoding
+// Bytes logs binary data as string encoded with BinaryEncoder,
+// even if the bytes are valid UTF-8 text, and nil as null.
+//
+// Use Message.StrBytes for bytes that hold text, Message.JSON for JSON,
+// and Message.Uint8s to log the bytes as numbers.
 func (m *Message) Bytes(key string, val []byte) *Message {
-	if m == nil || m.attribs.Has(key) {
+	if m == nil || m.hasKey(key) {
 		return m
 	}
 	if val == nil {
 		return m.Nil(key)
 	}
-	return m.Str(key, base64.RawURLEncoding.EncodeToString(val))
+	return m.Str(key, BinaryEncoder(val))
 }
 
 // StrBytes logs the passed bytes as string if they are valid UTF-8,
-// else the bytes are encoded using base64.RawURLEncoding.
+// else the bytes are encoded with BinaryEncoder,
+// and nil as null.
+//
+// This is the meaning of bytes everywhere in golog, for example for bytes
+// logged with Message.Any or as struct field with Message.StructFields.
+// Use Message.Bytes to always log binary data encoded with BinaryEncoder,
+// Message.StrBytesMax to truncate the string, Message.JSON for JSON,
+// and Message.Uint8s to log the bytes as numbers.
 func (m *Message) StrBytes(key string, val []byte) *Message {
-	if m == nil || m.attribs.Has(key) {
+	if m == nil || m.hasKey(key) {
 		return m
 	}
 	if val == nil {
 		return m.Nil(key)
 	}
-	if !utf8.Valid(val) {
-		return m.Str(key, base64.RawURLEncoding.EncodeToString(val))
+	return m.Str(key, bytesAsString(val))
+}
+
+// appendLoggableJSON appends the attribs that the loggable logs as JSON
+// object to buf, or JSON null if it logs no attribs. The attribs are
+// recorded with an attrib recorder message of logger, which can be nil,
+// instead of being written to any writer.
+func appendLoggableJSON(buf []byte, logger *Logger, loggable Loggable) []byte {
+	recorder := newAttribRecorderMessage(logger, nil)
+	loggable.Log(recorder)
+	buf = recorder.attribs.AppendJSON(buf)
+	recorder.reset() // Frees the recorded attribs
+	messagePool.PutBack(recorder)
+	return buf
+}
+
+// isNullValue returns true for a nil pointer
+// or a value whose IsNull method returns true,
+// which tryWriteInterface writes as null.
+func isNullValue(v reflect.Value) bool {
+	if v.Kind() == reflect.Interface {
+		// For example an element of a []any
+		if v.IsNil() {
+			return true
+		}
+		v = v.Elem()
 	}
-	return m.Str(key, string(val))
+	if v.Kind() == reflect.Pointer && v.IsNil() {
+		// Never call an IsNull method with value receiver on a nil pointer
+		return true
+	}
+	nullable, ok := v.Interface().(interface{ IsNull() bool })
+	return ok && nullable.IsNull()
+}
+
+// byteSliceOf returns the bytes of v and true if v is a slice of bytes,
+// including named slice and element types, or a pointer to one,
+// also when wrapped in an interface value.
+// A nil pointer returns nil bytes. A json.RawMessage is no byte slice
+// in this sense, because it holds JSON instead of text or binary data,
+// and neither is a type with a format of its own like net.IP,
+// see hasOwnByteSliceFormat.
+func byteSliceOf(v reflect.Value) (b []byte, ok bool) {
+	if v.Kind() == reflect.Interface {
+		// For example an element of a []any
+		if v.IsNil() {
+			return nil, false
+		}
+		v = v.Elem()
+	}
+	if !isByteSliceType(v.Type()) || hasOwnFormat(v.Type()) {
+		return nil, false
+	}
+	for v.Kind() == reflect.Pointer {
+		if v.IsNil() {
+			return nil, true
+		}
+		v = v.Elem()
+	}
+	return v.Bytes(), true
+}
+
+// hasOwnByteSliceFormat returns true if v, also when wrapped in an
+// interface value, is a byte slice type or a pointer to one that formats
+// itself, like net.IP, see hasOwnFormat.
+// Such a value is no text or binary data that byteSliceOf returns.
+func hasOwnByteSliceFormat(v reflect.Value) bool {
+	if v.Kind() == reflect.Interface {
+		if v.IsNil() {
+			return false
+		}
+		v = v.Elem()
+	}
+	return v.IsValid() && isByteSliceType(v.Type()) && hasOwnFormat(v.Type())
+}
+
+// isByteSliceType returns true if t is a slice of bytes,
+// including named slice and element types, or a pointer to one,
+// except json.RawMessage.
+func isByteSliceType(t reflect.Type) bool {
+	for range maxPointerLevels {
+		if t.Kind() != reflect.Pointer {
+			return t.Kind() == reflect.Slice && t.Elem().Kind() == reflect.Uint8 && t != reflect.TypeFor[json.RawMessage]()
+		}
+		t = t.Elem()
+	}
+	return false
+}
+
+// maxPointerLevels limits how many pointers are followed to the type
+// they point to, because pointer types can point to each other in
+// a cycle like type A *B and type B *A, which has no end.
+const maxPointerLevels = 16
+
+// ownFormatInterfaces are the interfaces of a type that formats itself
+// for logging or encoding/json, which is used instead of its bytes.
+var ownFormatInterfaces = []reflect.Type{
+	reflect.TypeFor[Loggable](),
+	reflect.TypeFor[error](),
+	reflect.TypeFor[json.Marshaler](),
+	reflect.TypeFor[encoding.TextMarshaler](),
+	reflect.TypeFor[fmt.Stringer](),
+}
+
+// hasOwnFormat returns true if t or a type that t points to,
+// also through several pointers, implements one of ownFormatInterfaces.
+func hasOwnFormat(t reflect.Type) bool {
+	for range maxPointerLevels {
+		if implementsOwnFormat(t) {
+			return true
+		}
+		if t.Kind() != reflect.Pointer {
+			return false
+		}
+		t = t.Elem()
+	}
+	return false
+}
+
+// implementsOwnFormat returns true if t implements
+// one of ownFormatInterfaces, without following pointers.
+func implementsOwnFormat(t reflect.Type) bool {
+	if t.NumMethod() == 0 {
+		return false // Fast path for []byte without methods
+	}
+	for _, i := range ownFormatInterfaces {
+		if t.Implements(i) {
+			return true
+		}
+	}
+	return false
+}
+
+// bytesAsString returns the bytes as string if they are valid UTF-8,
+// else encoded with BinaryEncoder, see Message.StrBytes.
+func bytesAsString(val []byte) string {
+	if !utf8.Valid(val) {
+		return BinaryEncoder(val)
+	}
+	return string(val)
 }
 
 // StrBytesMax logs the passed bytes as string if they are valid UTF-8,
-// else the bytes are encoded using base64.RawURLEncoding.
+// else the bytes are encoded with BinaryEncoder.
 // The logged string is truncated at maxNumRunes runes.
+// Only the first maxNumRunes runes are checked for valid UTF-8,
+// so a text cut within a rune after them is still logged as text.
 // If maxNumRunes is <= 0 then the bytes are logged as is.
+// See Message.StrBytes.
 func (m *Message) StrBytesMax(key string, val []byte, maxNumRunes int) *Message {
 	if maxNumRunes <= 0 {
 		return m.StrBytes(key, val)
 	}
+	if m == nil || m.hasKey(key) {
+		return m
+	}
+	if val == nil {
+		return m.Nil(key)
+	}
+	// Decode only up to maxNumRunes runes instead of checking
+	// and converting all bytes, which can be a large request body
 	numRunes := 0
-	byteIndex := 0
-	for byteIndex < len(val) {
+	for byteIndex := 0; byteIndex < len(val); {
 		r, size := utf8.DecodeRune(val[byteIndex:])
-		if r == utf8.RuneError {
-			return m.StrMax(key, base64.RawURLEncoding.EncodeToString(val), maxNumRunes)
+		if r == utf8.RuneError && size <= 1 {
+			// Invalid UTF-8, a valid U+FFFD has a size of 3.
+			// Encode only as many bytes as needed for maxNumRunes
+			// characters, assuming that BinaryEncoder encodes
+			// every byte with at least one character.
+			return m.StrMax(key, BinaryEncoder(val[:min(len(val), maxNumRunes)]), maxNumRunes)
 		}
 		numRunes++
 		if numRunes > maxNumRunes {

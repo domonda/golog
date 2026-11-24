@@ -1,12 +1,16 @@
 package golog
 
 import (
+	"bytes"
+	"encoding"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"slices"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/domonda/go-encjson"
 )
@@ -128,6 +132,21 @@ func (a *Any) Free() {
 func (a *Any) Key() string { return a.key }
 func (a *Any) Value() any  { return a.val }
 func (a *Any) ValueString() string {
+	if a.val != nil {
+		if b, ok := byteSliceOf(reflect.ValueOf(a.val)); ok {
+			// Like Message.StrBytes and Message.Any
+			if b == nil || isNullValue(reflect.ValueOf(a.val)) {
+				return "<nil>"
+			}
+			return bytesAsString(b)
+		}
+	}
+	if _, ok := a.val.([]any); ok || hasOwnByteSliceFormat(reflect.ValueOf(a.val)) {
+		// Like they are logged instead of Go syntax of their types,
+		// like bytes for json.RawMessage or a net.IP, which could
+		// also be a secret that the type redacts when it is logged
+		return string(appendAnyJSON(nil, a.val))
+	}
 	return fmt.Sprintf("%#v", a.val)
 }
 
@@ -136,8 +155,14 @@ func (a *Any) Log(m *Message) {
 }
 
 func (a Any) AppendJSON(buf []byte) []byte {
-	buf = encjson.AppendKey(buf, a.key)
-	switch v := a.val.(type) {
+	return appendAnyJSON(encjson.AppendKey(buf, a.key), a.val)
+}
+
+// appendAnyJSON appends val as JSON value to buf with a comma separator
+// after a preceding value, written like Message.Any writes it,
+// also for the elements of a []any.
+func appendAnyJSON(buf []byte, val any) []byte {
+	switch v := val.(type) {
 	case nil:
 		return encjson.AppendNull(buf)
 	case bool:
@@ -169,23 +194,128 @@ func (a Any) AppendJSON(buf []byte) []byte {
 	case string:
 		return encjson.AppendString(buf, v)
 	case []byte:
-		return encjson.AppendStringBytes(buf, v)
+		return appendBytesJSON(buf, v)
 	case time.Time:
-		return encjson.AppendTime(buf, v, time.RFC3339)
+		if v.IsZero() {
+			// Like Message.Time and Message.Any
+			return encjson.AppendNull(buf)
+		}
+		return encjson.AppendTime(buf, v, DefaultTimeFormat)
 	case [16]byte:
+		if IsNilUUID(v) {
+			// Like Message.UUID and Message.Any
+			return encjson.AppendNull(buf)
+		}
 		return encjson.AppendUUID(buf, v)
 	case json.RawMessage:
-		buf = append(buf, v...)
+		if len(v) == 0 {
+			// An empty value is no valid JSON
+			return encjson.AppendNull(buf)
+		}
+		// Compact like Message.JSON, because a line break
+		// in pretty printed JSON would split the log line.
+		// Compact appends nothing to compacted in case of an error.
+		compacted := bytes.NewBuffer(appendJSONSeparator(buf))
+		if json.Compact(compacted, v) != nil {
+			// Like Message.JSON logs invalid JSON as error string,
+			// appending it would make the whole JSON invalid
+			return encjson.AppendString(buf, string(v))
+		}
+		return compacted.Bytes()
+	case Loggable:
+		// Like Message.Any, as JSON object of the attribs that it logs
+		// instead of encoding/json, which can't see the unexported
+		// fields of attribs and would encode Attribs as [{},{}]
+		if rv := reflect.ValueOf(v); rv.Kind() == reflect.Pointer && rv.IsNil() {
+			return encjson.AppendNull(buf)
+		}
+		return appendLoggableJSON(buf, nil, v)
+	case error:
+		// Like Message.Any, the error message instead of encoding/json,
+		// which encodes most errors as empty object
+		if rv := reflect.ValueOf(v); rv.Kind() == reflect.Pointer && rv.IsNil() {
+			return encjson.AppendNull(buf)
+		}
+		return encjson.AppendString(buf, v.Error())
+	case []any:
+		// Every element written like a single value, for example
+		// the mixed elements of a slice passed to a MessageCallback.
+		// Not encjson.AppendArrayStart, which would prepend a comma
+		// to a []any that is the first element of a []any
+		buf = append(appendJSONSeparator(buf), '[')
+		for _, elem := range v {
+			buf = appendAnyJSON(buf, elem)
+		}
+		return encjson.AppendArrayEnd(buf)
 	default:
+		rv := reflect.ValueOf(v)
+		// A pointer to a byte slice type with a format of its own,
+		// also through several pointers: follow the pointers only up to
+		// the first type that has the format methods, which can have
+		// pointer receivers, and write it with the cases above
+		if rv.Kind() == reflect.Pointer && hasOwnByteSliceFormat(rv) && !implementsOwnFormat(rv.Type()) {
+			for rv.Kind() == reflect.Pointer && !implementsOwnFormat(rv.Type()) {
+				if rv.IsNil() {
+					return encjson.AppendNull(buf)
+				}
+				rv = rv.Elem()
+			}
+			return appendAnyJSON(buf, rv.Interface())
+		}
+		// Named byte slice types and pointers to byte slices
+		if b, ok := byteSliceOf(rv); ok {
+			if isNullValue(rv) {
+				// Like Message.Any
+				return encjson.AppendNull(buf)
+			}
+			return appendBytesJSON(buf, b)
+		}
+		// A byte slice type with a format of its own, like net.IP,
+		// only with String instead of as base64 by encoding/json,
+		// which uses MarshalJSON and MarshalText like Message.Any
+		if s, ok := v.(fmt.Stringer); ok && hasOwnByteSliceFormat(rv) {
+			_, marshaler := v.(json.Marshaler)
+			_, textMarshaler := v.(encoding.TextMarshaler)
+			if !marshaler && !textMarshaler {
+				if rv.Kind() == reflect.Pointer && rv.IsNil() {
+					// Don't call a String method on a nil pointer
+					return encjson.AppendNull(buf)
+				}
+				return encjson.AppendString(buf, s.String())
+			}
+		}
 		// Slower escape hatch for all other types
 		j, err := json.Marshal(v)
-		if err == nil {
-			buf = append(buf, j...)
-		} else {
-			buf = encjson.AppendString(buf, err.Error())
+		if err != nil {
+			return encjson.AppendString(buf, err.Error())
 		}
+		return encjson.AppendJSON(buf, j)
+	}
+}
+
+// appendJSONSeparator appends a comma to buf if buf ends
+// with a JSON value, like the encjson functions do
+// before they append a value.
+func appendJSONSeparator(buf []byte) []byte {
+	if l := len(buf); l > 0 && buf[l-1] != ':' && buf[l-1] != '[' {
+		return append(buf, ',')
 	}
 	return buf
+}
+
+// appendBytesJSON appends the bytes like Message.StrBytes logs them:
+// as string if they are valid UTF-8, else encoded with BinaryEncoder,
+// or null for nil.
+func appendBytesJSON(buf, b []byte) []byte {
+	switch {
+	case b == nil:
+		return encjson.AppendNull(buf)
+	case utf8.Valid(b):
+		// Valid UTF-8 needs no conversion to a string
+		return encjson.AppendStringBytes(buf, b)
+	default:
+		return encjson.AppendString(buf, BinaryEncoder(b))
+	}
 }
 
 func (a *Any) String() string {
@@ -724,10 +854,11 @@ func (a *Errors) Key() string { return a.key }
 func (a *Errors) Value() any  { return a.vals }
 
 func (a *Errors) ValueString() string {
-	if len(a.vals) == 0 {
-		return "<nil>"
+	// errors.Join returns nil for no or only nil errors
+	if err := errors.Join(a.vals...); err != nil {
+		return err.Error()
 	}
-	return errors.Join(a.vals...).Error()
+	return "<nil>"
 }
 
 func (a *Errors) Log(m *Message) {
@@ -881,7 +1012,12 @@ func (a *UUID) Log(m *Message) {
 }
 
 func (a *UUID) AppendJSON(buf []byte) []byte {
-	return encjson.AppendUUID(encjson.AppendKey(buf, a.key), a.val)
+	buf = encjson.AppendKey(buf, a.key)
+	if IsNilUUID(a.val) {
+		// Like Message.UUID
+		return encjson.AppendNull(buf)
+	}
+	return encjson.AppendUUID(buf, a.val)
 }
 
 func (a *UUID) String() string {
@@ -942,7 +1078,12 @@ func (a *UUIDs) Log(m *Message) {
 func (a *UUIDs) AppendJSON(buf []byte) []byte {
 	buf = encjson.AppendArrayStart(encjson.AppendKey(buf, a.key))
 	for _, val := range a.vals {
-		buf = encjson.AppendUUID(buf, val)
+		if IsNilUUID(val) {
+			// Like Message.UUIDs
+			buf = encjson.AppendNull(buf)
+		} else {
+			buf = encjson.AppendUUID(buf, val)
+		}
 	}
 	return encjson.AppendArrayEnd(buf)
 }
@@ -985,7 +1126,12 @@ func (a *JSON) Log(m *Message) {
 }
 
 func (a *JSON) AppendJSON(buf []byte) []byte {
-	return append(encjson.AppendKey(buf, a.key), a.val...)
+	buf = encjson.AppendKey(buf, a.key)
+	if len(a.val) == 0 {
+		// An empty value is no valid JSON, log it as null like Message.JSON
+		return encjson.AppendNull(buf)
+	}
+	return append(buf, a.val...)
 }
 
 func (a *JSON) String() string {

@@ -10,6 +10,215 @@ lockstep with the root module, e.g. `v1.0.7`, `logsentry/v1.0.7`, `goslog/v1.0.7
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-11-24
+
+### Added
+
+- `ContextWithOwnedAttribs` and `RequestWithOwnedAttribs` hand the passed
+  attribs over to the context instead of cloning them, for attribs that are
+  built for the call like
+  `ContextWithOwnedAttribs(ctx, NewUUID("requestID", requestID))`. Cloning
+  those allocates a second attrib and orphans the passed one, because a
+  context never returns its attribs to the mempool and the caller has no
+  reference left to `Free` them with. Attribs inherited from the parent
+  context are still cloned. The HTTP middleware, `ContextWithRequestUUID`
+  and `ContextWithRequestID` use them now, so they no longer orphan a pooled
+  attrib per request.
+- `Logger.CtxAttribs` returns the attribs that a logger inherited from a
+  context via `Message.SubLoggerContext`.
+- `BinaryEncoder` configures how binary data is encoded for logging,
+  for example `golog.BinaryEncoder = hex.EncodeToString`. It is used by
+  `Message.Bytes`, for bytes that are no valid UTF-8 in `Message.StrBytes`,
+  `Message.StrBytesMax` and `Message.Any`, and by the `Any` attrib.
+  The default is unchanged, base64.RawURLEncoding.
+- `mempool.RaceEnabled` reports whether the binary was built with the race
+  detector, which makes `sync.Pool` drop items instead of reusing them.
+- **logsentry:** `NewLogfileWriteCallback` returns a `logfile.WriteCallback`
+  that sends errors of a `logfile.RotatingWriter` as Sentry events,
+  with the start of the unwritten log data and at most one event
+  per passed interval, because a full disk makes every write fail.
+- **logfile:** `FreeDiskSpace` returns the bytes that the process can still
+  write to the volume of a file or directory, on Windows and Unix systems,
+  for a `WriteCallback` that warns before the disk is full.
+  The root module now requires `golang.org/x/sys` directly; it was already
+  an indirect dependency via `golang.org/x/term`.
+- **logsentry:** the `WithContextHub` option of `NewWriterConfig` sends the
+  events of messages logged with a context that has a Sentry hub, like the
+  per-request hub of `sentryhttp`, to that hub, so the events get the request
+  data, user, tags and breadcrumbs of its scope. Without the option all events
+  still go to the hub passed to `NewWriterConfig`.
+
+### Changed
+
+- A logger with attributes logs a message without allocating. `mempool.Slice`
+  put slice values into its `sync.Pool`, which allocates to box the slice
+  header, so every message of such a logger allocated 24 bytes when it gave
+  its attribute slice back. The pool now stores pointers to slices and reuses
+  them, so the comparative benchmark of a sub-logger with attributes went
+  from 1 allocation and 287 ns to 0 allocations and about 250 ns per message.
+- **Breaking:** `Message.SubLoggerContext` now also adds the attribs from the
+  passed context to the returned sub-logger, so that the sub-logger and the
+  returned context have the same union of attribs attached to them. Attribs
+  recorded at the message still take precedence over context attribs with the
+  same key. Previously the context attribs ended up only in the returned
+  context, so the sub-logger lost them when used with a different context.
+  Existing code that keeps such a sub-logger therefore logs attribs that it
+  did not log before.
+  The attribs taken from the context stay context attribs of the sub-logger
+  instead of becoming logger attribs. They are logged after the attribs of the
+  context that a message is logged with, so an attrib with the same key from
+  that context takes precedence over the inherited one. A sub-logger created
+  from a request scoped context can therefore be used with the context of
+  another request without mislabeling its messages. Once logged, an inherited
+  attrib blocks later attribs with the same key from `Message.Ctx` or a
+  `Message` field method, like a logger attrib does, so no key is written twice.
+- A message no longer writes a key twice when it repeats a key of the
+  context it was logged with. `Message.Ctx` and the `Message` field methods
+  now drop attribs whose key was already written from a context, as they
+  already did for logger attribs. Previously
+  `log.InfoCtx(ctx, "msg").Str("requestID", id)` with a `requestID` in `ctx`
+  wrote the key twice, and so did `log.InfoCtx(ctx, "msg").Ctx(ctx)`.
+  The message borrows the attribs of its context, so this allocates nothing.
+- `NewLogger` and `NewLoggerWithPrefix` now store clones of the passed per
+  message attribs instead of the attribs and the variadic slice of the caller,
+  like every other method that derives a logger. Sharing an attrib let
+  `Logger.RemoveAttribs` of one logger return an attrib to the mempool that
+  another logger or the caller still used, and sharing the variadic slice put
+  a slice that never came from the mempool into it, where it is too small to
+  be reused but is taken out and put back on every call. The caller now keeps
+  ownership of the passed attribs and may keep using and finally `Free` them.
+- `Logger.RemoveAttribs` now also removes and frees the attribs that the
+  logger inherited from a context.
+- `Attribs.AddToContext` now documents its non-consuming contract explicitly:
+  the returned context owns clones of the receiver's attribs and of the attribs
+  inherited from the parent context, so the caller keeps ownership of its
+  attribs and may keep using and finally `Free` them. A context must own its
+  attribs because it has no end of life, and an attrib that another owner returns
+  to the mempool would be recycled while the context still references it. Same
+  contract for `ContextWithAttribs`, `RequestWithAttribs`, and
+  `Attribs.AddToRequest`. Until v1.3.2 this only held when the receiver or the
+  parent context had no attribs. With attribs on both sides the context shared
+  the receiver's attribs, see `Attribs.CloneAndAppendNonExistingCloned` under
+  Fixed.
+- The thread safety guarantee in the package documentation and README
+  now lists the rules it depends on. The `io.Writer` of a JSON or text writer
+  config must be safe for concurrent use, package variables must be set before
+  logging starts, and `Logger.RemoveAttribs` must not run concurrently with
+  other uses of the logger.
+- A `MessageCallback` gets every element of a slice in one attrib. A slice
+  whose elements have different types, like a `[]any`, or that contains nil
+  or JSON elements, is passed as one `Any` attrib holding a `[]any` of all
+  elements in their order, instead of losing elements or passing them as
+  several attribs with the same key. An empty slice is passed as an `Any`
+  attrib with an empty `[]any` instead of a nil attrib that made the
+  callback panic. Callbacks that switch on the attrib type now see the types
+  of the logged values, for example `*Ints` instead of `*Strings` for
+  `Message.Any(key, []any{1, 2})`, `*String` for bytes and `*Time` for a
+  `time.Time`.
+
+### Fixed
+
+- `Message.IsAttribRecorder` no longer reports true for a message whose
+  writers all filtered out its level, or that was created by a logger without
+  writer configs. Such a message has no writers, which used to be the marker
+  of an attrib recorder, so `Message.SubLogger` and `Message.SubLoggerContext`
+  returned a sub-logger fabricated from the attribs of a message that the
+  caller still owns and logs, and put that message back into the mempool,
+  which could then hand the same message to two callers at once.
+- `Attribs.CloneAndAppendNonExistingCloned` now clones the receiver's attribs as
+  documented instead of copying the pooled pointers, so the returned Attribs no
+  longer share attribs with the receiver that another owner may free
+  (`Logger.RemoveAttribs`, `Attribs.Free`). This affects `Logger.WithClonedAttribs`
+  and `Logger.WithCtx`, whose sub-logger no longer shares attribs with its parent.
+- `Message.SubContext` no longer hands the returned context the attribs that the
+  still usable message keeps ownership of.
+- `Logger.WithPrefix` now gets clones of the logger's attribs instead of sharing
+  the same slice, like every other method that derives a logger. Sharing it let
+  `Logger.RemoveAttribs` on either logger nil out the attribs of the other one
+  and return their slice to the mempool while it was still referenced, so the
+  next message of that logger panicked or logged recycled attribs.
+- A `time.Time` or `*time.Time` logged with `Message.Any` is now written like
+  with `Message.Time`, using the `Format.TimeFormat` and `Format.Location` of
+  the writer and null for the zero time. It used to be written by
+  `time.Time.MarshalJSON`, as an RFC3339Nano string in its own location.
+- Bytes have the same meaning everywhere except in `Message.Bytes`, which
+  always logs binary data. They are a string if valid UTF-8, else base64
+  encoded, like `Message.StrBytes` logs them. This applies to a `[]byte`,
+  a named byte slice type or a pointer to one logged with `Message.Any`,
+  also as element of a slice or as struct field with `Message.StructFields`,
+  which used to write a slice of numbers, and to `Any.AppendJSON` and
+  `Any.ValueString` of such values. A `json.RawMessage` logged with
+  `Message.Any` is written as JSON like with `Message.JSON`.
+  A byte slice type with a format of its own, like `net.IP`,
+  `net.HardwareAddr` or a type that redacts a secret, is logged as one value
+  with its `Loggable`, `Error`, `MarshalJSON`, `MarshalText` or `String`
+  method instead of as bytes, also by the `Any` attrib. Like with
+  encoding/json, methods with pointer receiver are used for a pointer
+  to the type and for slice elements.
+- `Message.StrBytesMax` now logs nil bytes as null like `Message.StrBytes`,
+  instead of an empty string, and valid UTF-8 that contains the Unicode
+  replacement character U+FFFD as string instead of base64 encoded.
+- A `Loggable` logged with `Message.Any`, for example `Attribs` or a single
+  attrib, is now written as a JSON object of the attribs it logs under the
+  key, also as element of a slice. It used to produce invalid JSON: a key
+  without a value, followed by the attribs once per writer.
+  `Message.Loggable` still logs them as attribs of the message.
+- Elements of a `[]any` logged with `Message.Any` are now written with their
+  own type, for example numbers as numbers instead of strings, and a
+  `time.Duration` as number of nanoseconds like a single `time.Duration`
+  logged with `Message.Any`.
+- The text writer now separates a JSON value from the previous element of
+  a slice, for example `[{"a":1},2]` instead of `[{"a":1}2]`.
+- `Any.AppendJSON` of a `time.Time` now uses the library-wide
+  `DefaultTimeFormat` like the `Time` attrib, instead of `time.RFC3339`,
+  which dropped the sub-seconds.
+- `Attribs.AppendJSON` of empty Attribs now prepends a comma separator after
+  a preceding JSON value, like it does for non-empty Attribs, instead of
+  producing invalid JSON such as `[1null`.
+- `Errors.ValueString` and `Errors.String` no longer panic for an `Errors`
+  attrib that holds only nil errors, and return `<nil>` instead.
+- `JSON.AppendJSON` and `Any.AppendJSON` with an empty `json.RawMessage` now
+  append JSON null, as logging the attrib does, instead of a key without a
+  value that made `Attribs.MarshalJSON` return invalid JSON.
+- The tests pass under `go test -race`. They no longer expect `sync.Pool` to
+  hand out an item again that was put back, which the race detector prevents
+  at random.
+- **goslog:** handlers derived from the same parent with `WithAttrs`
+  (for example `base.With("request", "A")` and `base.With("request", "B")`)
+  no longer write their attrs into the shared spare capacity of the parent's
+  attrs, which made one logger log the attrs of the other and was a data race
+  when per-request loggers were created concurrently.
+- `HTTPMiddlewareRespondPlaintextCtxLogsIfNotOK` collects the logs in a
+  buffer guarded by a mutex, so a wrapped handler can log with the request
+  context from multiple goroutines without a data race.
+- `DynDerivedConfig.SetParent` combines writer configs set with
+  `SetAdditionalWriterConfigs` with the writer configs of the new parent
+  instead of keeping those of the old parent.
+- `Registry.PackagesSortedByName` returns the package paths
+  instead of empty strings.
+- **logsentry:** `NewWriterConfig` copies the passed `extra` map, so that
+  changing it later does not race with logging.
+- The `Any` attrib writes its value like `Message.Any` logs it, in
+  `AppendJSON`, `Attribs.MarshalJSON` and `ValueString`: an error as its
+  message instead of `{}`, a nil UUID and a zero time as null, a pretty
+  printed `json.RawMessage` compacted to one line, invalid JSON as string,
+  a `Loggable` as JSON object of its attribs, and every element of a `[]any`
+  by the same rules.
+- `Message.Any` of a nil pointer to a type whose `Error` or `IsNull` method
+  has a value receiver logs null instead of panicking.
+- The `UUID` and `UUIDs` attribs write a nil UUID as null in `AppendJSON`
+  like `Message.UUID` and `Message.UUIDs` log it, so a `Loggable` logged
+  as JSON object with `Message.Any` writes the same value.
+
+### Documentation
+
+- `AttribsFromContext`, `AttribFromContext`, `Logger.Attribs` and
+  `Logger.CtxAttribs` document that the returned attribs are owned by the
+  context or logger they come from. Don't `Add` to them and don't `Free`
+  them, because both return attribs and their slice to the mempool while the
+  context or logger still references them. Use `Attribs.Clone` for an owned
+  copy.
+
 ## [1.3.2] - 2026-11-24
 
 ### Added
@@ -273,7 +482,8 @@ lockstep with the root module, e.g. `v1.0.7`, `logsentry/v1.0.7`, `goslog/v1.0.7
   attrib type for zero-allocation `time.Time` logging, and the `tag-release`
   versioning script.
 
-[Unreleased]: https://github.com/domonda/golog/compare/v1.3.2...HEAD
+[Unreleased]: https://github.com/domonda/golog/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/domonda/golog/compare/v1.3.2...v1.4.0
 [1.3.2]: https://github.com/domonda/golog/compare/v1.3.1...v1.3.2
 [1.3.1]: https://github.com/domonda/golog/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/domonda/golog/compare/v1.2.1...v1.3.0

@@ -1,0 +1,100 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="380" viewBox="0 0 880 380" role="img" aria-labelledby="title desc" font-family="system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif">
+<title id="title">Heap allocations per log message, fewer is better</title>
+<desc id="desc">golog: Message only 0, 4 fields 0, 10 fields 0, Sub-logger 0, Error + time 0, Text 0, Disabled 0. zerolog: Message only 0, 4 fields 0, 10 fields 0, Sub-logger 0, Error + time 0, Text 42, Disabled 0. zap: Message only 0, 4 fields 1, 10 fields 1, Sub-logger 1, Error + time 1, Text 4, Disabled 1. slog: Message only 0, 4 fields 8, 10 fields 5, Sub-logger 3, Error + time 6, Text 3, Disabled 3. logrus: Message only 19, 4 fields 34, 10 fields 54, Sub-logger 32, Error + time 36, Text 15, Disabled 6. </desc>
+<rect x="0.5" y="0.5" width="879" height="379" rx="8" fill="#0d1117" stroke="#3d444d"/>
+<text x="24.0" y="36.0" font-size="20" font-weight="600" fill="#f0efec" text-anchor="start">Heap allocations per log message</text>
+<text x="24.0" y="60.0" font-size="13" font-weight="400" fill="#c3c2b7" text-anchor="start">Fewer is better. Apple M5 Pro · Go 1.27.4 · median of 6 runs.</text>
+<text x="159.7" y="100.0" font-size="12" font-weight="600" fill="#c3c2b7" text-anchor="middle">Message only</text>
+<text x="267.1" y="100.0" font-size="12" font-weight="600" fill="#c3c2b7" text-anchor="middle">4 fields</text>
+<text x="374.6" y="100.0" font-size="12" font-weight="600" fill="#c3c2b7" text-anchor="middle">10 fields</text>
+<text x="482.0" y="100.0" font-size="12" font-weight="600" fill="#c3c2b7" text-anchor="middle">Sub-logger</text>
+<text x="589.4" y="100.0" font-size="12" font-weight="600" fill="#c3c2b7" text-anchor="middle">Error + time</text>
+<text x="696.9" y="100.0" font-size="12" font-weight="600" fill="#c3c2b7" text-anchor="middle">Text</text>
+<text x="804.3" y="100.0" font-size="12" font-weight="600" fill="#c3c2b7" text-anchor="middle">Disabled</text>
+<text x="96.0" y="136.0" font-size="14" font-weight="700" fill="#f0efec" text-anchor="end">golog</text>
+<rect x="108.5" y="114.5" width="102.4" height="33.0" rx="4" fill="none" stroke="#3d444d"/>
+<text x="159.7" y="136.0" font-size="14" font-weight="700" fill="#9198a1" text-anchor="middle">0</text>
+<rect x="215.9" y="114.5" width="102.4" height="33.0" rx="4" fill="none" stroke="#3d444d"/>
+<text x="267.1" y="136.0" font-size="14" font-weight="700" fill="#9198a1" text-anchor="middle">0</text>
+<rect x="323.4" y="114.5" width="102.4" height="33.0" rx="4" fill="none" stroke="#3d444d"/>
+<text x="374.6" y="136.0" font-size="14" font-weight="700" fill="#9198a1" text-anchor="middle">0</text>
+<rect x="430.8" y="114.5" width="102.4" height="33.0" rx="4" fill="none" stroke="#3d444d"/>
+<text x="482.0" y="136.0" font-size="14" font-weight="700" fill="#9198a1" text-anchor="middle">0</text>
+<rect x="538.2" y="114.5" width="102.4" height="33.0" rx="4" fill="none" stroke="#3d444d"/>
+<text x="589.4" y="136.0" font-size="14" font-weight="700" fill="#9198a1" text-anchor="middle">0</text>
+<rect x="645.6" y="114.5" width="102.4" height="33.0" rx="4" fill="none" stroke="#3d444d"/>
+<text x="696.9" y="136.0" font-size="14" font-weight="700" fill="#9198a1" text-anchor="middle">0</text>
+<rect x="753.1" y="114.5" width="102.4" height="33.0" rx="4" fill="none" stroke="#3d444d"/>
+<text x="804.3" y="136.0" font-size="14" font-weight="700" fill="#9198a1" text-anchor="middle">0</text>
+<text x="96.0" y="174.0" font-size="14" font-weight="400" fill="#c3c2b7" text-anchor="end">zerolog</text>
+<rect x="108.5" y="152.5" width="102.4" height="33.0" rx="4" fill="none" stroke="#3d444d"/>
+<text x="159.7" y="174.0" font-size="14" font-weight="400" fill="#9198a1" text-anchor="middle">0</text>
+<rect x="215.9" y="152.5" width="102.4" height="33.0" rx="4" fill="none" stroke="#3d444d"/>
+<text x="267.1" y="174.0" font-size="14" font-weight="400" fill="#9198a1" text-anchor="middle">0</text>
+<rect x="323.4" y="152.5" width="102.4" height="33.0" rx="4" fill="none" stroke="#3d444d"/>
+<text x="374.6" y="174.0" font-size="14" font-weight="400" fill="#9198a1" text-anchor="middle">0</text>
+<rect x="430.8" y="152.5" width="102.4" height="33.0" rx="4" fill="none" stroke="#3d444d"/>
+<text x="482.0" y="174.0" font-size="14" font-weight="400" fill="#9198a1" text-anchor="middle">0</text>
+<rect x="538.2" y="152.5" width="102.4" height="33.0" rx="4" fill="none" stroke="#3d444d"/>
+<text x="589.4" y="174.0" font-size="14" font-weight="400" fill="#9198a1" text-anchor="middle">0</text>
+<rect x="645.1" y="152.0" width="103.4" height="34.0" rx="4" fill="#f4a27b"/>
+<text x="696.9" y="174.0" font-size="14" font-weight="400" fill="#0b0b0b" text-anchor="middle">42</text>
+<rect x="753.1" y="152.5" width="102.4" height="33.0" rx="4" fill="none" stroke="#3d444d"/>
+<text x="804.3" y="174.0" font-size="14" font-weight="400" fill="#9198a1" text-anchor="middle">0</text>
+<text x="96.0" y="212.0" font-size="14" font-weight="400" fill="#c3c2b7" text-anchor="end">zap</text>
+<rect x="108.5" y="190.5" width="102.4" height="33.0" rx="4" fill="none" stroke="#3d444d"/>
+<text x="159.7" y="212.0" font-size="14" font-weight="400" fill="#9198a1" text-anchor="middle">0</text>
+<rect x="215.4" y="190.0" width="103.4" height="34.0" rx="4" fill="#7d3719"/>
+<text x="267.1" y="212.0" font-size="14" font-weight="400" fill="#ffffff" text-anchor="middle">1</text>
+<rect x="322.9" y="190.0" width="103.4" height="34.0" rx="4" fill="#7d3719"/>
+<text x="374.6" y="212.0" font-size="14" font-weight="400" fill="#ffffff" text-anchor="middle">1</text>
+<rect x="430.3" y="190.0" width="103.4" height="34.0" rx="4" fill="#7d3719"/>
+<text x="482.0" y="212.0" font-size="14" font-weight="400" fill="#ffffff" text-anchor="middle">1</text>
+<rect x="537.7" y="190.0" width="103.4" height="34.0" rx="4" fill="#7d3719"/>
+<text x="589.4" y="212.0" font-size="14" font-weight="400" fill="#ffffff" text-anchor="middle">1</text>
+<rect x="645.1" y="190.0" width="103.4" height="34.0" rx="4" fill="#a8481d"/>
+<text x="696.9" y="212.0" font-size="14" font-weight="400" fill="#ffffff" text-anchor="middle">4</text>
+<rect x="752.6" y="190.0" width="103.4" height="34.0" rx="4" fill="#7d3719"/>
+<text x="804.3" y="212.0" font-size="14" font-weight="400" fill="#ffffff" text-anchor="middle">1</text>
+<text x="96.0" y="250.0" font-size="14" font-weight="400" fill="#c3c2b7" text-anchor="end">slog</text>
+<rect x="108.5" y="228.5" width="102.4" height="33.0" rx="4" fill="none" stroke="#3d444d"/>
+<text x="159.7" y="250.0" font-size="14" font-weight="400" fill="#9198a1" text-anchor="middle">0</text>
+<rect x="215.4" y="228.0" width="103.4" height="34.0" rx="4" fill="#a8481d"/>
+<text x="267.1" y="250.0" font-size="14" font-weight="400" fill="#ffffff" text-anchor="middle">8</text>
+<rect x="322.9" y="228.0" width="103.4" height="34.0" rx="4" fill="#a8481d"/>
+<text x="374.6" y="250.0" font-size="14" font-weight="400" fill="#ffffff" text-anchor="middle">5</text>
+<rect x="430.3" y="228.0" width="103.4" height="34.0" rx="4" fill="#a8481d"/>
+<text x="482.0" y="250.0" font-size="14" font-weight="400" fill="#ffffff" text-anchor="middle">3</text>
+<rect x="537.7" y="228.0" width="103.4" height="34.0" rx="4" fill="#a8481d"/>
+<text x="589.4" y="250.0" font-size="14" font-weight="400" fill="#ffffff" text-anchor="middle">6</text>
+<rect x="645.1" y="228.0" width="103.4" height="34.0" rx="4" fill="#a8481d"/>
+<text x="696.9" y="250.0" font-size="14" font-weight="400" fill="#ffffff" text-anchor="middle">3</text>
+<rect x="752.6" y="228.0" width="103.4" height="34.0" rx="4" fill="#a8481d"/>
+<text x="804.3" y="250.0" font-size="14" font-weight="400" fill="#ffffff" text-anchor="middle">3</text>
+<text x="96.0" y="288.0" font-size="14" font-weight="400" fill="#c3c2b7" text-anchor="end">logrus</text>
+<rect x="108.0" y="266.0" width="103.4" height="34.0" rx="4" fill="#d6672f"/>
+<text x="159.7" y="288.0" font-size="14" font-weight="400" fill="#0b0b0b" text-anchor="middle">19</text>
+<rect x="215.4" y="266.0" width="103.4" height="34.0" rx="4" fill="#f4a27b"/>
+<text x="267.1" y="288.0" font-size="14" font-weight="400" fill="#0b0b0b" text-anchor="middle">34</text>
+<rect x="322.9" y="266.0" width="103.4" height="34.0" rx="4" fill="#f4a27b"/>
+<text x="374.6" y="288.0" font-size="14" font-weight="400" fill="#0b0b0b" text-anchor="middle">54</text>
+<rect x="430.3" y="266.0" width="103.4" height="34.0" rx="4" fill="#f4a27b"/>
+<text x="482.0" y="288.0" font-size="14" font-weight="400" fill="#0b0b0b" text-anchor="middle">32</text>
+<rect x="537.7" y="266.0" width="103.4" height="34.0" rx="4" fill="#f4a27b"/>
+<text x="589.4" y="288.0" font-size="14" font-weight="400" fill="#0b0b0b" text-anchor="middle">36</text>
+<rect x="645.1" y="266.0" width="103.4" height="34.0" rx="4" fill="#d6672f"/>
+<text x="696.9" y="288.0" font-size="14" font-weight="400" fill="#0b0b0b" text-anchor="middle">15</text>
+<rect x="752.6" y="266.0" width="103.4" height="34.0" rx="4" fill="#a8481d"/>
+<text x="804.3" y="288.0" font-size="14" font-weight="400" fill="#ffffff" text-anchor="middle">6</text>
+<rect x="108.5" y="316.5" width="14" height="14" rx="3" fill="none" stroke="#3d444d"/>
+<text x="128.0" y="328.0" font-size="12" font-weight="400" fill="#c3c2b7" text-anchor="start">none</text>
+<rect x="184.0" y="316.0" width="14" height="14" rx="3" fill="#7d3719"/>
+<text x="204.0" y="328.0" font-size="12" font-weight="400" fill="#c3c2b7" text-anchor="start">1</text>
+<rect x="239.0" y="316.0" width="14" height="14" rx="3" fill="#a8481d"/>
+<text x="259.0" y="328.0" font-size="12" font-weight="400" fill="#c3c2b7" text-anchor="start">2–9</text>
+<rect x="322.0" y="316.0" width="14" height="14" rx="3" fill="#d6672f"/>
+<text x="342.0" y="328.0" font-size="12" font-weight="400" fill="#c3c2b7" text-anchor="start">10–29</text>
+<rect x="419.0" y="316.0" width="14" height="14" rx="3" fill="#f4a27b"/>
+<text x="439.0" y="328.0" font-size="12" font-weight="400" fill="#c3c2b7" text-anchor="start">30+</text>
+<text x="24.0" y="362.0" font-size="12" font-weight="400" fill="#9198a1" text-anchor="start">github.com/domonda/golog/benchmarks · go test -bench=. -benchmem -benchtime=2s -count=6</text>
+</svg>

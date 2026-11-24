@@ -1,8 +1,13 @@
 package goslog
 
 import (
+	"bytes"
+	"encoding/json"
+	"fmt"
 	"log/slog"
 	"reflect"
+	"strings"
+	"sync"
 	"testing"
 	"testing/slogtest"
 
@@ -45,4 +50,83 @@ func TestConvertDefaultLevels(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestHandler_WithAttrsSiblings checks that handlers derived from the same
+// parent don't share the backing array of their attrs, so that a sibling's
+// WithAttrs doesn't overwrite the attrs of an earlier sibling.
+func TestHandler_WithAttrsSiblings(t *testing.T) {
+	var rec recorder
+	config := golog.NewConfig(&golog.DefaultLevels, golog.AllLevelsActive, &rec)
+	// Three single attr WithAttrs calls grow the attrs to len 3 and cap 4,
+	// leaving spare capacity that a shared backing array would hand out twice
+	base := slog.New(Handler(golog.NewLogger(config), ConvertDefaultLevels)).
+		With("a", 1).
+		With("b", 2).
+		With("c", 3)
+
+	reqA := base.With("request", "A")
+	reqB := base.With("request", "B")
+	reqA.Info("from A")
+	reqB.Info("from B")
+
+	require.Len(t, rec.Result, 2)
+	require.Equal(t, "A", rec.Result[0]["request"])
+	require.Equal(t, "B", rec.Result[1]["request"])
+}
+
+// TestHandler_Concurrent derives handlers from a shared parent and logs
+// with them from many goroutines, for go test -race.
+// Every logged line must have the attrs of the goroutine that logged it.
+func TestHandler_Concurrent(t *testing.T) {
+	const (
+		numGoroutines = 16
+		numMessages   = 50
+	)
+	var out syncBuffer
+	config := golog.NewConfig(&golog.DefaultLevels, golog.AllLevelsActive, golog.NewJSONWriterConfig(&out, nil))
+	base := slog.New(Handler(golog.NewLogger(config), ConvertDefaultLevels)).
+		With("a", 1).
+		With("b", 2).
+		With("c", 3)
+
+	var wg sync.WaitGroup
+	for g := range numGoroutines {
+		wg.Go(func() {
+			logger := base.With("g", g).WithGroup("grp").With("g2", g)
+			for i := range numMessages {
+				logger.Info("msg", "i", i, "gi", fmt.Sprintf("%d-%d", g, i))
+			}
+		})
+	}
+	wg.Wait()
+
+	lines := strings.Split(strings.TrimSpace(out.String()), "\n")
+	require.Len(t, lines, numGoroutines*numMessages)
+	for _, line := range lines {
+		var m map[string]any
+		require.NoError(t, json.Unmarshal([]byte(line), &m), line)
+		g, i := m["g"], m["grp.i"]
+		require.Equal(t, g, m["grp.g2"], line)
+		require.Equal(t, fmt.Sprintf("%v-%v", g, i), m["grp.gi"], line)
+		require.Equal(t, float64(3), m["c"], line)
+	}
+}
+
+// syncBuffer is a bytes.Buffer that is safe for concurrent use.
+type syncBuffer struct {
+	mtx sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *syncBuffer) Write(p []byte) (int, error) {
+	b.mtx.Lock()
+	defer b.mtx.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *syncBuffer) String() string {
+	b.mtx.Lock()
+	defer b.mtx.Unlock()
+	return b.buf.String()
 }
