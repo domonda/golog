@@ -16,6 +16,9 @@ func TestSlice_GetOrMake(t *testing.T) {
 	})
 
 	t.Run("reuses slice with enough capacity", func(t *testing.T) {
+		if RaceEnabled {
+			t.Skip("the race detector makes sync.Pool drop items instead of reusing them")
+		}
 		var pool Slice[int]
 		pooled := pool.GetOrMake(3, 10)
 		pooled[0] = 1
@@ -55,5 +58,24 @@ func TestSlice_ClearAndPutBack(t *testing.T) {
 	require.Equal(t, 1, NumOutstanding())
 	pool.ClearAndPutBack(slice)
 	require.Zero(t, NumOutstanding())
-	require.Equal(t, 1, pool.Drain())
+	if !RaceEnabled { // The race detector makes sync.Pool drop items
+		require.Equal(t, 1, pool.Drain())
+	}
+}
+
+// TestSlice_noAllocations tests that taking a slice from the pool and
+// putting it back allocates nothing once the pool is warm. Putting a slice
+// value into a sync.Pool used to allocate to box its slice header,
+// which cost every message of a logger with attributes one allocation.
+func TestSlice_noAllocations(t *testing.T) {
+	if RaceEnabled {
+		t.Skip("the race detector makes sync.Pool drop items instead of reusing them")
+	}
+	var pool Slice[int]
+	pool.ClearAndPutBack(pool.GetOrMake(0, 8)) // Warm up the pool and its boxes
+	allocs := testing.AllocsPerRun(100, func() {
+		slice := pool.GetOrMake(2, 8)
+		pool.ClearAndPutBack(slice)
+	})
+	require.Zero(t, allocs, "GetOrMake and ClearAndPutBack allocate nothing with a warm pool")
 }

@@ -993,8 +993,8 @@ func TestRotatingWriter_RecoveryAfterOpenError(t *testing.T) {
 	lost := []byte(strings.Repeat("B", 60))
 	n, err := writer.Write(lost)
 	require.Error(t, err)
-	var rotateErr *RotateError
-	assert.False(t, errors.As(err, &rotateErr), "the rotation succeeded, opening the file failed")
+	_, isRotateErr := errors.AsType[*RotateError](err)
+	assert.False(t, isRotateErr, "the rotation succeeded, opening the file failed")
 	assert.Equal(t, 0, n, "data could not be written")
 	require.NoError(t, writer.Sync(), "Sync without an open file")
 
@@ -1002,7 +1002,8 @@ func TestRotatingWriter_RecoveryAfterOpenError(t *testing.T) {
 	// and without an open file no rotation is attempted
 	n, err = writer.Write(lost)
 	require.Error(t, err)
-	assert.False(t, errors.As(err, &rotateErr), "no rotation without an open file")
+	_, isRotateErr = errors.AsType[*RotateError](err)
+	assert.False(t, isRotateErr, "no rotation without an open file")
 	assert.True(t, writer.rotateRetryAt.IsZero(), "no rotation failed, so no retry delay")
 	assert.Equal(t, 0, n)
 
@@ -1136,8 +1137,8 @@ func TestRotatingWriter_StatErrorOnReopen(t *testing.T) {
 	// The rotation succeeds, opening the new file fails at stat
 	n, err := writer.Write([]byte(strings.Repeat("B", 60)))
 	assert.ErrorIs(t, err, statErr)
-	var rotateErr *RotateError
-	assert.False(t, errors.As(err, &rotateErr), "the rotation succeeded")
+	_, isRotateErr := errors.AsType[*RotateError](err)
+	assert.False(t, isRotateErr, "the rotation succeeded")
 	assert.Equal(t, 0, n)
 	assert.Nil(t, writer.file, "the file is closed after the stat error")
 

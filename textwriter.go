@@ -32,6 +32,10 @@ type TextWriterConfig struct {
 	paddedLevelsCache sync.Map // map[*Levels]*Levels - caches padded level names
 }
 
+// NewTextWriterConfig returns a WriterConfig that writes every message
+// as a line of text with one Write call to writer.
+// The writer must be safe for concurrent use when the logger is,
+// like an *os.File or a logfile.RotatingWriter.
 func NewTextWriterConfig(writer io.Writer, format *Format, colorizer Colorizer, filters ...LevelFilter) *TextWriterConfig {
 	if writer == nil {
 		panic("nil writer")
@@ -300,5 +304,6 @@ func (w *TextWriter) WriteUUID(val [16]byte) {
 }
 
 func (w *TextWriter) WriteJSON(val []byte) {
+	w.writeSliceSep()
 	w.buf = append(w.buf, val...)
 }

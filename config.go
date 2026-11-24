@@ -7,6 +7,7 @@ import (
 // FilterHTTPHeaders holds names of HTTP headers
 // that should not be logged for requests.
 // Defaults are "Authorization" and "Cookie".
+// Change it before logging starts, it is read without synchronization.
 var FilterHTTPHeaders = map[string]struct{}{
 	"Authorization": {},
 	"Cookie":        {},
@@ -18,6 +19,7 @@ var FilterHTTPHeaders = map[string]struct{}{
 // The default value LevelInvalid disables this behaviour.
 // Useful to catch any otherwise ignored warning or error
 // messages in automated tests. Don't use in production.
+// Set it before logging starts, it is read without synchronization.
 var GlobalPanicLevel Level = LevelInvalid
 
 // Config implements LevelDecider

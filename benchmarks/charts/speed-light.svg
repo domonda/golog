@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="474" viewBox="0 0 880 474" role="img" aria-labelledby="title desc" font-family="system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif">
+<title id="title">Nanoseconds per log message, shorter is faster</title>
+<desc id="desc">JSON, 4 fields: golog 216 ns with 0 allocations, zerolog 95 ns with 0 allocations, zap 315 ns with 1 allocation, slog 507 ns with 8 allocations, logrus 1428 ns with 34 allocations. JSON, 10 fields: golog 296 ns with 0 allocations, zerolog 164 ns with 0 allocations, zap 493 ns with 1 allocation, slog 798 ns with 5 allocations, logrus 2634 ns with 54 allocations. Text, no colors: golog 237 ns with 0 allocations, zerolog 1390 ns with 42 allocations, zap 323 ns with 4 allocations, slog 361 ns with 3 allocations, logrus 663 ns with 15 allocations. Level disabled: golog 30 ns with 0 allocations, zerolog 2.9 ns with 0 allocations, zap 35 ns with 1 allocation, slog 25 ns with 3 allocations, logrus 156 ns with 6 allocations. </desc>
+<rect x="0.5" y="0.5" width="879" height="473" rx="8" fill="#ffffff" stroke="#d1d9e0"/>
+<text x="24.0" y="36.0" font-size="20" font-weight="600" fill="#0b0b0b" text-anchor="start">Nanoseconds per log message</text>
+<text x="24.0" y="60.0" font-size="13" font-weight="400" fill="#52514e" text-anchor="start">Shorter is faster. Apple M5 Pro · Go 1.27.4 · median of 6 runs.</text>
+<text x="24.0" y="100.0" font-size="15" font-weight="600" fill="#0b0b0b" text-anchor="start">JSON, 4 fields</text>
+<line x1="88.0" y1="110.0" x2="88.0" y2="238.0" stroke="#d1d9e0" stroke-width="1"/>
+<text x="78.0" y="126.0" font-size="13" font-weight="400" fill="#52514e" text-anchor="end">zerolog</text>
+<path d="M88.0,114.0h8.1a4.0,4.0 0 0 1 4.0,4.0v6.0a4.0,4.0 0 0 1 -4.0,4.0h-8.1z" fill="#b4b2a9"/>
+<text x="108.1" y="126.0" font-size="12" font-weight="400" fill="#52514e" text-anchor="start">95 ns · 0 allocs</text>
+<text x="78.0" y="152.0" font-size="13" font-weight="700" fill="#0b0b0b" text-anchor="end">golog</text>
+<path d="M88.0,140.0h23.6a4.0,4.0 0 0 1 4.0,4.0v6.0a4.0,4.0 0 0 1 -4.0,4.0h-23.6z" fill="#2a78d6"/>
+<text x="123.6" y="152.0" font-size="12" font-weight="700" fill="#0b0b0b" text-anchor="start">216 ns · 0 allocs</text>
+<text x="78.0" y="178.0" font-size="13" font-weight="400" fill="#52514e" text-anchor="end">zap</text>
+<path d="M88.0,166.0h36.2a4.0,4.0 0 0 1 4.0,4.0v6.0a4.0,4.0 0 0 1 -4.0,4.0h-36.2z" fill="#b4b2a9"/>
+<text x="136.2" y="178.0" font-size="12" font-weight="400" fill="#52514e" text-anchor="start">315 ns · 1 alloc</text>
+<text x="78.0" y="204.0" font-size="13" font-weight="400" fill="#52514e" text-anchor="end">slog</text>
+<path d="M88.0,192.0h60.6a4.0,4.0 0 0 1 4.0,4.0v6.0a4.0,4.0 0 0 1 -4.0,4.0h-60.6z" fill="#b4b2a9"/>
+<text x="160.6" y="204.0" font-size="12" font-weight="400" fill="#52514e" text-anchor="start">507 ns · 8 allocs</text>
+<text x="78.0" y="230.0" font-size="13" font-weight="400" fill="#52514e" text-anchor="end">logrus</text>
+<path d="M88.0,218.0h178.0a4.0,4.0 0 0 1 4.0,4.0v6.0a4.0,4.0 0 0 1 -4.0,4.0h-178.0z" fill="#b4b2a9"/>
+<text x="278.0" y="230.0" font-size="12" font-weight="400" fill="#52514e" text-anchor="start">1428 ns · 34 allocs</text>
+<text x="460.0" y="100.0" font-size="15" font-weight="600" fill="#0b0b0b" text-anchor="start">JSON, 10 fields</text>
+<line x1="524.0" y1="110.0" x2="524.0" y2="238.0" stroke="#d1d9e0" stroke-width="1"/>
+<text x="514.0" y="126.0" font-size="13" font-weight="400" fill="#52514e" text-anchor="end">zerolog</text>
+<path d="M524.0,114.0h7.4a4.0,4.0 0 0 1 4.0,4.0v6.0a4.0,4.0 0 0 1 -4.0,4.0h-7.4z" fill="#b4b2a9"/>
+<text x="543.4" y="126.0" font-size="12" font-weight="400" fill="#52514e" text-anchor="start">164 ns · 0 allocs</text>
+<text x="514.0" y="152.0" font-size="13" font-weight="700" fill="#0b0b0b" text-anchor="end">golog</text>
+<path d="M524.0,140.0h16.5a4.0,4.0 0 0 1 4.0,4.0v6.0a4.0,4.0 0 0 1 -4.0,4.0h-16.5z" fill="#2a78d6"/>
+<text x="552.5" y="152.0" font-size="12" font-weight="700" fill="#0b0b0b" text-anchor="start">296 ns · 0 allocs</text>
+<text x="514.0" y="178.0" font-size="13" font-weight="400" fill="#52514e" text-anchor="end">zap</text>
+<path d="M524.0,166.0h30.1a4.0,4.0 0 0 1 4.0,4.0v6.0a4.0,4.0 0 0 1 -4.0,4.0h-30.1z" fill="#b4b2a9"/>
+<text x="566.1" y="178.0" font-size="12" font-weight="400" fill="#52514e" text-anchor="start">493 ns · 1 alloc</text>
+<text x="514.0" y="204.0" font-size="13" font-weight="400" fill="#52514e" text-anchor="end">slog</text>
+<path d="M524.0,192.0h51.1a4.0,4.0 0 0 1 4.0,4.0v6.0a4.0,4.0 0 0 1 -4.0,4.0h-51.1z" fill="#b4b2a9"/>
+<text x="587.1" y="204.0" font-size="12" font-weight="400" fill="#52514e" text-anchor="start">798 ns · 5 allocs</text>
+<text x="514.0" y="230.0" font-size="13" font-weight="400" fill="#52514e" text-anchor="end">logrus</text>
+<path d="M524.0,218.0h178.0a4.0,4.0 0 0 1 4.0,4.0v6.0a4.0,4.0 0 0 1 -4.0,4.0h-178.0z" fill="#b4b2a9"/>
+<text x="714.0" y="230.0" font-size="12" font-weight="400" fill="#52514e" text-anchor="start">2634 ns · 54 allocs</text>
+<text x="24.0" y="286.0" font-size="15" font-weight="600" fill="#0b0b0b" text-anchor="start">Text, no colors</text>
+<line x1="88.0" y1="296.0" x2="88.0" y2="424.0" stroke="#d1d9e0" stroke-width="1"/>
+<text x="78.0" y="312.0" font-size="13" font-weight="700" fill="#0b0b0b" text-anchor="end">golog</text>
+<path d="M88.0,300.0h27.1a4.0,4.0 0 0 1 4.0,4.0v6.0a4.0,4.0 0 0 1 -4.0,4.0h-27.1z" fill="#2a78d6"/>
+<text x="127.1" y="312.0" font-size="12" font-weight="700" fill="#0b0b0b" text-anchor="start">237 ns · 0 allocs</text>
+<text x="78.0" y="338.0" font-size="13" font-weight="400" fill="#52514e" text-anchor="end">zap</text>
+<path d="M88.0,326.0h38.3a4.0,4.0 0 0 1 4.0,4.0v6.0a4.0,4.0 0 0 1 -4.0,4.0h-38.3z" fill="#b4b2a9"/>
+<text x="138.3" y="338.0" font-size="12" font-weight="400" fill="#52514e" text-anchor="start">323 ns · 4 allocs</text>
+<text x="78.0" y="364.0" font-size="13" font-weight="400" fill="#52514e" text-anchor="end">slog</text>
+<path d="M88.0,352.0h43.3a4.0,4.0 0 0 1 4.0,4.0v6.0a4.0,4.0 0 0 1 -4.0,4.0h-43.3z" fill="#b4b2a9"/>
+<text x="143.3" y="364.0" font-size="12" font-weight="400" fill="#52514e" text-anchor="start">361 ns · 3 allocs</text>
+<text x="78.0" y="390.0" font-size="13" font-weight="400" fill="#52514e" text-anchor="end">logrus</text>
+<path d="M88.0,378.0h82.8a4.0,4.0 0 0 1 4.0,4.0v6.0a4.0,4.0 0 0 1 -4.0,4.0h-82.8z" fill="#b4b2a9"/>
+<text x="182.8" y="390.0" font-size="12" font-weight="400" fill="#52514e" text-anchor="start">663 ns · 15 allocs</text>
+<text x="78.0" y="416.0" font-size="13" font-weight="400" fill="#52514e" text-anchor="end">zerolog</text>
+<path d="M88.0,404.0h178.0a4.0,4.0 0 0 1 4.0,4.0v6.0a4.0,4.0 0 0 1 -4.0,4.0h-178.0z" fill="#b4b2a9"/>
+<text x="278.0" y="416.0" font-size="12" font-weight="400" fill="#52514e" text-anchor="start">1390 ns · 42 allocs</text>
+<text x="460.0" y="286.0" font-size="15" font-weight="600" fill="#0b0b0b" text-anchor="start">Level disabled</text>
+<line x1="524.0" y1="296.0" x2="524.0" y2="424.0" stroke="#d1d9e0" stroke-width="1"/>
+<text x="514.0" y="312.0" font-size="13" font-weight="400" fill="#52514e" text-anchor="end">zerolog</text>
+<path d="M524.0,300.0h1.7a1.7,1.7 0 0 1 1.7,1.7v10.7a1.7,1.7 0 0 1 -1.7,1.7h-1.7z" fill="#b4b2a9"/>
+<text x="535.3" y="312.0" font-size="12" font-weight="400" fill="#52514e" text-anchor="start">2.9 ns · 0 allocs</text>
+<text x="514.0" y="338.0" font-size="13" font-weight="400" fill="#52514e" text-anchor="end">slog</text>
+<path d="M524.0,326.0h24.8a4.0,4.0 0 0 1 4.0,4.0v6.0a4.0,4.0 0 0 1 -4.0,4.0h-24.8z" fill="#b4b2a9"/>
+<text x="560.8" y="338.0" font-size="12" font-weight="400" fill="#52514e" text-anchor="start">25 ns · 3 allocs</text>
+<text x="514.0" y="364.0" font-size="13" font-weight="700" fill="#0b0b0b" text-anchor="end">golog</text>
+<path d="M524.0,352.0h31.1a4.0,4.0 0 0 1 4.0,4.0v6.0a4.0,4.0 0 0 1 -4.0,4.0h-31.1z" fill="#2a78d6"/>
+<text x="567.1" y="364.0" font-size="12" font-weight="700" fill="#0b0b0b" text-anchor="start">30 ns · 0 allocs</text>
+<text x="514.0" y="390.0" font-size="13" font-weight="400" fill="#52514e" text-anchor="end">zap</text>
+<path d="M524.0,378.0h36.3a4.0,4.0 0 0 1 4.0,4.0v6.0a4.0,4.0 0 0 1 -4.0,4.0h-36.3z" fill="#b4b2a9"/>
+<text x="572.3" y="390.0" font-size="12" font-weight="400" fill="#52514e" text-anchor="start">35 ns · 1 alloc</text>
+<text x="514.0" y="416.0" font-size="13" font-weight="400" fill="#52514e" text-anchor="end">logrus</text>
+<path d="M524.0,404.0h178.0a4.0,4.0 0 0 1 4.0,4.0v6.0a4.0,4.0 0 0 1 -4.0,4.0h-178.0z" fill="#b4b2a9"/>
+<text x="714.0" y="416.0" font-size="12" font-weight="400" fill="#52514e" text-anchor="start">156 ns · 6 allocs</text>
+<text x="24.0" y="456.0" font-size="12" font-weight="400" fill="#6e6d68" text-anchor="start">github.com/domonda/golog/benchmarks · go test -bench=. -benchmem -benchtime=2s -count=6</text>
+</svg>

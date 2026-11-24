@@ -3,8 +3,12 @@ package golog
 import (
 	"bytes"
 	"context"
+	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -495,5 +499,35 @@ func TestHTTPMiddlewareRespondPlaintextCtxLogsIfNotOK(t *testing.T) {
 		assert.NotPanics(t, func() {
 			handler.ServeHTTP(rr, req)
 		})
+	})
+
+	t.Run("collects logs of concurrent goroutines", func(t *testing.T) {
+		// A handler that fans out work to goroutines logging with the
+		// request context writes to the log buffer of the middleware
+		// concurrently, which must not be a data race (go test -race)
+		// and must neither lose nor interleave lines.
+		const numGoroutines = 20
+		logger := NewLogger(NewConfig(&DefaultLevels, AllLevelsActive, NewJSONWriterConfig(io.Discard, nil)))
+		wrapped := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			var wg sync.WaitGroup
+			for i := range numGoroutines {
+				wg.Go(func() {
+					logger.ErrorCtx(r.Context(), "worker failed").Int("worker", i).Log()
+				})
+			}
+			wg.Wait()
+			w.WriteHeader(http.StatusInternalServerError)
+		})
+
+		handler := HTTPMiddlewareRespondPlaintextCtxLogsIfNotOK(wrapped)
+		rr := httptest.NewRecorder()
+		handler.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/test", nil))
+
+		body := rr.Body.String()
+		lines := strings.Split(strings.TrimSpace(body), "\n")
+		require.Len(t, lines, numGoroutines, body)
+		for i := range numGoroutines {
+			assert.Contains(t, body, fmt.Sprintf("worker=%d\n", i))
+		}
 	})
 }

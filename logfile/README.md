@@ -9,6 +9,7 @@ Package logfile provides file-based log writers with automatic rotation capabili
 - **Timestamp-Based Naming**: Rotated files are named with timestamps for easy identification
 - **Configurable**: Customizable file paths, permissions, rotation sizes, and time formats
 - **Write Callback**: Get notified after every write to report errors, retry failed writes, or watch disk space
+- **Free Disk Space**: `FreeDiskSpace` returns the free space of a volume on Windows and Unix systems, to warn before the disk is full
 - **Seamless Integration**: Works with any `io.Writer` compatible logging system
 
 ## Installation
@@ -270,8 +271,7 @@ or to check the free disk space and send an alarm when the log volume fills up:
 
 ```go
 writer.SetWriteCallback(func(filePath string, data []byte, n int, err error) {
-    var rotateErr *logfile.RotateError
-    if errors.As(err, &rotateErr) {
+    if rotateErr, ok := errors.AsType[*logfile.RotateError](err); ok {
         // The data was written, but the log file grows past the rotation size
         fmt.Fprintf(os.Stderr, "can't rotate log file: %s\n", rotateErr)
     }
@@ -280,19 +280,15 @@ writer.SetWriteCallback(func(filePath string, data []byte, n int, err error) {
         fmt.Fprintf(os.Stderr, "error writing log file %s: %s\n%s", filePath, err, data[n:])
         return
     }
-    // Check the free disk space at most once per minute
-    if now := time.Now(); now.Sub(lastDiskCheck) > time.Minute {
-        lastDiskCheck = now
-        checkFreeDiskSpace(filepath.Dir(filePath)) // e.g. with syscall.Statfs
-    }
+    // Warn about low disk space, see "Low disk space warning" below
+    warnIfLowDiskSpace(filePath)
 })
 ```
 
 Rules for the callback:
 
 - It is called after the writer's mutex has been released, so it can call methods
-  of the writer like `Sync`, and it is called concurrently when `Write` is called concurrently
-  (the example above needs a mutex for `lastDiskCheck` if you write concurrently).
+  of the writer like `Sync`, and it is called concurrently when `Write` is called concurrently.
 - A panic in the callback is recovered and passed as error to `golog.ErrorHandler()`
   (stderr by default). It does not change the result of `Write`.
 - It must not write to the same `RotatingWriter`, for example by logging to a golog logger
@@ -394,6 +390,62 @@ Why it is written this way:
 The runnable version is `ExampleRotatingWriter_SetWriteCallback` in [example_test.go](example_test.go).
 
 Pass `nil` to `SetWriteCallback` to remove the callback.
+
+### Low disk space warning
+
+`FreeDiskSpace(path)` returns the bytes that the process can still write to the volume
+that contains `path`, which can be a file or a directory.
+Space reserved for the superuser is not included.
+It works on Windows and on Unix systems like Linux, macOS, the BSDs, Solaris, illumos and AIX,
+and returns an error wrapping `errors.ErrUnsupported` on other platforms.
+
+Use it in the write callback to warn while there is still time to act,
+before every write fails because the disk is full:
+
+```go
+const (
+    rotateSize   = 10 * 1024 * 1024   // Rotate at 10 MiB
+    minFreeSpace = 1024 * 1024 * 1024 // Warn when less than 1 GiB is free
+)
+var reported atomic.Bool // Report only once, so the alarm is not repeated for every write
+
+writer, err := logfile.NewRotatingWriterWithCallback(
+    "/var/log/app.log", "", 0644, rotateSize,
+    func(filePath string, data []byte, n int, err error) {
+        if reported.Load() {
+            return
+        }
+        free, checkErr := logfile.FreeDiskSpace(filePath)
+        if checkErr == nil && free >= minFreeSpace {
+            return
+        }
+        if reported.Swap(true) {
+            return // Another goroutine reported it at the same time
+        }
+        if checkErr != nil {
+            fmt.Fprintln(os.Stderr, "can't check free disk space for the log file:", checkErr)
+            return
+        }
+        fmt.Fprintf(os.Stderr, "the volume of %s has only %d MiB free\n", filePath, free/(1024*1024))
+    },
+)
+```
+
+- **Reported only once**, so the alarm is not repeated for every write.
+  The atomic `Swap` lets only one of the goroutines that write concurrently report it.
+- **Checked after every write** until it has been reported,
+  which costs one or two system calls per write.
+- **The threshold leaves room for 100 rotated files**,
+  because the rotated files keep using space until they are deleted.
+- **The warning goes to stderr**, not to a logger that writes to the same `RotatingWriter`,
+  because that would call the callback again. Hand slow work like sending an alarm
+  to a worker goroutine as shown in [Slow work in a goroutine](#slow-work-in-a-goroutine).
+
+The compiled version is `ExampleFreeDiskSpace` in [example_test.go](example_test.go).
+It simulates a volume that runs out of space with `MockFreeDiskSpace`, a helper that only the tests
+of this package can use, and prints the warning to stdout, so `go test` checks that it is reported only once.
+`ExampleFreeDiskSpace_opsHubWarning` sends the warning to an ops hub instead,
+for a simulated small volume that fills up with the log files.
 
 ## Thread Safety
 

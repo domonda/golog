@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 )
 
 const HTTPNoHeaders = "HTTPNoHeaders"
@@ -87,13 +88,13 @@ func GetOrCreateRequestUUIDFromContext(ctx context.Context) [16]byte {
 // ContextWithRequestUUID adds the passed requestID as UUID
 // attribute with the key "requestID" to the context.
 func ContextWithRequestUUID(ctx context.Context, requestID [16]byte) context.Context {
-	return ContextWithAttribs(ctx, NewUUID(requestIDKey, requestID))
+	return ContextWithOwnedAttribs(ctx, NewUUID(requestIDKey, requestID))
 }
 
 // ContextWithRequestID adds the passed requestID as string
 // attribute with the key "requestID" to the context.
 func ContextWithRequestID(ctx context.Context, requestID string) context.Context {
-	return ContextWithAttribs(ctx, NewString(requestIDKey, requestID))
+	return ContextWithOwnedAttribs(ctx, NewString(requestIDKey, requestID))
 }
 
 // HTTPMiddlewareHandler returns a HTTP middleware handler that passes through a UUID requestID.
@@ -114,7 +115,7 @@ func HTTPMiddlewareHandler(next http.Handler, logger *Logger, level Level, messa
 			requestID := GetOrCreateRequestUUID(request)
 			response.Header().Set("X-Request-ID", FormatUUID(requestID))
 
-			requestWithID := RequestWithAttribs(request, NewUUID(requestIDKey, requestID))
+			requestWithID := RequestWithOwnedAttribs(request, NewUUID(requestIDKey, requestID))
 
 			logger.NewMessage(request.Context(), level, message).
 				Request(requestWithID, onlyHeaders...).
@@ -153,7 +154,9 @@ func HTTPMiddlewareFunc(logger *Logger, level Level, message string, onlyHeaders
 func HTTPMiddlewareRespondPlaintextCtxLogsIfNotOK(wrapped http.Handler, filter ...LevelFilter) http.HandlerFunc {
 	return func(response http.ResponseWriter, request *http.Request) {
 		var (
-			logBuffer  = bytes.NewBuffer(nil)
+			// Goroutines started by the wrapped handler can log
+			// with the request context concurrently
+			logBuffer  = new(lockedBuffer)
 			logContext = ContextWithAdditionalWriterConfigs(
 				request.Context(),
 				NewTextWriterConfig(logBuffer, nil, nil, filter...),
@@ -187,4 +190,28 @@ func HTTPMiddlewareRespondPlaintextCtxLogsIfNotOK(wrapped http.Handler, filter .
 		}
 		_, _ = response.Write(responseRecorder.Body.Bytes())
 	}
+}
+
+// lockedBuffer is a bytes.Buffer that is safe for concurrent use.
+type lockedBuffer struct {
+	mtx sync.Mutex
+	buf bytes.Buffer
+}
+
+// Write implements io.Writer.
+func (b *lockedBuffer) Write(p []byte) (int, error) {
+	b.mtx.Lock()
+	defer b.mtx.Unlock()
+
+	return b.buf.Write(p)
+}
+
+// Bytes returns a copy of the buffered bytes, so that
+// later writes from goroutines that outlive the request
+// don't change the returned slice.
+func (b *lockedBuffer) Bytes() []byte {
+	b.mtx.Lock()
+	defer b.mtx.Unlock()
+
+	return bytes.Clone(b.buf.Bytes())
 }

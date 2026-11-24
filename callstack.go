@@ -10,6 +10,7 @@ import (
 // beginning of every call-stack file-path.
 // Defaults to $GOPATH/src/ of the build environment
 // or will be empty if go build gets called with -trimpath.
+// Set it before logging starts, it is read without synchronization.
 var TrimCallStackPathPrefix = filePathPrefix()
 
 func filePathPrefix() string {

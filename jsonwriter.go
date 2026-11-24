@@ -20,6 +20,10 @@ type JSONWriterConfig struct {
 	filter LevelFilter
 }
 
+// NewJSONWriterConfig returns a WriterConfig that writes every message
+// as a JSON object followed by a newline with one Write call to writer.
+// The writer must be safe for concurrent use when the logger is,
+// like an *os.File or a logfile.RotatingWriter.
 func NewJSONWriterConfig(writer io.Writer, format *Format, filters ...LevelFilter) *JSONWriterConfig {
 	if writer == nil {
 		panic("nil writer")

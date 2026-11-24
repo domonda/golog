@@ -24,7 +24,9 @@ func TestMap(t *testing.T) {
 
 	reused := pool.GetOrMake()
 	require.Empty(t, reused, "reused map is empty")
-	require.Equal(t, reflect.ValueOf(m).Pointer(), reflect.ValueOf(reused).Pointer(), "reused the pooled map")
 	pool.ClearAndPutBack(reused)
-	require.Equal(t, 1, pool.Drain())
+	if !RaceEnabled { // The race detector makes sync.Pool drop items instead of reusing them
+		require.Equal(t, reflect.ValueOf(m).Pointer(), reflect.ValueOf(reused).Pointer(), "reused the pooled map")
+		require.Equal(t, 1, pool.Drain())
+	}
 }

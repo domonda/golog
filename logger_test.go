@@ -3,12 +3,20 @@ package golog
 import (
 	"bytes"
 	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"regexp"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/domonda/golog/mempool"
 )
 
 func TestNewLogger(t *testing.T) {
@@ -82,6 +90,131 @@ func TestLogger_WithPrefix(t *testing.T) {
 		assert.Equal(t, "newprefix", newLogger.Prefix())
 		assert.Equal(t, "", logger.Prefix()) // Original unchanged
 	})
+
+	// Sharing the attribs with the parent logger would let
+	// Logger.RemoveAttribs on either logger nil out the attribs of the other
+	// one and return their slice to the mempool while it's still referenced.
+	t.Run("clones attribs", func(t *testing.T) {
+		DrainAllMemPools()
+		mempool.RegisterCallbacksWriterForTest(t, io.Discard)
+
+		config, buf := newTextTestConfig()
+		attrib := NewString("key", "value")
+		logger := NewLogger(config, attrib)
+		prefixed := logger.WithPrefix("newprefix")
+		require.Len(t, prefixed.Attribs(), 1)
+		require.NotSame(t, logger.Attribs()[0], prefixed.Attribs()[0], "prefixed logger has a clone of the attrib")
+
+		// Removing the attribs of the parent returns them to the mempool,
+		// which hands them out again for the next attrib of the same type,
+		// so a prefixed logger that shared them would log this value.
+		logger.RemoveAttribs()
+		recycled := NewString("recycled", "recycled")
+		require.Len(t, prefixed.Attribs(), 1, "prefixed logger kept its attrib")
+
+		prefixed.Info("test").Log()
+		assert.Contains(t, buf.String(), `key="value"`)
+		assert.NotContains(t, buf.String(), "recycled")
+
+		recycled.Free()
+		prefixed.RemoveAttribs()
+		attrib.Free()
+		assert.Zero(t, mempool.NumOutstanding(), "every pooled attrib and slice was returned")
+	})
+}
+
+// TestNewLogger_ClonesAttribs tests that the constructors store clones of the
+// passed attribs instead of the attribs and the variadic slice of the caller.
+// Sharing an attrib lets Logger.RemoveAttribs of one logger return an attrib
+// to the mempool that another owner still uses, and sharing the variadic
+// slice puts a slice that never came from the mempool into it, where it is
+// too small to be reused but is taken out and put back on every call.
+func TestNewLogger_ClonesAttribs(t *testing.T) {
+	DrainAllMemPools()
+	mempool.RegisterCallbacksWriterForTest(t, io.Discard)
+
+	config, buf := newTextTestConfig()
+	attrib := NewString("key", "value")
+
+	logger1 := NewLogger(config, attrib)
+	logger2 := NewLoggerWithPrefix(config, "prefix", attrib)
+	require.NotSame(t, attrib, logger1.Attribs()[0], "logger has a clone of the passed attrib")
+	require.NotSame(t, attrib, logger2.Attribs()[0], "logger has a clone of the passed attrib")
+	require.NotSame(t, logger1.Attribs()[0], logger2.Attribs()[0], "every logger has its own clone")
+	require.Greater(t, cap(logger1.Attribs()), len(logger1.Attribs()), "pooled slice with spare capacity")
+
+	// Removing the attribs of one owner must not affect the other ones
+	logger1.RemoveAttribs()
+	logger2.Info("test").Log()
+	assert.Contains(t, buf.String(), `key="value"`)
+	// Not comparing against NewString, that would allocate another pooled attrib
+	assert.Equal(t, "key", attrib.Key(), "the attrib of the caller is unchanged")
+	assert.Equal(t, "value", attrib.ValueString(), "the attrib of the caller is unchanged")
+
+	logger2.RemoveAttribs()
+	attrib.Free()
+	assert.Zero(t, mempool.NumOutstanding(), "every pooled attrib and slice was returned")
+}
+
+// TestLogger_DerivedLoggersKeepCtxAttribs tests that every method deriving a
+// logger from a sub-logger of Message.SubLoggerContext passes on clones of
+// the attribs it inherited from the context. Dropping them would silently
+// lose request scoped attribs like a request ID in the derived logger, and
+// sharing them would let Logger.RemoveAttribs on either logger return them
+// to the mempool while the other one still logs them.
+func TestLogger_DerivedLoggersKeepCtxAttribs(t *testing.T) {
+	config, buf := newTextTestConfig()
+	extraConfig, _ := newTextTestConfig()
+	ctx := ContextWithAttribs(context.Background(), NewString("ctxStr", "ctx"))
+
+	derive := map[string]func(*Logger) *Logger{
+		"Clone":           (*Logger).Clone,
+		"WithLevelFilter": func(l *Logger) *Logger { return l.WithLevelFilter(AllLevelsActive) },
+		"WithAdditionalWriterConfigs": func(l *Logger) *Logger {
+			return l.WithAdditionalWriterConfigs(extraConfig.WriterConfigs()...)
+		},
+		"WithPrefix": func(l *Logger) *Logger { return l.WithPrefix("derived") },
+	}
+	for name, derive := range derive {
+		t.Run(name, func(t *testing.T) {
+			subLog, _ := NewLogger(config).With().SubLoggerContext(ctx)
+			require.Len(t, subLog.CtxAttribs(), 1)
+
+			derived := derive(subLog)
+			require.Equal(t, subLog.CtxAttribs(), derived.CtxAttribs(), "derived logger has the inherited ctx attribs")
+			require.NotSame(t, subLog.CtxAttribs()[0], derived.CtxAttribs()[0], "derived logger has clones of the inherited ctx attribs")
+
+			derived.RemoveAttribs()
+			buf.Reset()
+			subLog.Info("test").Log()
+			assert.Contains(t, buf.String(), `ctxStr="ctx"`, "removing the attribs of the derived logger doesn't affect the sub-logger")
+			subLog.RemoveAttribs()
+		})
+	}
+
+	t.Run("nil logger", func(t *testing.T) {
+		var logger *Logger
+		assert.Nil(t, logger.CtxAttribs())
+	})
+}
+
+// TestLogger_NewMessageAt_InheritedCtxAttribsPoolBalance tests that a message
+// of a sub-logger with inherited ctx attribs returns everything it takes from
+// the mempool. The message grows its attribs for the logged inherited ones,
+// and appending without growing the pooled slice first would let append
+// allocate a backing array that the message then puts into the mempool.
+func TestLogger_NewMessageAt_InheritedCtxAttribsPoolBalance(t *testing.T) {
+	config, _ := newTextTestConfig()
+	ctx := ContextWithAttribs(context.Background(), NewString("ctxStr", "ctx"), NewInt("ctxInt", 1))
+	// Without logger attribs the message has no pooled slice of its own,
+	// so append would allocate a backing array the mempool never handed out
+	subLog, _ := NewLogger(config).With().SubLoggerContext(ctx)
+
+	DrainAllMemPools()
+	mempool.RegisterCallbacksWriterForTest(t, io.Discard)
+
+	subLog.Info("test").Log()
+	assert.Zero(t, mempool.NumOutstanding(), "every pooled attrib and slice of the message was returned")
 }
 
 func TestLogger_Prefix(t *testing.T) {
@@ -592,4 +725,226 @@ func TestLogger_NilSafeLevelMethods(t *testing.T) {
 
 	// A nil logger must return a nil Message so chained field methods stay safe.
 	assert.Nil(t, logger.Info("msg"))
+}
+
+// concurrentTestFields logs fields that all derive from the goroutine
+// number g and the message number i, so that the output of every message
+// can be checked for values of another message, which would happen
+// if a pooled Message, Writer or Attrib were used by two messages at once.
+func concurrentTestFields(m *Message, g, i int) *Message {
+	gi := fmt.Sprintf("%d-%d", g, i)
+	return m.
+		Int("g", g).
+		Int("i", i).
+		Str("gi", gi).
+		Ints("gis", []int{g, i}).
+		Strs("strs", []string{gi, gi}).
+		Err(errors.New(gi)).
+		Any("any", struct{ G, I int }{g, i}).
+		Loggable(Attribs{NewString("loggable", gi)})
+}
+
+// requireConcurrentTestJSON checks that a JSON line has the fields
+// of concurrentTestFields consistent with each other
+// and returns the goroutine and message numbers.
+func requireConcurrentTestJSON(t *testing.T, line string) (g, i int) {
+	t.Helper()
+	var m struct {
+		G        int      `json:"g"`
+		I        int      `json:"i"`
+		GI       string   `json:"gi"`
+		GIs      []int    `json:"gis"`
+		Strs     []string `json:"strs"`
+		Error    string   `json:"error"`
+		Any      struct{ G, I int }
+		Loggable string `json:"loggable"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(line), &m), line)
+	gi := fmt.Sprintf("%d-%d", m.G, m.I)
+	require.Equal(t, gi, m.GI, line)
+	require.Equal(t, []int{m.G, m.I}, m.GIs, line)
+	require.Equal(t, []string{gi, gi}, m.Strs, line)
+	require.Equal(t, gi, m.Error, line)
+	require.Equal(t, struct{ G, I int }{m.G, m.I}, m.Any, line)
+	require.Equal(t, gi, m.Loggable, line)
+	return m.G, m.I
+}
+
+// requireAllConcurrentTestMessages checks that the output has exactly one
+// line for each combination of goroutine and message number
+// and returns the lines.
+func requireAllConcurrentTestMessages(t *testing.T, output string, numGoroutines, numMessages int) []string {
+	t.Helper()
+	lines := strings.Split(strings.TrimSpace(output), "\n")
+	require.Len(t, lines, numGoroutines*numMessages)
+	seen := make(map[[2]int]bool, len(lines))
+	for _, line := range lines {
+		g, i := requireConcurrentTestJSON(t, line)
+		require.False(t, seen[[2]int{g, i}], "duplicate message %d-%d", g, i)
+		seen[[2]int{g, i}] = true
+	}
+	return lines
+}
+
+// TestLogger_Concurrent logs with one Logger from many goroutines
+// to all writer types, for go test -race. It also checks that every
+// message has only its own values and that all pooled objects
+// were returned to the mempool exactly once.
+func TestLogger_Concurrent(t *testing.T) {
+	const (
+		numGoroutines = 16
+		numMessages   = 64
+	)
+	var (
+		jsonOut, textOut lockedBuffer
+		callbackMtx      sync.Mutex
+		callbackErrs     []string
+		numCallbacks     int
+	)
+	callback := func(_ time.Time, _ Level, _, _ string, attribs Attribs) {
+		// The attribs are freed after the callback,
+		// so they must be checked within the callback
+		g := attribs.Get("g").(*Int).val
+		i := attribs.Get("i").(*Int).val
+		gi := attribs.Get("gi").ValueString()
+
+		callbackMtx.Lock()
+		defer callbackMtx.Unlock()
+
+		numCallbacks++
+		if want := fmt.Sprintf("%d-%d", g, i); gi != want {
+			callbackErrs = append(callbackErrs, fmt.Sprintf("gi=%s in message %s", gi, want))
+		}
+	}
+	config := NewConfig(
+		&DefaultLevels, // Level names of different lengths use the padded levels cache of the TextWriterConfig
+		AllLevelsActive,
+		NewJSONWriterConfig(&jsonOut, nil),
+		NewTextWriterConfig(&textOut, nil, nil),
+		NewCallbackWriterConfig(callback),
+	)
+	logger := NewLogger(config, NewString("service", "test"))
+	sharedCtx := ContextWithAttribs(context.Background(), NewString("shared", "ctx"))
+	ctxLogger, _ := logger.With().Str("sub", "ctx").SubLoggerContext(sharedCtx)
+
+	mempool.RegisterCallbacksWriterForTest(t, io.Discard)
+
+	var wg sync.WaitGroup
+	for g := range numGoroutines {
+		wg.Go(func() {
+			for i := range numMessages {
+				switch i % 4 {
+				case 0:
+					concurrentTestFields(logger.Info("msg"), g, i).Log()
+				case 1:
+					// The message borrows the attribs of the shared context
+					concurrentTestFields(logger.WarnCtx(sharedCtx, "msg"), g, i).Log()
+				case 2:
+					// Logged with attribs inherited from the shared context
+					concurrentTestFields(ctxLogger.Error("msg"), g, i).Log()
+				case 3:
+					concurrentTestFields(logger.Debug("msg").Ctx(sharedCtx), g, i).Log()
+				}
+			}
+		})
+	}
+	wg.Wait()
+
+	require.Zero(t, mempool.NumOutstanding(), "every pooled object was returned exactly once")
+
+	lines := requireAllConcurrentTestMessages(t, string(jsonOut.Bytes()), numGoroutines, numMessages)
+	for _, line := range lines {
+		require.Contains(t, line, `"service":"test"`)
+		if strings.Contains(line, `"level":"WARN"`) || strings.Contains(line, `"level":"DEBUG"`) {
+			require.Contains(t, line, `"shared":"ctx"`)
+		}
+		if strings.Contains(line, `"level":"ERROR"`) {
+			require.Contains(t, line, `"sub":"ctx"`)
+			require.Contains(t, line, `"shared":"ctx"`)
+		}
+	}
+
+	textLines := strings.Split(strings.TrimSpace(string(textOut.Bytes())), "\n")
+	require.Len(t, textLines, numGoroutines*numMessages)
+	textFields := regexp.MustCompile(` g=(\d+) i=(\d+) gi="(\d+-\d+)"`)
+	for _, line := range textLines {
+		match := textFields.FindStringSubmatch(line)
+		require.NotNil(t, match, line)
+		require.Equal(t, match[1]+"-"+match[2], match[3], line)
+	}
+
+	require.Equal(t, numGoroutines*numMessages, numCallbacks)
+	require.Empty(t, callbackErrs)
+}
+
+// TestLogger_ConcurrentDerived derives loggers and contexts from a shared
+// logger and context in many goroutines at once, for go test -race.
+func TestLogger_ConcurrentDerived(t *testing.T) {
+	const numGoroutines = 32
+	var out, extraOut, ctxOut lockedBuffer
+	logger := NewLogger(
+		NewConfig(&DefaultLevels, AllLevelsActive, NewJSONWriterConfig(&out, nil)),
+		NewString("service", "test"),
+	)
+	extraWriter := NewJSONWriterConfig(&extraOut, nil)
+	ctxWriter := NewJSONWriterConfig(&ctxOut, nil)
+	sharedCtx := ContextWithAttribs(context.Background(), NewString("shared", "ctx"))
+
+	var wg sync.WaitGroup
+	for g := range numGoroutines {
+		wg.Go(func() {
+			l := logger.With().Int("g", g).SubLogger()
+			l = l.WithPrefix(fmt.Sprintf("prefix%d", g))
+			l = l.WithLevelFilter(AllLevelsActive)
+			l = l.WithAdditionalWriterConfigs(extraWriter)
+			l = l.WithCtx(sharedCtx)
+			l = l.WithClonedAttribs(NewInt("cloned", int64(g)))
+			l, ctx := l.With().Int("sub", g).SubLoggerContext(sharedCtx)
+			ctx = ContextWithAdditionalWriterConfigs(ctx, ctxWriter)
+			ctx = ContextWithAttribs(ctx, NewInt("ctx", int64(g)))
+			l = l.Clone()
+			concurrentTestFields(l.InfoCtx(ctx, "msg"), g, 0).Log()
+			l.RemoveAttribs()
+		})
+	}
+	wg.Wait()
+
+	for _, output := range []string{string(out.Bytes()), string(extraOut.Bytes()), string(ctxOut.Bytes())} {
+		lines := requireAllConcurrentTestMessages(t, output, numGoroutines, 1)
+		for _, line := range lines {
+			g, _ := requireConcurrentTestJSON(t, line)
+			require.Contains(t, line, fmt.Sprintf(`"message":"prefix%d: msg"`, g))
+			for _, key := range []string{"cloned", "sub", "ctx"} {
+				require.Contains(t, line, fmt.Sprintf(`"%s":%d`, key, g))
+			}
+			require.Contains(t, line, `"service":"test"`)
+			require.Contains(t, line, `"shared":"ctx"`)
+		}
+	}
+}
+
+// TestLogger_ConcurrentLevelWriter writes to a LevelWriter
+// and its standard library logger from many goroutines.
+func TestLogger_ConcurrentLevelWriter(t *testing.T) {
+	const numGoroutines = 16
+	var out lockedBuffer
+	logger := NewLogger(NewConfig(&DefaultLevels, AllLevelsActive, NewJSONWriterConfig(&out, nil)))
+	writer := logger.InfoWriter()
+	stdLogger := writer.StdLogger()
+
+	var wg sync.WaitGroup
+	for g := range numGoroutines {
+		wg.Go(func() {
+			_, _ = fmt.Fprintf(writer, "write %d\n", g)
+			stdLogger.Printf("std %d", g)
+		})
+	}
+	wg.Wait()
+
+	output := string(out.Bytes())
+	require.Len(t, strings.Split(strings.TrimSpace(output), "\n"), 2*numGoroutines)
+	for g := range numGoroutines {
+		require.Contains(t, output, fmt.Sprintf(`"message":"write %d"`, g))
+		require.Contains(t, output, fmt.Sprintf(`"message":"std %d"`, g))
+	}
 }

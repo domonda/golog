@@ -1,10 +1,29 @@
 package golog
 
-import "time"
+import (
+	"encoding/base64"
+	"time"
+)
 
 // DefaultTimeFormat is the layout used for structured [time.Time] log attributes
 // ([Message.Time] and related) when [Format.TimeFormat] is empty.
 const DefaultTimeFormat = time.RFC3339Nano
+
+// BinaryEncoder encodes binary data as string for logging:
+// everything logged with [Message.Bytes], and bytes that are no valid UTF-8
+// logged with [Message.StrBytes], [Message.StrBytesMax], [Message.Any]
+// or as value of an [Any] attrib.
+//
+// Message.StrBytesMax encodes only as many bytes as the maximum number
+// of runes it logs, so an encoder must encode every byte with at least
+// one character, and the start of its result must only depend on the
+// start of the data, which is true for base64 and hex.
+//
+// The default is base64.RawURLEncoding. Set it at program start, before
+// anything is logged, because it is read without synchronization:
+//
+//	golog.BinaryEncoder = hex.EncodeToString
+var BinaryEncoder = base64.RawURLEncoding.EncodeToString
 
 // Format configures how writers encode the log line (timestamp, level, message text)
 // and how structured time fields are formatted. It is used by [JSONWriterConfig],
@@ -42,7 +61,7 @@ type Format struct {
 	MessageKey string
 
 	// TimeFormat is the layout for structured [time.Time] fields on the message (e.g.
-	// [Message.Time]). If empty, [DefaultTimeFormat] is used. It does not affect the
+	// [Message.Time], or [Message.Any] with a [time.Time]). If empty, [DefaultTimeFormat] is used. It does not affect the
 	// log line timestamp ([Format.TimestampFormat]).
 	TimeFormat string
 

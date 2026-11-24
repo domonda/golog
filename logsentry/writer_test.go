@@ -8,6 +8,7 @@ import (
 	"math"
 	"runtime"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -626,4 +627,98 @@ func TestWriterReturnsPooledObjects(t *testing.T) {
 	if n := mempool.NumOutstanding(); n != 0 {
 		t.Errorf("mempool.NumOutstanding() = %d, want 0:\n%s", n, poolLog.String())
 	}
+}
+
+// syncCaptureTransport is a captureTransport that is safe for concurrent use.
+type syncCaptureTransport struct {
+	captureTransport
+	mtx sync.Mutex
+}
+
+func (t *syncCaptureTransport) SendEvent(event *sentry.Event) {
+	t.mtx.Lock()
+	defer t.mtx.Unlock()
+	t.captureTransport.SendEvent(event)
+}
+
+func TestWithContextHub(t *testing.T) {
+	newLogger := func(hub *sentry.Hub, opts ...Option) *golog.Logger {
+		config := NewWriterConfig(hub, golog.NewDefaultFormat(), golog.AllLevelsActive, false, nil, opts...)
+		return golog.NewLogger(golog.NewConfig(&golog.DefaultLevels, golog.AllLevelsActive, config))
+	}
+	// newRequestContext returns a context with a hub for its own client,
+	// with the request tag set in its scope, like sentryhttp does per request
+	newRequestContext := func(transport sentry.Transport, request string) context.Context {
+		hub := newTestHub(t, transport)
+		hub.Scope().SetTag("request", request)
+		return sentry.SetHubOnContext(context.Background(), hub)
+	}
+
+	t.Run("without option the config hub is used", func(t *testing.T) {
+		configTransport, ctxTransport := &captureTransport{}, &captureTransport{}
+		logger := newLogger(newTestHub(t, configTransport))
+
+		logger.ErrorCtx(newRequestContext(ctxTransport, "A"), "boom").Log()
+
+		if len(configTransport.events) != 1 || len(ctxTransport.events) != 0 {
+			t.Fatalf("expected the event at the config hub, got %d there and %d at the context hub", len(configTransport.events), len(ctxTransport.events))
+		}
+		if tag, ok := configTransport.events[0].Tags["request"]; ok {
+			t.Fatalf("expected no request tag of the context hub, got %q", tag)
+		}
+	})
+
+	t.Run("with option the context hub is used", func(t *testing.T) {
+		configTransport, ctxTransport := &captureTransport{}, &captureTransport{}
+		logger := newLogger(newTestHub(t, configTransport), WithContextHub())
+
+		logger.ErrorCtx(newRequestContext(ctxTransport, "A"), "boom").Log()
+
+		if len(configTransport.events) != 0 || len(ctxTransport.events) != 1 {
+			t.Fatalf("expected the event at the context hub, got %d at the config hub and %d there", len(configTransport.events), len(ctxTransport.events))
+		}
+		if tag := ctxTransport.events[0].Tags["request"]; tag != "A" {
+			t.Fatalf("expected the request tag of the context hub scope, got %q", tag)
+		}
+	})
+
+	t.Run("with option and no context hub the config hub is used", func(t *testing.T) {
+		configTransport := &captureTransport{}
+		logger := newLogger(newTestHub(t, configTransport), WithContextHub())
+
+		logger.Error("boom").Log()
+
+		if len(configTransport.events) != 1 {
+			t.Fatalf("expected the event at the config hub, got %d", len(configTransport.events))
+		}
+	})
+
+	t.Run("concurrent requests keep their own scope", func(t *testing.T) {
+		const numRequests = 16
+		transport := &syncCaptureTransport{}
+		configHub := newTestHub(t, transport)
+		logger := newLogger(configHub, WithContextHub())
+
+		var wg sync.WaitGroup
+		for i := range numRequests {
+			wg.Go(func() {
+				// Like sentryhttp: a clone of the hub per request
+				hub := configHub.Clone()
+				request := strconv.Itoa(i)
+				hub.Scope().SetTag("request", request)
+				ctx := sentry.SetHubOnContext(context.Background(), hub)
+				logger.ErrorCtx(ctx, "request "+request).Log()
+			})
+		}
+		wg.Wait()
+
+		if len(transport.events) != numRequests {
+			t.Fatalf("expected %d events, got %d", numRequests, len(transport.events))
+		}
+		for _, event := range transport.events {
+			if want := "request " + event.Tags["request"]; event.Message != want {
+				t.Errorf("event %q has the scope of %q", event.Message, want)
+			}
+		}
+	})
 }

@@ -3,11 +3,13 @@ package golog
 import (
 	"bytes"
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"math"
+	"net"
 	"os"
 	"os/exec"
 	"reflect"
@@ -151,7 +153,9 @@ Returned *golog.TextWriter
 Returned *golog.JSONWriter
 Returned *golog.Message
 `
-	assert.Equal(t, exptectedMempoolOutput, mempoolOutput.String())
+	if !mempool.RaceEnabled { // The race detector makes sync.Pool drop items instead of reusing them
+		assert.Equal(t, exptectedMempoolOutput, mempoolOutput.String())
+	}
 }
 
 func TestMessageSubLogger(t *testing.T) {
@@ -243,7 +247,9 @@ Returned *golog.Strings
 Returned *golog.Nil
 Returned []golog.Attrib
 `
-		assert.Equal(t, exptectedMempoolOutput, mempoolOutput.String())
+		if !mempool.RaceEnabled { // The race detector makes sync.Pool drop items instead of reusing them
+			assert.Equal(t, exptectedMempoolOutput, mempoolOutput.String())
+		}
 	})
 
 	t.Run("Sub-sub-logger", func(t *testing.T) {
@@ -350,7 +356,9 @@ Returned *golog.UUID
 Returned []golog.Attrib
 `
 		// t.Fatal(mempoolOutput.String()) // Debug mempoolOutput
-		assert.Equal(t, exptectedMempoolOutput, mempoolOutput.String())
+		if !mempool.RaceEnabled { // The race detector makes sync.Pool drop items instead of reusing them
+			assert.Equal(t, exptectedMempoolOutput, mempoolOutput.String())
+		}
 	})
 }
 
@@ -448,7 +456,9 @@ Returned *golog.Nil
 Returned []golog.Attrib
 `
 		// t.Fatal(mempoolOutput.String())
-		assert.Equal(t, exptectedMempoolOutput, mempoolOutput.String())
+		if !mempool.RaceEnabled { // The race detector makes sync.Pool drop items instead of reusing them
+			assert.Equal(t, exptectedMempoolOutput, mempoolOutput.String())
+		}
 	})
 }
 
@@ -710,6 +720,273 @@ func TestMessage_SubLoggerContext(t *testing.T) {
 	}
 }
 
+// TestMessage_IsAttribRecorder tests that only a Message created by
+// Logger.With records attribs, and that a message whose writers all filtered
+// out its level is not mistaken for one. Such a message has no writers
+// either, but it is owned by the caller, who still logs it: SubLogger would
+// fabricate a sub-logger from its attribs and put the message back into the
+// mempool, so the Log call of the caller would put the same message back a
+// second time and the mempool could hand it to two callers at once.
+func TestMessage_IsAttribRecorder(t *testing.T) {
+	buf := bytes.NewBuffer(nil)
+	// All levels are active at the config, but the writer filters out Info,
+	// so an Info message is created without any writer
+	config := NewConfig(
+		&DefaultLevels,
+		AllLevelsActive,
+		NewTextWriterConfig(buf, nil, nil, LevelFilterOut(DefaultLevels.Info)),
+	)
+	log := NewLogger(config)
+
+	recorder := log.With()
+	require.True(t, recorder.IsAttribRecorder(), "message created by Logger.With")
+
+	filtered := log.Info("filtered out")
+	require.NotNil(t, filtered, "the level is active at the config")
+	require.Empty(t, filtered.writers, "every writer filtered out the level")
+	require.False(t, filtered.IsAttribRecorder(), "message created by a level method")
+
+	// Must return the logger unchanged instead of a sub-logger built from
+	// the attribs of the message that the caller still owns
+	require.Same(t, log, filtered.SubLogger(), "SubLogger of a message that records nothing")
+
+	ctx := ContextWithAttribs(context.Background(), NewString("ctxStr", "ctx"))
+	subLog, subCtx := filtered.SubLoggerContext(ctx)
+	require.Same(t, log, subLog, "SubLoggerContext of a message that records nothing")
+	require.Equal(t, AttribsFromContext(ctx), AttribsFromContext(subCtx), "ctx attribs are passed through")
+
+	// The message was not put back into the mempool, so it is still usable
+	filtered.Str("str", "str").Log()
+	require.Empty(t, buf.String(), "nothing is written for a filtered out level")
+
+	recorder.SubLogger() // Put the recorder message back into the mempool
+}
+
+// TestMessage_SubLoggerContext_CtxAttribs tests that the sub-logger and the
+// context returned by SubLoggerContext carry the same union of attribs:
+// the attribs recorded at the message plus those from the passed context.
+// The attribs from the context stay context attribs of the sub-logger, so
+// that it still logs them when used with an unrelated context, but loses
+// them to an attrib with the same key from a fresher context.
+func TestMessage_SubLoggerContext_CtxAttribs(t *testing.T) {
+	timestamp, _ := time.Parse("2006-01-02 15:04:05", "2006-01-02 15:04:05")
+
+	log, textOut, jsonOut := newTestLoggerWithPrefix("pkg")
+	infoLevel := log.Config().InfoLevel()
+
+	ctx := ContextWithAttribs(
+		context.Background(),
+		NewString("ctxStr", "ctx"),
+		NewString("bothStr", "ctx"), // Shadowed by the message attrib with the same key
+	)
+
+	subLog, subCtx := log.With().
+		Str("msgStr", "msg").
+		Str("bothStr", "msg").
+		SubLoggerContext(ctx)
+
+	// The message attribs become logger attribs, the attribs from the ctx
+	// that they don't shadow become the ctx attribs of the sub-logger,
+	// and the returned context holds the union of both in the same order.
+	expectedAttribs := Attribs{
+		NewString("msgStr", "msg"),
+		NewString("bothStr", "msg"),
+	}
+	expectedCtxAttribs := Attribs{
+		NewString("ctxStr", "ctx"),
+	}
+	expectedUnion := Attribs{
+		NewString("msgStr", "msg"),
+		NewString("bothStr", "msg"),
+		NewString("ctxStr", "ctx"),
+	}
+	assert.Equal(t, expectedAttribs, subLog.Attribs(), "sub-logger attribs")
+	assert.Equal(t, expectedCtxAttribs, subLog.CtxAttribs(), "sub-logger ctx attribs")
+	assert.Equal(t, expectedUnion, AttribsFromContext(subCtx), "attribs of returned context")
+
+	// Logging with a context without attribs must still log the ctx attribs
+	// because the sub-logger inherited them.
+	subLog.NewMessageAt(context.Background(), timestamp, infoLevel, "Msg").Log()
+
+	textMsg := `2006-01-02 15:04:05 |INFO | pkg: Msg msgStr="msg" bothStr="msg" ctxStr="ctx"` + "\n"
+	jsonMsg := `{"time":"2006-01-02 15:04:05","level":"INFO","message":"pkg: Msg","msgStr":"msg","bothStr":"msg","ctxStr":"ctx"}` + "\n"
+	assert.Equal(t, textMsg, textOut.String())
+	assert.Equal(t, jsonMsg, jsonOut.String())
+	textOut.Reset()
+	jsonOut.Reset()
+
+	// Logging with the returned context must not repeat any attrib
+	subLog.NewMessageAt(subCtx, timestamp, infoLevel, "Msg").Log()
+
+	assert.Equal(t, textMsg, textOut.String())
+	assert.Equal(t, jsonMsg, jsonOut.String())
+	textOut.Reset()
+	jsonOut.Reset()
+
+	// The attribs of the returned context must be owned by it and not
+	// freed together with the attribs of the sub-logger.
+	subLog.RemoveAttribs()
+	assert.Nil(t, subLog.Attribs(), "attribs removed")
+	assert.Nil(t, subLog.CtxAttribs(), "ctx attribs removed")
+	assert.Equal(t, expectedUnion, AttribsFromContext(subCtx), "attribs of returned context after Logger.RemoveAttribs")
+
+	// A message without recorded attribs must still pass
+	// the ctx attribs on to the sub-logger
+	t.Run("no message attribs", func(t *testing.T) {
+		subLog, subCtx := log.With().SubLoggerContext(ctx)
+
+		expectedCtxAttribs := Attribs{
+			NewString("ctxStr", "ctx"),
+			NewString("bothStr", "ctx"),
+		}
+		assert.Nil(t, subLog.Attribs(), "sub-logger attribs")
+		assert.Equal(t, expectedCtxAttribs, subLog.CtxAttribs(), "sub-logger ctx attribs")
+		assert.Equal(t, expectedCtxAttribs, AttribsFromContext(subCtx), "attribs of returned context")
+
+		subLog.NewMessageAt(context.Background(), timestamp, infoLevel, "Msg").Log()
+
+		textMsg := `2006-01-02 15:04:05 |INFO | pkg: Msg ctxStr="ctx" bothStr="ctx"` + "\n"
+		jsonMsg := `{"time":"2006-01-02 15:04:05","level":"INFO","message":"pkg: Msg","ctxStr":"ctx","bothStr":"ctx"}` + "\n"
+		assert.Equal(t, textMsg, textOut.String())
+		assert.Equal(t, jsonMsg, jsonOut.String())
+		textOut.Reset()
+		jsonOut.Reset()
+	})
+
+	// The attribs inherited from a ctx are logged after the attribs of the
+	// context that the message is logged with, so a fresher attrib with the
+	// same key wins over the inherited one instead of being shadowed by a
+	// snapshot of a context that the sub-logger may have outlived.
+	t.Run("fresher ctx takes precedence over inherited ctx attribs", func(t *testing.T) {
+		subLog, _ := log.With().Str("msgStr", "msg").SubLoggerContext(ctx)
+
+		otherCtx := ContextWithAttribs(
+			context.Background(),
+			NewString("ctxStr", "other"),   // Wins over the inherited ctxStr
+			NewString("otherStr", "other"), // Not inherited, so logged as well
+		)
+		subLog.NewMessageAt(otherCtx, timestamp, infoLevel, "Msg").Log()
+
+		textMsg := `2006-01-02 15:04:05 |INFO | pkg: Msg msgStr="msg" ctxStr="other" otherStr="other" bothStr="ctx"` + "\n"
+		jsonMsg := `{"time":"2006-01-02 15:04:05","level":"INFO","message":"pkg: Msg","msgStr":"msg","ctxStr":"other","otherStr":"other","bothStr":"ctx"}` + "\n"
+		assert.Equal(t, textMsg, textOut.String())
+		assert.Equal(t, jsonMsg, jsonOut.String())
+		textOut.Reset()
+		jsonOut.Reset()
+	})
+
+	// Once logged, an inherited ctx attrib blocks later attribs with the same
+	// key like a logger attrib does, so neither Message.Ctx with the returned
+	// or another context nor a field method writes its key a second time.
+	t.Run("logged inherited ctx attribs are not repeated", func(t *testing.T) {
+		subLog, subCtx := log.With().Str("msgStr", "msg").SubLoggerContext(ctx)
+
+		otherCtx := ContextWithAttribs(context.Background(), NewString("ctxStr", "other"))
+		subLog.NewMessageAt(context.Background(), timestamp, infoLevel, "Msg").
+			Ctx(subCtx).
+			Ctx(otherCtx).
+			Str("bothStr", "field").
+			Str("fieldStr", "field").
+			Log()
+
+		textMsg := `2006-01-02 15:04:05 |INFO | pkg: Msg msgStr="msg" ctxStr="ctx" bothStr="ctx" fieldStr="field"` + "\n"
+		jsonMsg := `{"time":"2006-01-02 15:04:05","level":"INFO","message":"pkg: Msg","msgStr":"msg","ctxStr":"ctx","bothStr":"ctx","fieldStr":"field"}` + "\n"
+		assert.Equal(t, textMsg, textOut.String())
+		assert.Equal(t, jsonMsg, jsonOut.String())
+		textOut.Reset()
+		jsonOut.Reset()
+	})
+
+	// The attribs recorded at the message are logger attribs of the
+	// sub-logger, so they win over an attrib with the same key
+	// from any context the sub-logger is used with.
+	t.Run("message attribs take precedence over every ctx", func(t *testing.T) {
+		subLog, _ := log.With().Str("msgStr", "msg").SubLoggerContext(ctx)
+
+		otherCtx := ContextWithAttribs(context.Background(), NewString("msgStr", "other"))
+		subLog.NewMessageAt(otherCtx, timestamp, infoLevel, "Msg").Log()
+
+		textMsg := `2006-01-02 15:04:05 |INFO | pkg: Msg msgStr="msg" ctxStr="ctx" bothStr="ctx"` + "\n"
+		jsonMsg := `{"time":"2006-01-02 15:04:05","level":"INFO","message":"pkg: Msg","msgStr":"msg","ctxStr":"ctx","bothStr":"ctx"}` + "\n"
+		assert.Equal(t, textMsg, textOut.String())
+		assert.Equal(t, jsonMsg, jsonOut.String())
+		textOut.Reset()
+		jsonOut.Reset()
+	})
+
+	// An attrib of a sub-logger shadows an inherited ctx attrib with the same
+	// key, so the inherited one must not be kept: it would never be logged
+	// and Logger.CtxAttribs would report an attrib that has no effect.
+	t.Run("logger attribs replace inherited ctx attribs", func(t *testing.T) {
+		subLog, _ := log.With().Str("msgStr", "msg").SubLoggerContext(ctx)
+		require.Len(t, subLog.CtxAttribs(), 2, "ctxStr and bothStr inherited from the ctx")
+
+		for _, shadowing := range []struct {
+			name   string
+			subLog *Logger
+		}{
+			{"Message.SubLogger", subLog.With().Str("ctxStr", "sub").SubLogger()},
+			{"Logger.WithClonedAttribs", subLog.WithClonedAttribs(NewString("ctxStr", "sub"))},
+		} {
+			t.Run(shadowing.name, func(t *testing.T) {
+				assert.Equal(t,
+					Attribs{NewString("msgStr", "msg"), NewString("ctxStr", "sub")},
+					shadowing.subLog.Attribs(),
+					"logger attribs",
+				)
+				assert.Equal(t,
+					Attribs{NewString("bothStr", "ctx")},
+					shadowing.subLog.CtxAttribs(),
+					"only the not shadowed ctx attrib is inherited",
+				)
+
+				shadowing.subLog.NewMessageAt(context.Background(), timestamp, infoLevel, "Msg").Log()
+
+				textMsg := `2006-01-02 15:04:05 |INFO | pkg: Msg msgStr="msg" ctxStr="sub" bothStr="ctx"` + "\n"
+				assert.Equal(t, textMsg, textOut.String())
+				textOut.Reset()
+				jsonOut.Reset()
+			})
+		}
+	})
+
+	// A sub-logger of a sub-logger created from a context must keep the
+	// inherited ctx attribs, and the context returned for it must have them
+	// too, so that both still carry the same union of attribs.
+	t.Run("chained SubLoggerContext", func(t *testing.T) {
+		subLog, _ := log.With().Str("msgStr", "msg").SubLoggerContext(ctx)
+
+		otherCtx := ContextWithAttribs(context.Background(), NewString("otherStr", "other"))
+		subSubLog, subSubCtx := subLog.With().Str("subStr", "sub").SubLoggerContext(otherCtx)
+
+		assert.Equal(t,
+			Attribs{NewString("msgStr", "msg"), NewString("subStr", "sub")},
+			subSubLog.Attribs(),
+			"sub-sub-logger attribs",
+		)
+		assert.Equal(t,
+			Attribs{NewString("otherStr", "other"), NewString("ctxStr", "ctx"), NewString("bothStr", "ctx")},
+			subSubLog.CtxAttribs(),
+			"inherited ctx attribs of the sub-sub-logger",
+		)
+		assert.Equal(t,
+			Attribs{
+				NewString("msgStr", "msg"), NewString("subStr", "sub"),
+				NewString("otherStr", "other"), NewString("ctxStr", "ctx"), NewString("bothStr", "ctx"),
+			},
+			AttribsFromContext(subSubCtx),
+			"attribs of returned context",
+		)
+
+		subSubLog.NewMessageAt(context.Background(), timestamp, infoLevel, "Msg").Log()
+
+		textMsg := `2006-01-02 15:04:05 |INFO | pkg: Msg msgStr="msg" subStr="sub" otherStr="other" ctxStr="ctx" bothStr="ctx"` + "\n"
+		assert.Equal(t, textMsg, textOut.String())
+		textOut.Reset()
+		jsonOut.Reset()
+	})
+}
+
 func TestMessage_SubContext(t *testing.T) {
 	log, _, _ := newTestLogger()
 
@@ -756,11 +1033,11 @@ func TestMessage_Ctx(t *testing.T) {
 
 	log.NewMessageAt(context.Background(), timestamp, infoLevel, "Msg").
 		Ctx(ctx).      // Logs int=1
-		Int("int", 2). // Logs int=2 because the previous write of int=1 is not checked
+		Int("int", 2). // Dropped because int was already written from the ctx
 		Log()
 
-	textMsg = `2006-01-02 15:04:05 |INFO | pkg: Msg int=1 int=2` + "\n"
-	jsonMsg = `{"time":"2006-01-02 15:04:05","level":"INFO","message":"pkg: Msg","int":1,"int":2}` + "\n"
+	textMsg = `2006-01-02 15:04:05 |INFO | pkg: Msg int=1` + "\n"
+	jsonMsg = `{"time":"2006-01-02 15:04:05","level":"INFO","message":"pkg: Msg","int":1}` + "\n"
 
 	assert.Equal(t, textMsg, textOut.String())
 	assert.Equal(t, jsonMsg, jsonOut.String())
@@ -773,16 +1050,693 @@ func TestMessage_Ctx(t *testing.T) {
 
 	log.NewMessageAt(context.Background(), timestamp, infoLevel, "Msg").
 		Ctx(ctx).      // Logs int=3
-		Int("int", 4). // Logs int=4 because the previous write of int=3 is not checked
+		Int("int", 4). // Dropped because int was already written from the ctx
 		Log()
 
-	textMsg = `2006-01-02 15:04:05 |INFO | pkg: Msg int=3 int=4` + "\n"
-	jsonMsg = `{"time":"2006-01-02 15:04:05","level":"INFO","message":"pkg: Msg","int":3,"int":4}` + "\n"
+	textMsg = `2006-01-02 15:04:05 |INFO | pkg: Msg int=3` + "\n"
+	jsonMsg = `{"time":"2006-01-02 15:04:05","level":"INFO","message":"pkg: Msg","int":3}` + "\n"
 
 	assert.Equal(t, textMsg, textOut.String())
 	assert.Equal(t, jsonMsg, jsonOut.String())
 	textOut.Reset()
 	jsonOut.Reset()
+}
+
+// TestMessage_Ctx_DropsWrittenKeys tests that no key is written twice once
+// it was written from the context of the message or from a context passed
+// to Message.Ctx: a later Message.Ctx or Message method with the same key
+// is dropped, while new keys are still written.
+func TestMessage_Ctx_DropsWrittenKeys(t *testing.T) {
+	timestamp, _ := time.Parse("2006-01-02 15:04:05", "2006-01-02 15:04:05")
+	log, textOut, jsonOut := newTestLoggerWithPrefix("pkg")
+	infoLevel := log.Config().InfoLevel()
+
+	ctx1 := ContextWithAttribs(context.Background(), NewString("requestID", "R1"), NewInt("n", 1))
+	ctx2 := ContextWithAttribs(context.Background(), NewString("requestID", "R2"), NewString("user", "U2"))
+
+	for _, tc := range []struct {
+		name string
+		log  func(*Message) *Message
+		ctx  context.Context
+		text string
+		json string
+	}{
+		{
+			name: "message ctx then same ctx",
+			ctx:  ctx1,
+			log:  func(m *Message) *Message { return m.Ctx(ctx1) },
+			text: `requestID="R1" n=1`,
+			json: `"requestID":"R1","n":1`,
+		},
+		{
+			name: "message ctx then field with ctx key",
+			ctx:  ctx1,
+			log:  func(m *Message) *Message { return m.Str("requestID", "X").Int("n", 2).Str("new", "N") },
+			text: `requestID="R1" n=1 new="N"`,
+			json: `"requestID":"R1","n":1,"new":"N"`,
+		},
+		{
+			name: "message ctx then other ctx",
+			ctx:  ctx1,
+			log:  func(m *Message) *Message { return m.Ctx(ctx2).Str("user", "X").Ctx(ctx2) },
+			text: `requestID="R1" n=1 user="U2"`,
+			json: `"requestID":"R1","n":1,"user":"U2"`,
+		},
+		{
+			name: "Ctx without message ctx then field",
+			ctx:  context.Background(),
+			log:  func(m *Message) *Message { return m.Ctx(ctx1).Str("requestID", "X").Ctx(ctx2) },
+			text: `requestID="R1" n=1 user="U2"`,
+			json: `"requestID":"R1","n":1,"user":"U2"`,
+		},
+		{
+			name: "Ctx with empty ctx",
+			ctx:  context.Background(),
+			log:  func(m *Message) *Message { return m.Ctx(context.Background()).Str("a", "A") },
+			text: `a="A"`,
+			json: `"a":"A"`,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			DrainAllMemPools()
+			mempool.RegisterCallbacksWriterForTest(t, io.Discard)
+
+			tc.log(log.NewMessageAt(tc.ctx, timestamp, infoLevel, "Msg")).Log()
+
+			assert.Equal(t, `2006-01-02 15:04:05 |INFO | pkg: Msg `+tc.text+"\n", textOut.String())
+			assert.Equal(t, `{"time":"2006-01-02 15:04:05","level":"INFO","message":"pkg: Msg",`+tc.json+"}\n", jsonOut.String())
+			// Recording the keys of a further ctx clones pooled attribs,
+			// which the message must return to the mempool
+			assert.Zero(t, mempool.NumOutstanding(), "every pooled attrib and slice was returned")
+			textOut.Reset()
+			jsonOut.Reset()
+		})
+	}
+
+	// A message recording attribs for a sub-logger records the ctx attribs
+	// like attribs of its own and still drops repeated keys
+	t.Run("attrib recorder", func(t *testing.T) {
+		subLog := log.With().Ctx(ctx1).Str("requestID", "X").Ctx(ctx2).SubLogger()
+		assert.Equal(t, Attribs{NewString("requestID", "R1"), NewInt("n", 1), NewString("user", "U2")}, subLog.Attribs())
+		subLog.RemoveAttribs()
+	})
+}
+
+// TestMessage_Any_Time tests that a time.Time logged with Message.Any is
+// written like with Message.Time and Message.Times: using the TimeFormat and
+// Location configured for the writer, and null for the zero time, instead of
+// the RFC3339Nano UTC string of time.Time.MarshalJSON.
+func TestMessage_Any_Time(t *testing.T) {
+	loc := time.FixedZone("UTC+2", 2*60*60)
+	format := &Format{TimestampFormat: "2006-01-02 15:04:05", MessageKey: "message", TimeFormat: "2006-01-02 15:04:05.000 -0700", Location: loc}
+	textOut, jsonOut := bytes.NewBuffer(nil), bytes.NewBuffer(nil)
+	log := NewLogger(NewConfig(&DefaultLevels, AllLevelsActive,
+		NewTextWriterConfig(textOut, format, NoColorizer),
+		NewJSONWriterConfig(jsonOut, format),
+	))
+	timestamp, _ := time.Parse("2006-01-02 15:04:05", "2006-01-02 15:04:05")
+	infoLevel := log.Config().InfoLevel()
+	tm := time.Date(2024, 1, 2, 3, 4, 5, 6000000, time.UTC)
+
+	for _, tc := range []struct {
+		name     string
+		any      func(*Message) *Message
+		expected func(*Message) *Message
+		json     string
+	}{
+		{
+			name:     "time.Time",
+			any:      func(m *Message) *Message { return m.Any("t", tm) },
+			expected: func(m *Message) *Message { return m.Time("t", tm) },
+			json:     `"t":"2024-01-02 05:04:05.006 +0200"`,
+		},
+		{
+			name:     "*time.Time",
+			any:      func(m *Message) *Message { return m.Any("t", &tm) },
+			expected: func(m *Message) *Message { return m.Time("t", tm) },
+			json:     `"t":"2024-01-02 05:04:05.006 +0200"`,
+		},
+		{
+			name:     "zero time.Time",
+			any:      func(m *Message) *Message { return m.Any("t", time.Time{}) },
+			expected: func(m *Message) *Message { return m.Time("t", time.Time{}) },
+			json:     `"t":null`,
+		},
+		{
+			name:     "[]time.Time",
+			any:      func(m *Message) *Message { return m.Any("t", []time.Time{tm, tm.Add(time.Second)}) },
+			expected: func(m *Message) *Message { return m.Times("t", []time.Time{tm, tm.Add(time.Second)}) },
+			json:     `"t":["2024-01-02 05:04:05.006 +0200","2024-01-02 05:04:06.006 +0200"]`,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			tc.expected(log.NewMessageAt(context.Background(), timestamp, infoLevel, "Msg")).Log()
+			expectedText, expectedJSON := textOut.String(), jsonOut.String()
+			textOut.Reset()
+			jsonOut.Reset()
+
+			tc.any(log.NewMessageAt(context.Background(), timestamp, infoLevel, "Msg")).Log()
+			assert.Equal(t, expectedText, textOut.String(), "text like the typed method")
+			assert.Equal(t, expectedJSON, jsonOut.String(), "JSON like the typed method")
+			assert.Contains(t, jsonOut.String(), tc.json)
+			textOut.Reset()
+			jsonOut.Reset()
+		})
+	}
+}
+
+// TestMessage_Any_Bytes tests that bytes logged with Message.Any are written
+// like with Message.StrBytes: as string if they are valid UTF-8, else base64
+// encoded, instead of as a slice of numbers.
+type testNamedBytes []byte
+
+// Byte slice types with a format of their own, which must be used
+// instead of their bytes, because it can redact a secret
+type (
+	testSecretJSONBytes  []byte // MarshalJSON
+	testSecretErrorBytes []byte // error
+	testSecretLogBytes   []byte // Loggable
+)
+
+func (testSecretJSONBytes) MarshalJSON() ([]byte, error) { return []byte(`"***"`), nil }
+func (testSecretErrorBytes) Error() string               { return "***" }
+func (testSecretLogBytes) Log(m *Message)                { m.Str("secret", "***") }
+
+// testPtrSecretBytes redacts itself with a String method with pointer
+// receiver, which a value of the type doesn't have
+type testPtrSecretBytes []byte
+
+func (*testPtrSecretBytes) String() string { return "***" }
+
+// testPtrSecretUser logs a pointer to its redacting password field
+type testPtrSecretUser struct{ pw testPtrSecretBytes }
+
+func (u *testPtrSecretUser) Log(m *Message) { m.Any("pw", &u.pw) }
+
+// testCycleA and testCycleB point to each other
+type (
+	testCycleA *testCycleB
+	testCycleB *testCycleA
+)
+
+// testNullableBytes is null when empty
+type testNullableBytes []byte
+
+func (b testNullableBytes) IsNull() bool { return len(b) == 0 }
+
+// testNullableID has an IsNull method with value receiver,
+// which panics when called on a nil pointer
+type testNullableID int
+
+func (id testNullableID) IsNull() bool { return id == 0 }
+
+func TestMessage_Any_Bytes(t *testing.T) {
+	timestamp, _ := time.Parse("2006-01-02 15:04:05", "2006-01-02 15:04:05")
+	log, textOut, jsonOut := newTestLogger()
+	infoLevel := log.Config().InfoLevel()
+	text := []byte("ab")
+	binary := []byte{0xff, 0xfe}
+	var nilBytes []byte
+
+	for _, tc := range []struct {
+		name     string
+		any      func(*Message) *Message
+		expected func(*Message) *Message
+		json     string
+	}{
+		{
+			name:     "text",
+			any:      func(m *Message) *Message { return m.Any("b", text) },
+			expected: func(m *Message) *Message { return m.StrBytes("b", text) },
+			json:     `"b":"ab"`,
+		},
+		{
+			name:     "binary",
+			any:      func(m *Message) *Message { return m.Any("b", binary) },
+			expected: func(m *Message) *Message { return m.StrBytes("b", binary) },
+			json:     `"b":"__4"`,
+		},
+		{
+			name:     "nil",
+			any:      func(m *Message) *Message { return m.Any("b", nilBytes) },
+			expected: func(m *Message) *Message { return m.StrBytes("b", nil) },
+			json:     `"b":null`,
+		},
+		{
+			name:     "pointer",
+			any:      func(m *Message) *Message { return m.Any("b", &text) },
+			expected: func(m *Message) *Message { return m.StrBytes("b", text) },
+			json:     `"b":"ab"`,
+		},
+		{
+			name:     "nil pointer",
+			any:      func(m *Message) *Message { return m.Any("b", (*[]byte)(nil)) },
+			expected: func(m *Message) *Message { return m.Nil("b") },
+			json:     `"b":null`,
+		},
+		{
+			name:     "named type",
+			any:      func(m *Message) *Message { return m.Any("b", testNamedBytes(binary)) },
+			expected: func(m *Message) *Message { return m.StrBytes("b", binary) },
+			json:     `"b":"__4"`,
+		},
+		{
+			name:     "pointer to named type",
+			any:      func(m *Message) *Message { nb := testNamedBytes(text); return m.Any("b", &nb) },
+			expected: func(m *Message) *Message { return m.StrBytes("b", text) },
+			json:     `"b":"ab"`,
+		},
+		{
+			name: "struct field",
+			any: func(m *Message) *Message {
+				return m.StructFields(struct {
+					B []byte `json:"B"`
+				}{B: binary})
+			},
+			expected: func(m *Message) *Message { return m.StrBytes("B", binary) },
+			json:     `"B":"__4"`,
+		},
+		{
+			// json.RawMessage holds JSON, no text or binary data
+			name:     "json.RawMessage",
+			any:      func(m *Message) *Message { return m.Any("b", json.RawMessage(`{ "a": 1 }`)) },
+			expected: func(m *Message) *Message { return m.JSON("b", []byte(`{"a":1}`)) },
+			json:     `"b":{"a":1}`,
+		},
+		{
+			// Message.StrBytes has no slice variant to compare with
+			name: "slice of bytes",
+			any:  func(m *Message) *Message { return m.Any("b", [][]byte{text, binary, nil}) },
+			json: `"b":["ab","__4",null]`,
+		},
+		{
+			name: "slice of named bytes",
+			any:  func(m *Message) *Message { return m.Any("b", []testNamedBytes{text, binary}) },
+			json: `"b":["ab","__4"]`,
+		},
+		// Byte slice types with a format of their own are logged with it
+		{
+			name:     "net.IP with MarshalText",
+			any:      func(m *Message) *Message { return m.Any("b", net.IPv4(192, 168, 1, 1)) },
+			expected: func(m *Message) *Message { return m.Str("b", "192.168.1.1") },
+			json:     `"b":"192.168.1.1"`,
+		},
+		{
+			name:     "nil *net.IP",
+			any:      func(m *Message) *Message { return m.Any("b", (*net.IP)(nil)) },
+			expected: func(m *Message) *Message { return m.Nil("b") },
+			json:     `"b":null`,
+		},
+		{
+			name: "slice of net.IP",
+			any:  func(m *Message) *Message { return m.Any("b", []net.IP{net.IPv4(10, 0, 0, 1), net.IPv6loopback}) },
+			json: `"b":["10.0.0.1","::1"]`,
+		},
+		{
+			name:     "net.HardwareAddr with String",
+			any:      func(m *Message) *Message { return m.Any("b", net.HardwareAddr{1, 2, 3, 4, 5, 6}) },
+			expected: func(m *Message) *Message { return m.Str("b", "01:02:03:04:05:06") },
+			json:     `"b":"01:02:03:04:05:06"`,
+		},
+		{
+			name:     "MarshalJSON redacts",
+			any:      func(m *Message) *Message { return m.Any("b", testSecretJSONBytes("hunter2")) },
+			expected: func(m *Message) *Message { return m.JSON("b", []byte(`"***"`)) },
+			json:     `"b":"***"`,
+		},
+		{
+			name: "error redacts",
+			any:  func(m *Message) *Message { return m.Any("b", testSecretErrorBytes("hunter2")) },
+			json: `"b":"***"`,
+		},
+		{
+			name: "Loggable redacts",
+			any:  func(m *Message) *Message { return m.Any("b", testSecretLogBytes("hunter2")) },
+			json: `"b":{"secret":"***"}`,
+		},
+		{
+			// Error has a value receiver, which panics for a nil pointer
+			name:     "nil pointer to error bytes",
+			any:      func(m *Message) *Message { return m.Any("b", (*testSecretErrorBytes)(nil)) },
+			expected: func(m *Message) *Message { return m.Nil("b") },
+			json:     `"b":null`,
+		},
+		{
+			name: "nil pointer to error bytes in []any",
+			any:  func(m *Message) *Message { return m.Any("b", []any{(*testSecretErrorBytes)(nil)}) },
+			json: `"b":[null]`,
+		},
+		{
+			// The format of the type is used through several pointers
+			name: "pointer to pointer to MarshalJSON",
+			any: func(m *Message) *Message {
+				secret := testSecretJSONBytes("hunter2")
+				ptr := &secret
+				return m.Any("b", &ptr)
+			},
+			expected: func(m *Message) *Message { return m.JSON("b", []byte(`"***"`)) },
+			json:     `"b":"***"`,
+		},
+		{
+			name:     "IsNull",
+			any:      func(m *Message) *Message { return m.Any("b", testNullableBytes{}) },
+			expected: func(m *Message) *Message { return m.Nil("b") },
+			json:     `"b":null`,
+		},
+		{
+			name:     "nil pointer to IsNull with value receiver",
+			any:      func(m *Message) *Message { return m.Any("b", (*testNullableID)(nil)) },
+			expected: func(m *Message) *Message { return m.Nil("b") },
+			json:     `"b":null`,
+		},
+		// Format methods with pointer receiver are used through pointers
+		// and for addressable values like slice elements, like encoding/json
+		{
+			name: "pointer to pointer receiver String",
+			any: func(m *Message) *Message {
+				secret := testPtrSecretBytes("hunter2")
+				return m.Any("b", &secret)
+			},
+			expected: func(m *Message) *Message { return m.Str("b", "***") },
+			json:     `"b":"***"`,
+		},
+		{
+			name: "pointer to pointer to pointer receiver String",
+			any: func(m *Message) *Message {
+				secret := testPtrSecretBytes("hunter2")
+				ptr := &secret
+				return m.Any("b", &ptr)
+			},
+			expected: func(m *Message) *Message { return m.Str("b", "***") },
+			json:     `"b":"***"`,
+		},
+		{
+			name: "slice of pointer receiver String",
+			any:  func(m *Message) *Message { return m.Any("b", []testPtrSecretBytes{[]byte("hunter2")}) },
+			json: `"b":["***"]`,
+		},
+		{
+			name: "Loggable logging pointer to pointer receiver String",
+			any:  func(m *Message) *Message { return m.Any("b", &testPtrSecretUser{pw: []byte("hunter2")}) },
+			json: `"b":{"pw":"***"}`,
+		},
+		{
+			// Pointer types that point to each other must not hang
+			name:     "pointer type cycle",
+			any:      func(m *Message) *Message { return m.Any("b", testCycleA(nil)) },
+			expected: func(m *Message) *Message { return m.Nil("b") },
+			json:     `"b":null`,
+		},
+		{
+			name: "redacting element of []any",
+			any: func(m *Message) *Message {
+				return m.Any("b", []any{testSecretJSONBytes("hunter2"), testSecretErrorBytes("hunter2")})
+			},
+			json: `"b":["***","***"]`,
+		},
+		{
+			name: "slice of json.RawMessage",
+			any: func(m *Message) *Message {
+				return m.Any("b", []json.RawMessage{json.RawMessage(`[1, 2]`), nil, json.RawMessage(`{`)})
+			},
+			json: `"b":[[1,2],null,"{"]`,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			tc.any(log.NewMessageAt(context.Background(), timestamp, infoLevel, "Msg")).Log()
+			assert.Contains(t, jsonOut.String(), tc.json)
+			if tc.expected != nil {
+				gotText, gotJSON := textOut.String(), jsonOut.String()
+				textOut.Reset()
+				jsonOut.Reset()
+				tc.expected(log.NewMessageAt(context.Background(), timestamp, infoLevel, "Msg")).Log()
+				assert.Equal(t, textOut.String(), gotText, "text like Message.StrBytes")
+				assert.Equal(t, jsonOut.String(), gotJSON, "JSON like Message.StrBytes")
+			}
+			textOut.Reset()
+			jsonOut.Reset()
+		})
+	}
+}
+
+// TestMessage_ByteMethods tests every Message method taking bytes: they all
+// log bytes as string if they are valid UTF-8, else base64 encoded, and nil
+// bytes as null, except Message.Bytes, which always logs binary data base64
+// encoded, and Message.JSON, which logs JSON. An attrib recorder records
+// the same values for a sub-logger, and a key of the logger is not written
+// again.
+func TestMessage_ByteMethods(t *testing.T) {
+	timestamp, _ := time.Parse("2006-01-02 15:04:05", "2006-01-02 15:04:05")
+	log, _, jsonOut := newTestLogger()
+	infoLevel := log.Config().InfoLevel()
+	replacementChar := []byte("a\uFFFDb") // Valid UTF-8 of the Unicode replacement character
+	binary := []byte{0xff, 0xfe}
+
+	for _, tc := range []struct {
+		name string
+		log  func(*Message) *Message
+		json string // empty for no attrib
+	}{
+		{name: "Bytes text", log: func(m *Message) *Message { return m.Bytes("b", []byte("ab")) }, json: `"b":"YWI"`},
+		{name: "Bytes binary", log: func(m *Message) *Message { return m.Bytes("b", binary) }, json: `"b":"__4"`},
+		{name: "Bytes nil", log: func(m *Message) *Message { return m.Bytes("b", nil) }, json: `"b":null`},
+		{name: "StrBytes text", log: func(m *Message) *Message { return m.StrBytes("b", []byte("ab")) }, json: `"b":"ab"`},
+		{name: "StrBytes replacement char", log: func(m *Message) *Message { return m.StrBytes("b", replacementChar) }, json: "\"b\":\"a\uFFFDb\""},
+		{name: "StrBytes binary", log: func(m *Message) *Message { return m.StrBytes("b", binary) }, json: `"b":"__4"`},
+		{name: "StrBytes nil", log: func(m *Message) *Message { return m.StrBytes("b", nil) }, json: `"b":null`},
+		{name: "StrBytesMax truncated", log: func(m *Message) *Message { return m.StrBytesMax("b", []byte("äbc"), 2) }, json: `"b":"äb"`},
+		{name: "StrBytesMax shorter", log: func(m *Message) *Message { return m.StrBytesMax("b", []byte("ab"), 5) }, json: `"b":"ab"`},
+		{name: "StrBytesMax no max", log: func(m *Message) *Message { return m.StrBytesMax("b", []byte("abc"), 0) }, json: `"b":"abc"`},
+		{name: "StrBytesMax replacement char", log: func(m *Message) *Message { return m.StrBytesMax("b", replacementChar, 5) }, json: "\"b\":\"a\uFFFDb\""},
+		{name: "StrBytesMax binary truncated", log: func(m *Message) *Message { return m.StrBytesMax("b", binary, 2) }, json: `"b":"__"`},
+		{name: "StrBytesMax nil", log: func(m *Message) *Message { return m.StrBytesMax("b", nil, 2) }, json: `"b":null`},
+		// Only the logged runes are checked for valid UTF-8, so a text
+		// cut within a rune after them is no binary data
+		{name: "StrBytesMax invalid after max", log: func(m *Message) *Message { return m.StrBytesMax("b", []byte("hello world\xe2\x82"), 5) }, json: `"b":"hello"`},
+		{name: "StrBytesMax invalid within max", log: func(m *Message) *Message { return m.StrBytesMax("b", []byte("he\xffllo"), 3) }, json: `"b":"aGX"`},
+		{name: "JSON", log: func(m *Message) *Message { return m.JSON("b", []byte(`{ "a": [1, 2] }`)) }, json: `"b":{"a":[1,2]}`},
+		{name: "JSON invalid", log: func(m *Message) *Message { return m.JSON("b", []byte(`{`)) }, json: `"b":"{"`},
+		{name: "JSON nil", log: func(m *Message) *Message { return m.JSON("b", nil) }, json: `"b":null`},
+		{name: "Any nil", log: func(m *Message) *Message { return m.Any("b", nil) }, json: `"b":null`},
+		// Uint8s logs the same Go type as []byte as numbers
+		{name: "Uint8s", log: func(m *Message) *Message { return m.Uint8s("b", []uint8("ab")) }, json: `"b":[97,98]`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			tc.log(log.NewMessageAt(context.Background(), timestamp, infoLevel, "Msg")).Log()
+			assert.Equal(t, `{"time":"2006-01-02 15:04:05","level":"INFO","message":"Msg",`+tc.json+"}\n", jsonOut.String())
+			jsonOut.Reset()
+
+			// A key that the logger already wrote is not written again
+			withB := log.WithClonedAttribs(NewString("b", "first"))
+			tc.log(withB.NewMessageAt(context.Background(), timestamp, infoLevel, "Msg")).Log()
+			assert.Equal(t, `{"time":"2006-01-02 15:04:05","level":"INFO","message":"Msg","b":"first"}`+"\n", jsonOut.String())
+			jsonOut.Reset()
+			withB.RemoveAttribs()
+
+			// A sub-logger logs the recorded value the same way
+			subLog := tc.log(log.With()).SubLogger()
+			subLog.NewMessageAt(context.Background(), timestamp, infoLevel, "Msg").Log()
+			assert.Equal(t, `{"time":"2006-01-02 15:04:05","level":"INFO","message":"Msg",`+tc.json+"}\n", jsonOut.String())
+			jsonOut.Reset()
+			subLog.RemoveAttribs()
+
+			// A nil Message is safe to use
+			assert.Nil(t, tc.log(nil))
+		})
+	}
+}
+
+// TestMessage_Any_SliceElements tests the elements of a []any logged with
+// Message.Any: nil and values whose IsNull method returns true as null,
+// errors as their message, and other values with their own type instead
+// of formatted as string.
+func TestMessage_Any_SliceElements(t *testing.T) {
+	timestamp, _ := time.Parse("2006-01-02 15:04:05", "2006-01-02 15:04:05")
+	log, _, jsonOut := newTestLogger()
+
+	log.NewMessageAt(context.Background(), timestamp, log.Config().InfoLevel(), "Msg").
+		Any("s", []any{nil, errors.New("e"), Timestamp{}, []byte("ab"), 1, -2, uint(3), 1.5, true, "x", map[string]int{"a": 1}}).
+		Log()
+	assert.Equal(t, `{"time":"2006-01-02 15:04:05","level":"INFO","message":"Msg","s":[null,"e",null,"ab",1,-2,3,1.5,true,"x",{"a":1}]}`+"\n", jsonOut.String())
+}
+
+// TestByteSliceOf tests which values count as bytes for Message.Any
+// and the Any attrib: byte slices of any named type, pointers to them and
+// interface values holding them, but no json.RawMessage, which holds JSON.
+func TestByteSliceOf(t *testing.T) {
+	text := []byte("ab")
+	var nilInterface any
+	var interfaceWithBytes any = text
+	for _, tc := range []struct {
+		name   string
+		val    reflect.Value
+		want   []byte
+		wantOK bool
+	}{
+		{name: "[]byte", val: reflect.ValueOf(text), want: text, wantOK: true},
+		{name: "named", val: reflect.ValueOf(testNamedBytes(text)), want: text, wantOK: true},
+		{name: "pointer", val: reflect.ValueOf(&text), want: text, wantOK: true},
+		{name: "nil pointer", val: reflect.ValueOf((*[]byte)(nil)), want: nil, wantOK: true},
+		{name: "interface", val: reflect.ValueOf(&interfaceWithBytes).Elem(), want: text, wantOK: true},
+		{name: "nil interface", val: reflect.ValueOf(&nilInterface).Elem(), want: nil, wantOK: false},
+		{name: "json.RawMessage", val: reflect.ValueOf(json.RawMessage(`1`)), want: nil, wantOK: false},
+		{name: "string", val: reflect.ValueOf("ab"), want: nil, wantOK: false},
+		{name: "[]int", val: reflect.ValueOf([]int{1}), want: nil, wantOK: false},
+		{name: "byte array", val: reflect.ValueOf([2]byte{1, 2}), want: nil, wantOK: false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got, ok := byteSliceOf(tc.val)
+			assert.Equal(t, tc.wantOK, ok)
+			assert.Equal(t, tc.want, got)
+		})
+	}
+}
+
+type testLoggable struct{ val string }
+
+func (l testLoggable) Log(m *Message) {
+	if l.val != "" {
+		m.Str("inner", l.val).Int("n", 1)
+	}
+}
+
+// TestMessage_Any_Loggable tests that the attribs a Loggable logs are
+// written as one JSON object under the key passed to Message.Any, also
+// inside a slice. It used to call Loggable.Log once per writer while every
+// call wrote to all writers, which left the key without a value and
+// repeated the attribs: invalid JSON.
+func TestMessage_Any_Loggable(t *testing.T) {
+	timestamp, _ := time.Parse("2006-01-02 15:04:05", "2006-01-02 15:04:05")
+	log, textOut, jsonOut := newTestLogger()
+	infoLevel := log.Config().InfoLevel()
+	loggable := testLoggable{val: "v"}
+
+	for _, tc := range []struct {
+		name string
+		val  any
+		text string
+		json string
+	}{
+		{name: "value", val: loggable, text: `l={"inner":"v","n":1}`, json: `"l":{"inner":"v","n":1}`},
+		{name: "pointer", val: &loggable, text: `l={"inner":"v","n":1}`, json: `"l":{"inner":"v","n":1}`},
+		{name: "nil pointer", val: (*testLoggable)(nil), text: `l=nil`, json: `"l":null`},
+		{name: "no attribs", val: testLoggable{}, text: `l=null`, json: `"l":null`},
+		{name: "Attribs", val: Attribs{NewString("a", "1"), NewBool("b", true)}, text: `l={"a":"1","b":true}`, json: `"l":{"a":"1","b":true}`},
+		{name: "Attrib", val: NewInt("a", 1), text: `l={"a":1}`, json: `"l":{"a":1}`},
+		{name: "in slice", val: []any{loggable, 2}, text: `l=[{"inner":"v","n":1},2]`, json: `"l":[{"inner":"v","n":1},2]`},
+		// A nil pointer in a []any is an interface value, not a pointer,
+		// and calling its value receiver Log method used to panic
+		{name: "nil pointer in slice", val: []any{(*testLoggable)(nil), 2}, text: `l=[nil,2]`, json: `"l":[null,2]`},
+		// A Loggable recorded with Message.Any by a Loggable is written
+		// as JSON object too, not by encoding/json as [{}]
+		{name: "nested", val: Attribs{NewAny("a", Attribs{NewInt("b", 1)})}, text: `l={"a":{"b":1}}`, json: `"l":{"a":{"b":1}}`},
+		// Invalid JSON recorded by a Loggable is written as string
+		// like Message.JSON does, instead of breaking the JSON line
+		{name: "invalid nested JSON", val: Attribs{NewAny("a", json.RawMessage("no json"))}, text: `l={"a":"no json"}`, json: `"l":{"a":"no json"}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			DrainAllMemPools()
+			mempool.RegisterCallbacksWriterForTest(t, io.Discard)
+
+			log.NewMessageAt(context.Background(), timestamp, infoLevel, "Msg").Any("l", tc.val).Log()
+			assert.Equal(t, `2006-01-02 15:04:05 |INFO | Msg `+tc.text+"\n", textOut.String())
+			assert.Equal(t, `{"time":"2006-01-02 15:04:05","level":"INFO","message":"Msg",`+tc.json+"}\n", jsonOut.String())
+			assert.True(t, json.Valid(jsonOut.Bytes()), "valid JSON")
+			assert.Zero(t, mempool.NumOutstanding(), "the recorded attribs were returned to the mempool")
+			textOut.Reset()
+			jsonOut.Reset()
+
+			// A sub-logger writes the recorded Loggable the same way
+			subLog := log.With().Any("l", tc.val).SubLogger()
+			subLog.NewMessageAt(context.Background(), timestamp, infoLevel, "Msg").Log()
+			assert.Equal(t, `{"time":"2006-01-02 15:04:05","level":"INFO","message":"Msg",`+tc.json+"}\n", jsonOut.String())
+			subLog.RemoveAttribs()
+			textOut.Reset()
+			jsonOut.Reset()
+		})
+	}
+
+	// Message.Loggable logs the attribs as attribs of the message,
+	// and nothing for a nil Loggable
+	log.NewMessageAt(context.Background(), timestamp, infoLevel, "Msg").Loggable(loggable).Loggable(nil).Log()
+	assert.Equal(t, `{"time":"2006-01-02 15:04:05","level":"INFO","message":"Msg","inner":"v","n":1}`+"\n", jsonOut.String())
+}
+
+type testNamedUUID [16]byte
+
+// TestMessage_Any_Kinds tests how Message.Any writes values by their
+// reflect kind: arrays element by element unless they are UUIDs, a slice
+// nested in a slice formatted as string instead of recursing further,
+// nil pointers as null, and an error for a map that can't be marshalled.
+func TestMessage_Any_Kinds(t *testing.T) {
+	timestamp, _ := time.Parse("2006-01-02 15:04:05", "2006-01-02 15:04:05")
+	log, _, jsonOut := newTestLogger()
+	uuid := MustParseUUID("a547276f-b02b-4e7d-b67e-c6deb07567da")
+
+	for _, tc := range []struct {
+		name string
+		val  any
+		json string
+	}{
+		{name: "array", val: [2]int{1, 2}, json: `"v":[1,2]`},
+		{name: "named UUID", val: testNamedUUID(uuid), json: `"v":"a547276f-b02b-4e7d-b67e-c6deb07567da"`},
+		{name: "nil named UUID", val: testNamedUUID{}, json: `"v":null`},
+		{name: "UUIDs in slice", val: []testNamedUUID{testNamedUUID(uuid), {}}, json: `"v":["a547276f-b02b-4e7d-b67e-c6deb07567da",null]`},
+		{name: "nested slice", val: [][]int{{1, 2}, {3}}, json: `"v":["[1 2]","[3]"]`},
+		{name: "nested array", val: [][2]int{{1, 2}}, json: `"v":["[1 2]"]`},
+		{name: "nil pointer element", val: []*int{nil}, json: `"v":[null]`},
+		{name: "unmarshalable map", val: map[string]any{"c": make(chan int)}, json: `"v":"error while marshalling map[string]interface {} as JSON for logging: json: unsupported type: chan int"`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			log.NewMessageAt(context.Background(), timestamp, log.Config().InfoLevel(), "Msg").Any("v", tc.val).Log()
+			assert.Equal(t, `{"time":"2006-01-02 15:04:05","level":"INFO","message":"Msg",`+tc.json+"}\n", jsonOut.String())
+			jsonOut.Reset()
+		})
+	}
+}
+
+// TestBinaryEncoder tests that every place logging binary data uses the
+// configured BinaryEncoder: Message.Bytes, the fallback for bytes that are
+// no valid UTF-8 in Message.StrBytes, Message.StrBytesMax and Message.Any,
+// and the Any attrib. Bytes that are valid UTF-8 stay strings.
+func TestBinaryEncoder(t *testing.T) {
+	defaultEncoder := BinaryEncoder
+	t.Cleanup(func() { BinaryEncoder = defaultEncoder })
+	BinaryEncoder = hex.EncodeToString
+
+	timestamp, _ := time.Parse("2006-01-02 15:04:05", "2006-01-02 15:04:05")
+	log, _, jsonOut := newTestLogger()
+	binary := []byte{0xff, 0xfe}
+
+	log.NewMessageAt(context.Background(), timestamp, log.Config().InfoLevel(), "Msg").
+		Bytes("bytes", []byte("ab")).
+		StrBytes("strBytes", binary).
+		StrBytesMax("strBytesMax", binary, 3).
+		Any("any", binary).
+		Any("anyText", []byte("ab")).
+		Log()
+	assert.Equal(t, `{"time":"2006-01-02 15:04:05","level":"INFO","message":"Msg","bytes":"6162","strBytes":"fffe","strBytesMax":"fff","any":"fffe","anyText":"ab"}`+"\n", jsonOut.String())
+
+	data, err := Attribs{NewAny("any", binary)}.MarshalJSON()
+	require.NoError(t, err)
+	assert.Equal(t, `{"any":"fffe"}`, string(data))
+	assert.Equal(t, "fffe", NewAny("any", binary).ValueString())
+}
+
+// TestMessage_NilSafety tests that the Message methods dealing with attribs
+// and contexts are safe to call on a nil Message, which inactive log levels
+// return, so callers never have to check for nil.
+func TestMessage_NilSafety(t *testing.T) {
+	var m *Message
+	ctx := ContextWithAttribs(context.Background(), NewString("a", "1"))
+
+	assert.Nil(t, m.Ctx(ctx))
+	assert.Nil(t, m.Loggable(Attribs{NewString("a", "1")}))
+	assert.Nil(t, m.SubLogger())
+	subLog, subCtx := m.SubLoggerContext(ctx)
+	assert.Nil(t, subLog)
+	assert.Equal(t, ctx, subCtx, "passed ctx is returned unchanged")
+	assert.Equal(t, ctx, m.SubContext(ctx), "passed ctx is returned unchanged")
 }
 
 // func ExampleMessage_CallStack() {
@@ -979,7 +1933,7 @@ func TestMessage_StructFields(t *testing.T) {
 			A string `golog:"aa"`
 			B string `log:"bb"`
 			C string `json:"cc"`
-			D string `log:"dd_log" json:"dd_json"` // log wins over json
+			D string `log:"dd_log" json:"dd_json"`     // log wins over json
 			E string `golog:"ee_golog" json:"ee_json"` // golog wins over json
 		}
 
@@ -1664,6 +2618,39 @@ func TestSubLoggerContextWithWriterConfigsFromContext(t *testing.T) {
 	cmd.Env = append(os.Environ(), "TEST_SUBLOGGER_CONTEXT_LOOP=1")
 	output, err := cmd.CombinedOutput()
 	require.NoError(t, err, "SubLoggerContext with additional WriterConfigs from context caused stack overflow:\n%s", output)
+}
+
+// TestMessage_SubLoggerContext_WriterConfigsFromCtx tests that a sub-logger
+// from SubLoggerContext also writes to the writer configs added to the
+// passed context, and keeps the config of the parent logger when the context
+// adds no writer config the parent doesn't already have.
+func TestMessage_SubLoggerContext_WriterConfigsFromCtx(t *testing.T) {
+	format := &Format{TimestampFormat: "2006-01-02 15:04:05", TimestampKey: "time", LevelKey: "level", MessageKey: "message"}
+	mainOut := bytes.NewBuffer(nil)
+	mainConfig := NewJSONWriterConfig(mainOut, format)
+	log := NewLogger(NewConfig(&DefaultLevels, AllLevelsActive, mainConfig))
+
+	t.Run("additional writer config", func(t *testing.T) {
+		extraOut := bytes.NewBuffer(nil)
+		ctx := ContextWithAdditionalWriterConfigs(context.Background(), NewJSONWriterConfig(extraOut, format))
+		subLog, _ := log.With().Str("key", "value").SubLoggerContext(ctx)
+
+		subLog.Info("Msg").Log()
+		assert.Contains(t, mainOut.String(), `"message":"Msg","key":"value"`, "written by the parent's writer")
+		assert.Contains(t, extraOut.String(), `"message":"Msg","key":"value"`, "written by the writer from the ctx")
+		assert.Len(t, subLog.Config().WriterConfigs(), 2)
+		mainOut.Reset()
+	})
+
+	t.Run("writer config already in parent", func(t *testing.T) {
+		ctx := ContextWithAdditionalWriterConfigs(context.Background(), mainConfig)
+		subLog, _ := log.With().Str("key", "value").SubLoggerContext(ctx)
+
+		assert.Same(t, log.Config(), subLog.Config(), "parent config is kept")
+		subLog.Info("Msg").Log()
+		assert.Equal(t, 1, strings.Count(mainOut.String(), `"message":"Msg"`), "written once")
+		mainOut.Reset()
+	})
 }
 
 func TestMessageManyWriters(t *testing.T) {
