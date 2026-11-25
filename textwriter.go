@@ -247,9 +247,11 @@ func (w *TextWriter) WriteError(val error) {
 		w.WriteNil()
 		return
 	}
+	// Before writing anything, so a panic
+	// of the Error method leaves no output
+	lines := strings.Split(val.Error(), "\n")
 	w.writeSliceSep()
 
-	lines := strings.Split(val.Error(), "\n")
 	if len(lines) == 1 {
 		w.buf = append(w.buf, '`')
 		w.buf = append(w.buf, w.config.colorizer.ColorizeError(lines[0])...)

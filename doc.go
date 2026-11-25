@@ -62,6 +62,24 @@ encoding/json, which writes its bytes as standard base64 with padding.
 a [time.Time] like [Message.Time], with the TimeFormat and Location of the
 writer's [Format] and null for the zero time, and a [encoding/json.RawMessage]
 like [Message.JSON]. The elements of a []any keep their own types.
+A value that implements error is logged as its error string,
+also as an element of a slice. Like encoding/json, a value with a
+MarshalJSON or MarshalText method is logged with it, also with pointer
+receiver for a struct passed as pointer, so a type can redact a secret.
+A [16]byte is logged as UUID, and so is a named [16]byte type that holds
+a UUID, unless it has such a method that formats it differently.
+
+Logging never panics or hangs because of a logged value: a panic in a
+method that golog calls on a value, like Error, String, Log or MarshalJSON,
+is logged as error string, and a value that references itself, like a
+[]any that contains itself or Loggables that log each other,
+is logged with a cycle error instead of recursing forever.
+A value that references the same values so many times that writing
+it would take exponential time is logged as error, and so is a value
+nested more than 256 deep through pointers, slices, arrays, maps and Loggables,
+or more than 10000 deep when it is formatted by the fmt package or
+marshalled by encoding/json. The limits apply to all values of a log
+message together.
 
 A type implements [Loggable] with a Log method that logs its fields,
 for example to leave out personal data:
@@ -81,8 +99,11 @@ for example to leave out personal data:
 
 [Message.Loggable] logs the fields as fields of the message,
 [Message.Any] logs them as JSON object under the key, also for the elements
-of a slice, and a nil pointer as null. [LoggableFunc] turns a function into
-a Loggable, and [Attribs] is a Loggable as well.
+of a slice and behind several pointers, and as null a nil pointer,
+a nil [LoggableFunc] or a Loggable whose IsNull method returns true,
+for which [Message.Loggable] logs nothing.
+[LoggableFunc] turns a function into a Loggable,
+and [Attribs] is a Loggable as well.
 A Log method declared on the pointer type *User is only called for a *User:
 [Message.Any] encodes a User value with encoding/json instead,
 which logs all exported fields, Email included.

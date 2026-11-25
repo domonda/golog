@@ -918,6 +918,46 @@ func TestAttribImplementations(t *testing.T) {
 	}
 }
 
+// TestAny_AppendJSON_SelfContainingSlice tests that the Any attrib writes
+// a []any that contains itself, also through a pointer or an interface,
+// with encoding/json once it is nested deeper than maxAnyJSONNesting,
+// which ends the cycle with an error instead of recursing until
+// the stack overflows, a fatal error that recover can't catch.
+func TestAny_AppendJSON_SelfContainingSlice(t *testing.T) {
+	direct := []any{nil}
+	direct[0] = direct
+	viaPointer := []any{nil}
+	viaPointer[0] = &viaPointer
+	var iface any
+	viaInterface := []any{&iface}
+	iface = viaInterface
+
+	for name, val := range map[string]any{
+		"direct":        direct,
+		"via pointer":   &viaPointer,
+		"via interface": viaInterface,
+	} {
+		t.Run(name, func(t *testing.T) {
+			got := NewAny("k", val).AppendJSON([]byte(`{`))
+			assert.Contains(t, string(got), "encountered a cycle")
+			assert.True(t, json.Valid(append(got, '}')), "valid JSON: %s", got)
+		})
+	}
+}
+
+// testPtrStringBytes is a byte slice type with
+// a String method with pointer receiver.
+type testPtrStringBytes []byte
+
+func (*testPtrStringBytes) String() string { return "string" }
+
+// testNullError is an error that is always null.
+type testNullError struct{}
+
+func (testNullError) Error() string { return "msg" }
+
+func (testNullError) IsNull() bool { return true }
+
 // TestAny_AppendJSON pins the JSON encoding of every dynamic value type
 // Any.AppendJSON handles without reflection, plus the json.Marshal
 // fallback and its error case, because Attribs.MarshalJSON relies on it.
@@ -995,6 +1035,35 @@ func TestAny_AppendJSON(t *testing.T) {
 		{name: "error redacts", val: testSecretErrorBytes("hunter2"), want: `"***"`},
 		{name: "Loggable redacts", val: testSecretLogBytes("hunter2"), want: `{"secret":"***"}`},
 		{name: "IsNull bytes", val: testNullableBytes{}, want: `null`},
+		// A null Loggable like Message.Any: a nil LoggableFunc used to panic,
+		// IsNull was ignored, and a Loggable behind two pointers was written
+		// by encoding/json as {}, without its methods with pointer receiver
+		{name: "nil LoggableFunc", val: LoggableFunc(nil), want: `null`},
+		{name: "nil LoggableFunc in []any", val: []any{LoggableFunc(nil)}, want: `[null]`},
+		{name: "IsNull Loggable", val: &testNullLoggable{null: true}, want: `null`},
+		{name: "IsNull Loggable value receiver", val: testValueNullLoggable{null: true}, want: `null`},
+		{name: "nil pointer to value receiver Loggable", val: (*testValueNullLoggable)(nil), want: `null`},
+		{name: "IsNull Loggable behind two pointers", val: func() any { p := &testNullLoggable{null: true}; return &p }(), want: `null`},
+		{name: "Loggable behind two pointers", val: func() any { p := &testNullLoggable{}; return &p }(), want: `{"v":"x"}`},
+		{name: "nil Loggable pointer behind pointer", val: func() any { var p *testNullLoggable; return &p }(), want: `null`},
+		{name: "error behind pointer", val: func() any { err := errors.New("boom"); return &err }(), want: `"boom"`},
+		{name: "pointer to int", val: func() any { i := 1; return &i }(), want: `1`},
+		// An error whose IsNull method returns true is null like in Message.Any
+		{name: "IsNull error", val: testNullError{}, want: `null`},
+		// Values behind pointers and interfaces and as elements of slices
+		// like Message.Any writes them, instead of by encoding/json
+		{name: "UUID behind pointer", val: &attribTestUUID1, want: `"a547276f-b02b-4e7d-b67e-c6deb07567da"`},
+		{name: "UUID behind pointer to interface", val: func() any { var a any = attribTestUUID1; return &a }(), want: `"a547276f-b02b-4e7d-b67e-c6deb07567da"`},
+		{name: "UUID elements", val: [][16]byte{attribTestUUID1, {}}, want: `["a547276f-b02b-4e7d-b67e-c6deb07567da",null]`},
+		{name: "named UUID", val: testNamedUUID(attribTestUUID1), want: `"a547276f-b02b-4e7d-b67e-c6deb07567da"`},
+		{name: "zero time behind pointer", val: &time.Time{}, want: `null`},
+		{name: "time elements", val: []time.Time{attribTestTime2, {}}, want: `["2025-12-31T23:59:59Z",null]`},
+		{name: "bytes behind pointer to interface", val: func() any { var a any = []byte("hi"); return &a }(), want: `"hi"`},
+		{name: "byte slice elements with String method with pointer receiver", val: []testPtrStringBytes{testPtrStringBytes("a")}, want: `["string"]`},
+		{name: "Loggable elements", val: []testLoggable{{val: "v"}}, want: `[{"inner":"v","n":1}]`},
+		// Like encoding/json, a nil slice of other types is null
+		{name: "nil []int", val: []int(nil), want: `null`},
+		{name: "[]int", val: []int{1, 2}, want: `[1,2]`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

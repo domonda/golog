@@ -10,6 +10,224 @@ lockstep with the root module, e.g. `v1.0.7`, `logsentry/v1.0.7`, `goslog/v1.0.7
 
 ## [Unreleased]
 
+## [1.4.1] - 2026-11-25
+
+### Fixed
+
+- Logging never panics or hangs because of a logged value:
+  - A panic of a method that golog calls on a logged value, like `Error`,
+    `String`, `Log`, `IsNull`, `IsZero`, `MarshalJSON` and `MarshalText`,
+    is recovered and logged as error string, like
+    `golog: recovered panic in Error method of T: ...`, also when the
+    panic value panics again while it is formatted. This includes
+    `Message.Err`, `Message.Error`, `Message.Errors`, `Message.Stringer`,
+    `Message.AsJSON`, `Message.Loggable`, `Message.Any`, `Message.Print`,
+    `Message.StructFields`, the formatting methods like `Logger.Infof`,
+    `LevelWriter` and the attribs of sub-loggers. `Message.Err` and
+    `Message.Error` log a nil pointer error as `null` instead of calling
+    its `Error` method, `Message.Stringer` logs a nil pointer as `null`
+    if its `String` method panics, like with a value receiver, and
+    `Message.Request` logs nothing for a nil request instead of panicking. `Message.Loggable` logs nothing for the
+    Loggables that `Message.Any` writes as `null`: a nil pointer, a nil
+    `LoggableFunc` or a pointer to one, and a Loggable whose `IsNull`
+    method returns true, instead of logging the recovered panic of
+    calling it as `error` attrib.
+  - A value that references itself is logged with the error string
+    `golog: encountered a cycle via T` where the cycle closes, instead of
+    recursing until the stack overflows, which is a fatal error that
+    recover can't catch. This covers a `[]any` or map that contains itself
+    in `Message.Any`, `Message.Print`, the formatting methods like
+    `Logger.Infof` and `Logger.Errorf` for every verb, `LevelWriter` and
+    `log.FatalAndPanic`, also when passed as `reflect.Value` or as pointer
+    to a struct, slice, array or map, which fmt formats like `&{...}`
+    with the value that it points to; Loggables
+    that log each other, through slices, pointers or `Message.Loggable`;
+    values that reference themselves through `Attribs`, which
+    `encoding/json` marshals with `Attribs.MarshalJSON`, which reports a
+    cycle when the same goroutine marshals the same `Attribs` nested in
+    themselves, without making goroutines wait for each other; and
+    values in the
+    attribs of sub-loggers, which end a cycle at its first repetition,
+    so a value that contains itself many times is no longer written in
+    time and space exponential in the number of times.
+  - Loggables that can't be told apart, like struct values and
+    `LoggableFunc`s, that log themselves end with an error after at most
+    100000 `Log` calls inside one log message. Values nested more than
+    256 deep through pointers, slices, arrays, maps and Loggables are written with
+    the error `golog: T nested more than 256 deep`.
+  - A value that references the same values many times, like slices that
+    contain the same slice several times on every level, also nested
+    slices of numbers like `[][][]int`, is written as error instead of
+    taking exponential time: the fmt package and `encoding/json` write a
+    value for every reference. The values of a log message may have at
+    most 1000000 slices, arrays, maps and structs, counted for every
+    reference, with at most 16777216 elements, and be nested at most 10000
+    deep to be formatted or marshalled, and the Loggables of a log message
+    may make at most 100000 `Log` calls. Numbers and strings in an
+    interface, like the elements of a `[]any`, are not counted as values,
+    so a large `[]any` of numbers is still written, and bytes count as
+    one element. Every writer of a message writes its values the same
+    way. `Attribs` that `encoding/json` marshals may be nested at most
+    1000 deep in each other, and inside one value the same `Attribs` may
+    be marshalled again at most 1000 times. `Attribs.MarshalJSON` tracks
+    this only for `Attribs` with values that can lead to `Attribs`: through
+    interfaces, Loggables or `MarshalJSON`, `MarshalText`, `Error` and
+    `String` methods of types outside of the standard library, which
+    makes marshalling such `Attribs` slower.
+  - Not covered by the limits: a `String` or `Error` method that the fmt
+    package calls for a value nested in a formatted value and that panics
+    with a value that contains itself, `Attribs` next to each other in a
+    value that `encoding/json` marshals, which each get their own limits,
+    and the bytes of strings, so a slice that references the same large
+    string many times is written completely. A struct field that
+    `encoding/json` leaves out because another field has its name is
+    checked like the others.
+  - A `Log`, `Error`, `String` or `MarshalJSON` method that panics because
+    it logs a message at `GlobalPanicLevel` is recovered like any other
+    panic of the method and logged as error string instead of panicking.
+  - Values that `encoding/json` marshals are checked like it marshals
+    them: a pointer cycle is reported as error after 1000 nested pointers,
+    maps and slices, which used to use 512 MB of stack, embedded fields
+    with a name in their json tag are checked as regular fields like
+    `encoding/json` marshals them, and the fields
+    that it leaves out, like a `json:"-"` field, and the values that it
+    marshals with a `MarshalJSON` or `MarshalText` method, also with
+    pointer receiver, are not counted, so a tree with a `json:"-"` parent
+    pointer is logged. The elements of slices, arrays and maps behind
+    pointers, also in struct fields, are counted for every reference.
+  - A typed nil error returned by a `MarshalJSON` or `MarshalText` method
+    is logged as `null` instead of panicking.
+  - The formatting methods check each argument with the methods that fmt
+    uses for its verbs, like fmt parses the format, also for `%w` outside
+    of `Errorf` and `%#w`, which fmt formats without the `Error` method,
+    invalid argument indexes like `%[0]v`, and verbs like `%s` for which
+    fmt formats a pointer nested in a value with the value that it points
+    to. An argument of `%T`, of `%p` of a pointer, and of a `*` width or
+    precision is not checked. A panic value is described by its `Error` or
+    `String` method, and the formatting methods pass the format and its
+    arguments on to fmt unchanged when they don't replace one, so
+    `go vet` checks the format strings of `Logger.Infof` and the like.
+  - `Message.Any` and the `Any` attrib write a pointer to an array that
+    contains the pointer, like `a := &[1]any{}; a[0] = a`, with a cycle
+    error, and arrays nested more than 256 deep with an error, instead of
+    crashing with a stack overflow.
+  - `Message.Any` follows at most 8 pointers and interfaces and writes a
+    pointer cycle like `var v any; v = &v` or a pointer type like
+    `type P *P` that points to itself as `null`, and so does a chain of
+    more than 8 pointers to a value.
+  - `Message.StructFields` and `Message.TaggedStructFields` no longer hang
+    for a pointer type like `type P *P` that points to itself, and no
+    longer crash with a stack overflow for a struct that embeds a pointer
+    to itself, directly or through other embedded structs: it is logged
+    once, and embedded pointers are followed at most 256 deep. A struct
+    that several embedded pointers point to is logged once instead of
+    once for every path to it, which could take exponential time. They no
+    longer panic for an embedded field that is no struct, like an embedded
+    interface or string type. Like `encoding/json`, such a field is a
+    regular field under its type name if that is exported.
+- A custom `Writer` whose `WriteError` method calls the `Error` method has
+  to call it before writing anything, as `Writer.WriteError` now documents,
+  because golog recovers a panic of the `Error` method and calls
+  `WriteError` again with an error that reports the panic.
+- **goslog:** the `slog.Handler` resolves a `slog.LogValuer` with
+  `slog.Value.Resolve`, which logs a panic of its `LogValue` method as
+  error instead of panicking, logs groups nested more than 64 deep, like
+  a `LogValuer` whose group contains itself, as error instead of
+  recursing until the stack overflows, and writes at most 10000
+  attributes per record, so groups that contain themselves several times
+  don't take exponential time. A record with exactly 10000 attributes is
+  written completely, the error replaces the first attribute above the
+  limit.
+- **logsentry:** an error whose `Error` method panics no longer drops the
+  whole Sentry event; the event has the recovered panic as error.
+- The text writer no longer writes a second separator after an error in
+  a slice whose `Error` method panicked.
+- `Message.Any` and the `Any` attrib log a nil `LoggableFunc`, also as an
+  element of a slice or array and behind a pointer, as `null` (the text
+  writer as `nil`) instead of panicking.
+- `Message.Any` and the `Any` attrib find a `Loggable`, an `error` or an
+  `IsNull` method with pointer receiver behind several pointers. A `**T`
+  whose `*T` has the methods was written by `encoding/json` as `{}`
+  instead of as `null` for a null value or as the attribs its `Log` method
+  logs. Likewise a `**golog.Attribs` is written as JSON object instead of
+  as array of one object, and a slice behind a pointer to an interface,
+  like a `*any`, as array instead of as values without array, which was
+  invalid JSON.
+- A value that implements `error` is logged as its error string instead of
+  as the struct or slice that implements it, also as an element of a slice
+  or array: `Message.Any` writes a slice type that is an error, like
+  `type Errs []string` with an `Error` method, as one string instead of
+  as array of the same string, and a slice type whose `IsNull` method
+  returns true as `null` instead of `[null]`. A value whose `Error` method
+  has a pointer receiver is no `error` and is logged as the value.
+- Secrets that a type redacts itself are no longer logged:
+  - `Message.Any` uses the `MarshalJSON` or `MarshalText` method of every
+    kind of value like `encoding/json`, for example of a
+    `type Secret string` or a slice type, which it used to log raw.
+    A named UUID type with such a method, like a session token, is logged
+    with the method, unless the method formats it as UUID like the UUID
+    type of `github.com/google/uuid`, which is still logged as UUID, and
+    a nil UUID as `null`.
+  - `Message.Any` marshals an addressable struct or map, like one passed as
+    pointer or an element of a slice, through its pointer like
+    `encoding/json`, so a `MarshalJSON` or `MarshalText` method with
+    pointer receiver is used instead of logging a copy. Such a method is
+    now called when the value is logged, so like with `encoding/json` it
+    must not lock a mutex that the caller holds while logging.
+  - `Message.StructFields` logs the fields of a struct passed as pointer
+    through their addresses, so the `MarshalJSON` and `MarshalText`
+    methods with pointer receiver of the fields, and of the structs and
+    array elements in them, are used. For a sub-logger it records a copy
+    that doesn't change with the struct.
+  - `Message.Any` writes a slice nested in a slice as JSON array like the
+    `Any` attrib, if its elements are no plain numbers, strings or bools,
+    so the `MarshalJSON` methods of the elements redact them, instead of
+    formatting it with the fmt package as one string like `"[pw]"`. For
+    example `[]any{[]any{1, "a"}}` is written as `[[1,"a"]]` instead of
+    `["[1 a]"]`. A slice of plain values like `[][]int` is still written
+    as strings like `["[1 2]"]`, and so is a slice whose elements have a
+    `String` method, but no `MarshalJSON`, `MarshalText`, `Error` or `Log`
+    method, like `[]time.Duration`, so a `String` method that hides a
+    secret keeps it hidden. A nested slice or array type with such a
+    `String` method is written with it, and so is every element of such a
+    type in a slice that is nested in a slice, also in a `[]any`.
+  - `Any.ValueString` writes a value that is no plain number, string or
+    bool like it is logged as JSON instead of in Go syntax, which showed
+    what its `Log`, `Error` or `MarshalJSON` methods hide. Complex
+    numbers, channels and functions, which JSON can't encode, are still
+    written in Go syntax.
+  - A Loggable in a slice that is logged with `Message.Any` inside another
+    Loggable's `Log` method is logged with its `Log` method instead of by
+    `encoding/json`, which logged the fields that `Log` hides.
+- The `Any` attrib, which records the values of sub-loggers and of
+  Loggables logged with `Message.Any`, writes values like `Message.Any`:
+  - `null` for a value whose `IsNull` method returns true, also with
+    pointer receiver and for an `error`, a Loggable or a type with a
+    `MarshalJSON` method, and for a pointer to a zero `time.Time`.
+  - Slices and arrays element by element, also behind pointers and
+    interfaces, so errors are written as error strings, for example
+    `[]error` as `["a",null]` instead of as `[{},null]` by
+    `encoding/json`, and Loggables, UUIDs, times and bytes like single
+    values.
+  - UUIDs behind pointers and interfaces and named UUID types as UUID
+    strings instead of arrays of 16 numbers, and bytes behind a pointer to
+    an interface as string instead of base64.
+  - `Message.Any` and the `Any` attrib decide which values they write as
+    one value, like a Loggable, an error, a UUID or a value with a
+    `MarshalJSON` method, in one place, so they write every value the
+    same way.
+- `Message.Any` logs a `[16]byte` as UUID whatever it holds, also behind
+  a pointer, where one that holds no valid UUID was logged as array of
+  one UUID, and as array of 16 numbers by the `Any` attrib. A named
+  `[16]byte` type is logged as UUID only if it holds a valid or nil UUID.
+- `Message.Any` writes a `*json.RawMessage` as JSON like a
+  `json.RawMessage`, instead of as array of one value.
+- `Message.Any` writes the most common types like strings, numbers,
+  `time.Time`, UUIDs and errors without reflection, and checks named UUID
+  types without allocating. `Message.Loggable` doesn't allocate for the
+  checks that end a Loggable that logs itself, and the checks before
+  marshalling or formatting a value don't copy the structs in it.
+
 ## [1.4.0] - 2026-11-24
 
 ### Added
@@ -482,7 +700,8 @@ lockstep with the root module, e.g. `v1.0.7`, `logsentry/v1.0.7`, `goslog/v1.0.7
   attrib type for zero-allocation `time.Time` logging, and the `tag-release`
   versioning script.
 
-[Unreleased]: https://github.com/domonda/golog/compare/v1.4.0...HEAD
+[Unreleased]: https://github.com/domonda/golog/compare/v1.4.1...HEAD
+[1.4.1]: https://github.com/domonda/golog/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/domonda/golog/compare/v1.3.2...v1.4.0
 [1.3.2]: https://github.com/domonda/golog/compare/v1.3.1...v1.3.2
 [1.3.1]: https://github.com/domonda/golog/compare/v1.3.0...v1.3.1

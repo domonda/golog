@@ -2,7 +2,6 @@ package golog
 
 import (
 	"context"
-	"fmt"
 	"log"
 )
 
@@ -34,15 +33,15 @@ func (w *LevelWriter) WriteMessage(ctx context.Context, msg string) {
 }
 
 func (w *LevelWriter) Print(v ...any) {
-	w.WriteMessage(context.Background(), fmt.Sprint(v...))
+	w.WriteMessage(context.Background(), safeSprint(v...))
 }
 
 func (w *LevelWriter) Println(v ...any) {
-	w.WriteMessage(context.Background(), fmt.Sprintln(v...))
+	w.WriteMessage(context.Background(), safeSprintln(v...))
 }
 
 func (w *LevelWriter) Printf(format string, v ...any) {
-	w.WriteMessage(context.Background(), fmt.Sprintf(format, v...))
+	w.WriteMessage(context.Background(), safeSprintf(format, v...))
 }
 
 // Func returns a function with the log.Printf call signature.

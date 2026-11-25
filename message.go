@@ -10,8 +10,11 @@ import (
 	"go/token"
 	"net/http"
 	"reflect"
+	"slices"
 	"time"
 	"unicode/utf8"
+
+	"github.com/domonda/go-encjson"
 )
 
 // Message is a fluent builder for constructing log messages with typed attributes.
@@ -40,6 +43,56 @@ type Message struct {
 	// without writer configs, or whose writers all filtered out its level,
 	// has no writers either.
 	attribRecorder bool
+	// loggables holds the Loggables whose Log methods are logging
+	// to the message, so a Loggable that logs itself, directly or
+	// through other values, is logged with a cycle error instead
+	// of recursing until the stack overflows.
+	loggables valuePath
+	// outermostWork and outermostRefs back the path that loggablePath
+	// returns for the values of the message, so logging doesn't allocate.
+	outermostWork valuePathWork
+	outermostRefs [4]valueRef
+	// writingValue is true while forEachWriter writes a value
+	writingValue bool
+}
+
+// loggablePath returns the path of the Loggables that are logging
+// to the message, or for the outermost value an empty path that uses
+// the counters and the array of the message instead of allocating them.
+// The counters are shared by all values of the message, so the limits
+// of valuePath and valueCheckBudget apply to the whole log message
+// instead of to each of its values, see forEachWriter for its writers.
+func (m *Message) loggablePath() valuePath {
+	if m.loggables.work != nil {
+		return m.loggables
+	}
+	return valuePath{refs: m.outermostRefs[:0], work: &m.outermostWork}
+}
+
+// forEachWriter calls write for each writer of the message, each with the
+// counters of loggablePath that the first writer started with, so every
+// writer writes the value the same way instead of the later writers
+// writing an error when the earlier ones used up the limits.
+// A call nested in the write of another one, like by a Loggable that
+// logs to a message that it captured, doesn't restore the counters,
+// so nested calls can't multiply the work by the number of writers.
+func (m *Message) forEachWriter(write func(Writer)) {
+	if m.writingValue {
+		for _, w := range m.writers {
+			write(w)
+		}
+		return
+	}
+	m.writingValue = true
+	defer func() { m.writingValue = false }()
+	work := m.loggablePath().work
+	start := *work
+	for i, w := range m.writers {
+		if i > 0 {
+			*work = start
+		}
+		write(w)
+	}
 }
 
 // newMessage returns a Message from the mempool
@@ -258,11 +311,32 @@ func (m *Message) Ctx(ctx context.Context) *Message {
 // Loggable lets an implementation of the Loggable interface log itself
 // by logging its attribs as attribs of the message.
 // Use Message.Any to log them as JSON object under a key instead.
+//
+// A Loggable that is already logging to the message, because it logs
+// itself directly or through other Loggables, is not logged again,
+// and a panic of its Log method is logged with Message.Err.
+// Like Message.Any writes null for them, nothing is logged for a nil
+// pointer, a nil LoggableFunc, a pointer to one, or a Loggable whose
+// IsNull method returns true.
 func (m *Message) Loggable(loggable Loggable) *Message {
 	if m == nil || loggable == nil {
 		return m
 	}
-	loggable.Log(m)
+	v := reflect.ValueOf(loggable)
+	if isNullValue(v) {
+		return m
+	}
+	path, err := m.loggablePath().enterLoggable(v)
+	if err != nil {
+		return m
+	}
+	outer := m.loggables
+	m.loggables = path
+	err = safeLog(loggable, m)
+	m.loggables = outer
+	if err != nil {
+		m.Err(err)
+	}
 	return m
 }
 
@@ -287,12 +361,12 @@ func (m *Message) Error(key string, val error) *Message {
 		m.attribs.Add(NewError(key, val))
 		return m
 	}
-	if val == nil {
+	if val == nil || isNilPointer(val) {
 		return m.Nil(key)
 	}
 	for _, w := range m.writers {
 		w.WriteKey(key)
-		w.WriteError(val)
+		writeError(w, val)
 	}
 	return m
 }
@@ -313,7 +387,7 @@ func (m *Message) Errors(key string, vals []error) *Message {
 	for _, w := range m.writers {
 		w.WriteSliceKey(key)
 		for _, val := range vals {
-			w.WriteError(val)
+			writeError(w, val)
 		}
 		w.WriteSliceEnd()
 	}
@@ -360,11 +434,35 @@ func (m *Message) Any(key string, val any) *Message {
 		return m
 	}
 
-	if val == nil {
+	// Fast path without reflection for the most common types,
+	// written like the typed methods write them
+	switch x := val.(type) {
+	case nil:
 		return m.Nil(key)
-	}
-	if raw, ok := val.(json.RawMessage); ok {
-		return m.JSON(key, raw)
+	case string:
+		return m.Str(key, x)
+	case bool:
+		return m.Bool(key, x)
+	case int:
+		return m.Int(key, x)
+	case int64:
+		return m.Int64(key, x)
+	case float64:
+		return m.Float(key, x)
+	case time.Time:
+		// Null for the zero time like Message.Time
+		return m.Time(key, x)
+	case [16]byte:
+		// Null for the nil UUID like Message.UUID
+		return m.UUID(key, x)
+	case json.RawMessage:
+		return m.JSON(key, x)
+	case error:
+		// Like tryWriteInterface, unless the error is also a Loggable,
+		// which is written as JSON object, or is null
+		if _, ok := x.(Loggable); !ok && !isNullValue(reflect.ValueOf(x)) {
+			return m.Error(key, x)
+		}
 	}
 
 	v := reflect.ValueOf(val)
@@ -383,7 +481,11 @@ func (m *Message) Any(key string, val any) *Message {
 		if isNullValue(v) {
 			return m.Nil(key)
 		}
-		j := appendLoggableJSON(nil, m.logger, loggable)
+		path, err := m.loggablePath().enterLoggable(v)
+		if err != nil {
+			return m.Error(key, err)
+		}
+		j := appendLoggableJSON(nil, m.logger, loggable, path)
 		for _, w := range m.writers {
 			w.WriteKey(key)
 			w.WriteJSON(j)
@@ -394,38 +496,71 @@ func (m *Message) Any(key string, val any) *Message {
 	// A byte slice type with a format of its own, like net.IP,
 	// is one value instead of a slice of numbers
 	if hasOwnByteSliceFormat(v) {
-		for _, w := range m.writers {
+		m.forEachWriter(func(w Writer) {
 			w.WriteKey(key)
 			m.writeAny(w, v, false)
-		}
+		})
 		return m
 	}
 
 	if isSlice(v) {
-		for _, w := range m.writers {
+		m.forEachWriter(func(w Writer) {
 			w.WriteSliceKey(key)
 			m.writeAny(w, v, false)
 			w.WriteSliceEnd()
-		}
+		})
 		return m
 	}
 
-	for _, w := range m.writers {
+	m.forEachWriter(func(w Writer) {
 		w.WriteKey(key)
 		m.writeAny(w, v, false)
-	}
+	})
 	return m
 }
 
+// isSlice returns true if writeAny writes v, also behind pointers and
+// interfaces, as the elements of a slice or array, and false if writeAny
+// writes one value for it, like for a Loggable, an error or a null value
+// that it finds on the way, see classifyOneValue.
 func isSlice(v reflect.Value) bool {
 	if !v.IsValid() {
 		return false
 	}
-	for v.Kind() == reflect.Pointer && !v.IsNil() {
+	// Check v and every pointer and interface that writeAny follows,
+	// limited like writeAny, because a pointer that points to itself
+	// has no end
+	for step := 0; ; step++ {
+		if class, _ := classifyOneValue(v); class != notOneValue {
+			return false
+		}
+		if (v.Kind() != reflect.Pointer && v.Kind() != reflect.Interface) || step == maxAnyDerefSteps {
+			return v.Kind() == reflect.Slice || (v.Kind() == reflect.Array && !isUUID(v))
+		}
 		v = v.Elem()
 	}
-	return v.Kind() == reflect.Slice || (v.Kind() == reflect.Array && !isUUID(v))
 }
+
+var (
+	loggableType = reflect.TypeFor[Loggable]()
+	errorType    = reflect.TypeFor[error]()
+)
+
+// derefType returns the type that t points to,
+// also through several pointers, or t if it is no pointer.
+func derefType(t reflect.Type) reflect.Type {
+	for range maxPointerLevels {
+		if t.Kind() != reflect.Pointer {
+			break
+		}
+		t = t.Elem()
+	}
+	return t
+}
+
+// maxAnyDerefSteps is the maximum number of pointers and interfaces
+// that writeAny dereferences, so a reference cycle can't hang it.
+const maxAnyDerefSteps = 8
 
 func (m *Message) writeAny(w Writer, val reflect.Value, nestedSlice bool) {
 	// Try if val implements a loggable interface or is nil
@@ -435,28 +570,27 @@ func (m *Message) writeAny(w Writer, val reflect.Value, nestedSlice bool) {
 	}
 
 	// Deref pointers and unwrap interface values,
-	// for example the elements of a []any
-	dereferenced := false
-	for (val.Kind() == reflect.Pointer || val.Kind() == reflect.Interface) && !val.IsNil() {
-		val = val.Elem()
-		dereferenced = true
-		if implementsOwnFormat(val.Type()) && isByteSliceType(val.Type()) {
-			// Stop at a pointer to a byte slice type with a format of its
-			// own, its methods with pointer receiver would be lost below
+	// for example the elements of a []any.
+	// Try every step for a loggable interface or nil, because an
+	// intermediate pointer has the methods with pointer receiver,
+	// like IsNull or Log, that the value it points to lacks.
+	// The steps are limited, so a reference cycle can't hang Any.
+	for range maxAnyDerefSteps {
+		if (val.Kind() != reflect.Pointer && val.Kind() != reflect.Interface) || val.IsNil() {
 			break
 		}
-	}
-	if dereferenced {
-		// Try if dereferenced val implements a loggable interface or is nil
-		written := m.tryWriteInterface(w, val)
-		if written {
+		val = val.Elem()
+		if m.tryWriteInterface(w, val) {
+			// Also a byte slice type with a format of its own,
+			// before its methods with pointer receiver are lost
 			return
 		}
 	}
 
 	switch val.Kind() {
-	case reflect.Pointer:
-		// A non-nil pointer would have been dereferenced above
+	case reflect.Pointer, reflect.Interface:
+		// A non-nil pointer or interface is left after
+		// maxAnyDerefSteps only by a reference cycle
 		w.WriteNil()
 
 	case reflect.Bool:
@@ -475,7 +609,15 @@ func (m *Message) writeAny(w Writer, val reflect.Value, nestedSlice bool) {
 		w.WriteString(val.String())
 
 	case reflect.Struct, reflect.Map:
-		j, err := json.Marshal(val.Interface())
+		// Like encoding/json, marshal an addressable value, like one
+		// behind a pointer or an element of a slice, through its pointer,
+		// so the MarshalJSON or MarshalText method with pointer receiver
+		// of a type that redacts itself is used
+		x := val.Interface()
+		if val.CanAddr() {
+			x = val.Addr().Interface()
+		}
+		j, err := safeJSONMarshal(x, m.loggablePath().checkBudget())
 		if err != nil {
 			w.WriteError(fmt.Errorf("error while marshalling %s as JSON for logging: %w", val.Type(), err))
 			return
@@ -484,16 +626,12 @@ func (m *Message) writeAny(w Writer, val reflect.Value, nestedSlice bool) {
 
 	case reflect.Array:
 		if uuid, ok := asUUID(val); ok {
-			if IsNilUUID(uuid) {
-				w.WriteNil()
-			} else {
-				w.WriteUUID(uuid)
-			}
+			writeUUID(w, uuid)
 			return
 		}
 		if nestedSlice {
 			// Don't go further into a slice of slices
-			w.WriteString(fmt.Sprint(val))
+			m.writeNestedSlice(w, val)
 		} else {
 			for i := range val.Len() {
 				m.writeAny(w,
@@ -506,7 +644,7 @@ func (m *Message) writeAny(w Writer, val reflect.Value, nestedSlice bool) {
 	case reflect.Slice:
 		if nestedSlice {
 			// Don't go further into a slice of slices
-			w.WriteString(fmt.Sprint(val))
+			m.writeNestedSlice(w, val)
 		} else {
 			for i := range val.Len() {
 				m.writeAny(w,
@@ -517,113 +655,290 @@ func (m *Message) writeAny(w Writer, val reflect.Value, nestedSlice bool) {
 		}
 
 	default:
-		w.WriteString(fmt.Sprint(val))
+		writeFormatted(w, val)
 	}
 }
 
-func (m *Message) tryWriteInterface(w Writer, val reflect.Value) (written bool) {
-	if isNullValue(val) {
-		w.WriteNil()
-		return true
+// writeNestedSlice writes a slice or array that is an element of a slice.
+// A slice of numbers, strings or bools without methods is formatted by the
+// fmt package as one string. Other slices are written as JSON array like
+// the Any attrib writes them, because fmt would show what the methods
+// of their elements format or redact, like Error or MarshalJSON.
+func (m *Message) writeNestedSlice(w Writer, val reflect.Value) {
+	path := m.loggablePath()
+	if formatsWithString(val.Type()) {
+		// A slice or array type with a String method
+		w.WriteString(safeString(val.Interface().(fmt.Stringer)))
+		return
+	}
+	if formatsWithString(val.Type().Elem()) {
+		// Like before golog v1.4.1, so a String method
+		// that hides a secret keeps it hidden
+		w.WriteString(sprintChecked(path.checkBudget(), val))
+		return
+	}
+	if formatsPlainly(val.Type()) {
+		// Checked with the budget of the logged value, the elements
+		// can reference the same slices, see typeNeedsFormatCheck
+		if err := checkFormattable(val, printVerb, path.checkBudget()); err != nil {
+			w.WriteString(err.Error())
+			return
+		}
+		// Without methods, which could panic, or interfaces, which could
+		// lead back to the slice, so fmt can format it without checks
+		w.WriteString(fmt.Sprint(val))
+		return
+	}
+	// Elements written with their String method like fmt formats them
+	path.inElements = true
+	w.WriteJSON(appendElementsJSON(nil, val, path))
+}
+
+// formatsWithString returns true if t has a String method, but no
+// MarshalJSON, MarshalText, Error or Log method, so the fmt package
+// formats a value of type t with String, which encoding/json wouldn't
+// use, and golog writes it with its String method in a nested slice.
+func formatsWithString(t reflect.Type) bool {
+	return t.NumMethod() > 0 && t.Implements(fmtStringerType) && !implementsJSONOrTextFormat(t) &&
+		!t.Implements(errorType) && !t.Implements(loggableType)
+}
+
+// formatsPlainly returns true if t is a number, string or bool type
+// without methods, or a slice or array of those, which the fmt package
+// formats like the Any attrib writes them as JSON, or which JSON can't
+// encode, like complex numbers.
+func formatsPlainly(t reflect.Type) bool {
+	for range maxPointerLevels {
+		if t.NumMethod() > 0 || reflect.PointerTo(t).NumMethod() > 0 {
+			return false
+		}
+		switch t.Kind() {
+		case reflect.Slice, reflect.Array:
+			t = t.Elem()
+		case reflect.Bool,
+			reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+			reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr,
+			reflect.Float32, reflect.Float64, reflect.Complex64, reflect.Complex128, reflect.String:
+			return true
+		default:
+			return false
+		}
+	}
+	return false
+}
+
+// writeFormatted writes val formatted by the fmt package,
+// or an error if fmt would format it forever or in exponential time,
+// see checkFormattable.
+func writeFormatted(w Writer, val reflect.Value) {
+	w.WriteString(safeSprint(val))
+}
+
+// oneValue tells how a value is logged as one value,
+// see classifyOneValue.
+type oneValue int
+
+const (
+	// notOneValue is a value that isn't logged by its type or methods:
+	// a pointer or interface is followed, a slice or array is logged
+	// element by element, and other values by their kind.
+	notOneValue oneValue = iota
+	// oneNull is a nil value or one whose IsNull method returns true.
+	oneNull
+	// oneLoggable is a Loggable, logged as JSON object of its attribs.
+	oneLoggable
+	// oneError is an error, logged as its message.
+	oneError
+	// oneUUID is a [16]byte, logged as UUID, or as null if it is nil.
+	oneUUID
+	// oneRawJSON is a json.RawMessage, logged as JSON.
+	oneRawJSON
+	// oneTime is a time.Time, logged as time, or as null if it is zero.
+	oneTime
+	// oneOwnByteFormat is a byte slice type with a format of its own,
+	// like net.IP, logged with its MarshalJSON, MarshalText or String
+	// method in this order, like encoding/json uses them.
+	oneOwnByteFormat
+	// oneBytes is a byte slice type, logged like Message.StrBytes.
+	oneBytes
+	// oneMarshaler has a MarshalJSON or MarshalText method,
+	// logged with it like encoding/json does, see marshalerValue.
+	// A named UUID type is logged as UUID if its method formats
+	// it as such, see marshalsAsUUID.
+	oneMarshaler
+)
+
+// classifyOneValue returns how v is logged as one value, or notOneValue,
+// and the value to log: the value that an interface holds, or the
+// address of an addressable value whose methods with pointer receiver
+// are used, like encoding/json uses them. It is the one place that
+// decides this for Message.Any, which writes the values with
+// tryWriteInterface, and for the Any attrib, which writes them as JSON
+// with appendOneValueJSON, so both write the same values the same way.
+func classifyOneValue(v reflect.Value) (oneValue, reflect.Value) {
+	if !v.IsValid() || isNullValue(v) {
+		return oneNull, v
+	}
+	if v.Kind() == reflect.Interface {
+		// For example an element of a []any, not nil after isNullValue
+		v = v.Elem()
+	}
+	t := v.Type()
+	if k := v.Kind(); (k >= reflect.Bool && k <= reflect.Complex128 || k == reflect.String) &&
+		t.NumMethod() == 0 && (!v.CanAddr() || t.PkgPath() == "") {
+		// Fast path for numbers, strings and bools without methods,
+		// also with pointer receiver, which are no value of the classes
+		return notOneValue, v
 	}
 	// Like encoding/json, use the format methods with pointer receiver of
 	// an addressable byte slice value, for example an element of a slice
-	if val.CanAddr() && val.Kind() != reflect.Pointer && isByteSliceType(val.Type()) && implementsOwnFormat(reflect.PointerTo(val.Type())) {
-		val = val.Addr()
+	if v.CanAddr() && v.Kind() != reflect.Pointer && isByteSliceType(t) && implementsOwnFormat(reflect.PointerTo(t)) {
+		v = v.Addr()
+		t = v.Type()
 	}
+	switch {
+	case t.Implements(loggableType):
+		return oneLoggable, v
+	case t.Implements(errorType):
+		return oneError, v
+	case t == uuidType:
+		return oneUUID, v
+	case t == reflect.TypeFor[json.RawMessage]():
+		return oneRawJSON, v
+	case t == reflect.TypeFor[time.Time]():
+		return oneTime, v
+	}
+	if hasOwnByteSliceFormat(v) {
+		if implementsJSONOrTextFormat(t) || t.Implements(fmtStringerType) {
+			return oneOwnByteFormat, v
+		}
+		// A pointer to a pointer to a byte slice type with a format
+		// of its own, followed by writeAny to the format methods
+		return notOneValue, v
+	}
+	if _, ok := byteSliceOf(v); ok {
+		return oneBytes, v
+	}
+	if mv, ok := marshalerValue(v); ok {
+		return oneMarshaler, mv
+	}
+	return notOneValue, v
+}
 
-	switch x := val.Interface().(type) {
-	case nil:
+func (m *Message) tryWriteInterface(w Writer, val reflect.Value) (written bool) {
+	class, val := classifyOneValue(val)
+	switch class {
+	case notOneValue:
+		return false
+
+	case oneNull:
 		w.WriteNil()
-		return true
 
-	case Loggable:
+	case oneLoggable:
 		// A Loggable logs attribs with keys of its own, which can't be
-		// written at the position of a value, so write them as JSON object.
-		// Check x instead of val for a nil pointer, because val is an
-		// interface value for the elements of a []any.
-		if rv := reflect.ValueOf(x); rv.Kind() == reflect.Pointer && rv.IsNil() {
-			w.WriteNil()
-		} else {
-			w.WriteJSON(appendLoggableJSON(nil, m.logger, x))
+		// written at the position of a value, so write them as JSON object
+		path, err := m.loggablePath().enterLoggable(val)
+		if err != nil {
+			w.WriteError(err)
+			return true
 		}
-		return true
+		w.WriteJSON(appendLoggableJSON(nil, m.logger, val.Interface().(Loggable), path))
 
-	case error:
+	case oneError:
 		// A nil pointer would panic in an Error method with value receiver
-		if rv := reflect.ValueOf(x); rv.Kind() == reflect.Pointer && rv.IsNil() {
-			w.WriteNil()
-		} else {
-			w.WriteError(x)
-		}
-		return true
+		writeError(w, val.Interface().(error))
 
-	case [16]byte:
-		if IsNilUUID(x) {
-			w.WriteNil()
-		} else {
-			w.WriteUUID(x)
-		}
-		return true
+	case oneUUID:
+		writeUUID(w, val.Interface().([16]byte))
 
-	case json.RawMessage:
+	case oneRawJSON:
 		// Like Message.JSON, for example for the elements of a []json.RawMessage
-		writeRawJSON(w, x)
-		return true
+		writeRawJSON(w, val.Interface().(json.RawMessage))
 
-	case time.Time:
+	case oneTime:
 		// Like Message.Time, using the TimeFormat and Location
 		// configured for the writer instead of time.Time.MarshalJSON
-		if x.IsZero() {
+		if t := val.Interface().(time.Time); t.IsZero() {
 			w.WriteNil()
 		} else {
-			w.WriteTime(x)
+			w.WriteTime(t)
 		}
-		return true
-	}
 
-	// A byte slice type with a format of its own, like net.IP,
-	// in the order that encoding/json uses the methods
-	if hasOwnByteSliceFormat(val) {
+	case oneOwnByteFormat, oneMarshaler:
 		x := val.Interface()
-		if rv := reflect.ValueOf(x); rv.Kind() == reflect.Pointer && rv.IsNil() {
-			w.WriteNil()
+		if uuid, ok := asUUID(reflect.Indirect(val)); ok && marshalsAsUUID(x, uuid) {
+			writeUUID(w, uuid)
 			return true
 		}
 		switch x := x.(type) {
 		case json.Marshaler:
-			j, err := x.MarshalJSON()
-			if err != nil {
-				w.WriteError(err)
-			} else {
-				writeRawJSON(w, j)
-			}
-			return true
+			writeMarshalledJSON(w, x)
 		case encoding.TextMarshaler:
-			text, err := x.MarshalText()
-			if err != nil {
-				w.WriteError(err)
-			} else {
-				w.WriteString(string(text))
-			}
-			return true
+			writeMarshalledText(w, x)
 		case fmt.Stringer:
-			w.WriteString(x.String())
-			return true
+			w.WriteString(safeString(x))
 		}
-	}
 
-	// Like Message.StrBytes, for example for the elements of a [][]byte
-	if b, ok := byteSliceOf(val); ok {
-		if b == nil {
+	case oneBytes:
+		// Like Message.StrBytes, for example for the elements of a [][]byte
+		if b, _ := byteSliceOf(val); b == nil {
 			w.WriteNil()
 		} else {
 			w.WriteString(bytesAsString(b))
 		}
-		return true
 	}
+	return true
+}
 
-	return false
+// writeUUID writes uuid, or null for the nil UUID like Message.UUID.
+func writeUUID(w Writer, uuid [16]byte) {
+	if IsNilUUID(uuid) {
+		w.WriteNil()
+	} else {
+		w.WriteUUID(uuid)
+	}
+}
+
+// marshalerValue returns val, or its address if it is addressable, if it
+// has a MarshalJSON or MarshalText method, which classifyOneValue uses
+// like encoding/json. Not for pointers and interfaces, which writeAny
+// dereferences, and structs and maps, which writeAny marshals with
+// encoding/json, which uses the methods.
+func marshalerValue(val reflect.Value) (reflect.Value, bool) {
+	switch val.Kind() {
+	case reflect.Pointer, reflect.Interface, reflect.Struct, reflect.Map:
+		return val, false
+	}
+	t := val.Type()
+	if implementsJSONOrTextFormat(t) {
+		return val, true
+	}
+	if val.CanAddr() && implementsJSONOrTextFormat(reflect.PointerTo(t)) {
+		return val.Addr(), true
+	}
+	return val, false
+}
+
+// writeMarshalledJSON writes the JSON of m, or the error of m
+// or of a panic of its MarshalJSON method.
+func writeMarshalledJSON(w Writer, m json.Marshaler) {
+	j, err := safeMarshalJSON(m)
+	if err != nil {
+		writeError(w, err)
+	} else {
+		writeRawJSON(w, j)
+	}
+}
+
+// writeMarshalledText writes the text of m as string, or the error
+// of m or of a panic of its MarshalText method.
+func writeMarshalledText(w Writer, m encoding.TextMarshaler) {
+	text, err := safeMarshalText(m)
+	if err != nil {
+		writeError(w, err)
+	} else {
+		w.WriteString(string(text))
+	}
 }
 
 // StructFields logs each exported field of strct whose struct tag matches,
@@ -659,7 +974,7 @@ func (m *Message) StructFields(strct any) *Message {
 	if m == nil || strct == nil {
 		return m
 	}
-	m.structFields(reflect.ValueOf(strct), "golog", "log", "json")
+	m.structFields(reflect.ValueOf(strct), valuePath{}, nil, "golog", "log", "json")
 	return m
 }
 
@@ -680,25 +995,63 @@ func (m *Message) TaggedStructFields(strct any, keyTag string) *Message {
 	if m == nil || strct == nil {
 		return m
 	}
-	m.structFields(reflect.ValueOf(strct), keyTag)
+	m.structFields(reflect.ValueOf(strct), valuePath{}, nil, keyTag)
 	return m
 }
 
-func (m *Message) structFields(v reflect.Value, keyTags ...string) {
-	for v.Kind() == reflect.Pointer {
+// structFields logs the fields of the struct v, also behind pointers.
+// path holds the pointers to the structs that are logged around v,
+// so a struct that embeds a pointer to itself, directly or through
+// other embedded structs, is logged once instead of recursing until
+// the stack overflows. Like encoding/json, which logs the fields of an
+// embedded struct type only once, the repeated struct is left out
+// instead of being logged as error. visited holds the embedded pointers
+// that were followed, so a struct that several embedded pointers point
+// to is logged once instead of once for every path to it, which would
+// take exponential time. It returns visited, which it allocates for
+// the first embedded pointer.
+func (m *Message) structFields(v reflect.Value, path valuePath, visited map[valueRef]struct{}, keyTags ...string) map[valueRef]struct{} {
+	path, err := path.enter(v)
+	if err != nil {
+		// Already logging the struct, or embedded too deep
+		return visited
+	}
+	// Limited, a pointer that points to itself has no end
+	for range maxPointerLevels {
+		if v.Kind() != reflect.Pointer {
+			break
+		}
 		if v.IsNil() {
-			return
+			return visited
 		}
 		v = v.Elem()
+	}
+	if v.Kind() != reflect.Struct {
+		// A pointer cycle or no struct, which has no fields
+		return visited
 	}
 	t := v.Type()
 	for i := 0; i < t.NumField(); i++ {
 		field := t.Field(i)
 
-		if field.Anonymous {
-			m.structFields(v.Field(i), keyTags...)
+		if field.Anonymous && derefType(field.Type).Kind() == reflect.Struct {
+			fv := v.Field(i)
+			if fv.Kind() == reflect.Pointer && !fv.IsNil() {
+				ref := valueRef{ptr: fv.Pointer(), typ: fv.Type()}
+				if _, ok := visited[ref]; ok {
+					continue
+				}
+				if visited == nil {
+					visited = make(map[valueRef]struct{})
+				}
+				visited[ref] = struct{}{}
+			}
+			visited = m.structFields(fv, path, visited, keyTags...)
 			continue
 		}
+		// Like encoding/json, an embedded field of another type,
+		// like an embedded interface or string type,
+		// is a regular field under its type name if that is exported
 		if !token.IsExported(field.Name) {
 			continue
 		}
@@ -750,9 +1103,77 @@ func (m *Message) structFields(v reflect.Value, keyTags ...string) {
 			continue
 		}
 
-		m.Any(d.key, fv.Interface())
+		m.structField(d.key, fv)
 	}
+	return visited
 }
+
+// structField logs the struct field fv under key with Message.Any.
+//
+// Like encoding/json, an addressable field, of a struct passed as pointer,
+// is logged through its address, so the MarshalJSON and MarshalText
+// methods with pointer receiver of its type, and of the fields and elements
+// in it, are used, which a type uses to redact a secret for example.
+// An attrib recorder records the address of a copy, which doesn't
+// reference the struct after logging it. Only if the pointer type has no
+// Log, Error or IsNull method that the field type lacks, because those
+// are never called for a value: then such a field is marshalled through
+// its address by encoding/json, which never calls them.
+func (m *Message) structField(key string, fv reflect.Value) {
+	t := fv.Type()
+	if !fv.CanAddr() || fv.Kind() == reflect.Pointer || fv.Kind() == reflect.Interface ||
+		(fv.Kind() != reflect.Struct && fv.Kind() != reflect.Array &&
+			(implementsJSONOrTextFormat(t) || !implementsJSONOrTextFormat(reflect.PointerTo(t)))) {
+		m.Any(key, fv.Interface())
+		return
+	}
+	if !addsLoggableMethods(t) {
+		ptr := fv.Addr()
+		if m.IsAttribRecorder() {
+			ptr = reflect.New(t)
+			ptr.Elem().Set(fv)
+		}
+		m.Any(key, ptr.Interface())
+		return
+	}
+	if t.Implements(loggableType) || t.Implements(errorType) || isNullValue(fv) || t == reflect.TypeFor[time.Time]() {
+		// Logged as such like Message.Any does
+		m.Any(key, fv.Interface())
+		return
+	}
+	j, err := safeJSONMarshal(fv.Addr().Interface(), m.loggablePath().checkBudget())
+	if err != nil {
+		m.Error(key, fmt.Errorf("error while marshalling %s as JSON for logging: %w", t, err))
+		return
+	}
+	m.JSON(key, j)
+}
+
+// addsLoggableMethods returns true if the pointer type of t has
+// a Log, Error or IsNull method that t lacks.
+func addsLoggableMethods(t reflect.Type) bool {
+	pt := reflect.PointerTo(t)
+	for _, i := range []reflect.Type{loggableType, errorType, isNullIfaceType} {
+		if !t.Implements(i) && pt.Implements(i) {
+			return true
+		}
+	}
+	return false
+}
+
+// implementsJSONOrTextFormat returns true if t implements
+// json.Marshaler or encoding.TextMarshaler.
+func implementsJSONOrTextFormat(t reflect.Type) bool {
+	if t.NumMethod() == 0 {
+		return false // Fast path for most types
+	}
+	return t.Implements(jsonMarshalerType) || t.Implements(textMarshalerType)
+}
+
+var (
+	jsonMarshalerType = reflect.TypeFor[json.Marshaler]()
+	textMarshalerType = reflect.TypeFor[encoding.TextMarshaler]()
+)
 
 // Print logs vals as string with the "%v" format of the fmt package.
 // If only one value is passed for vals, then it will be logged as single string,
@@ -761,31 +1182,35 @@ func (m *Message) Print(key string, vals ...any) *Message {
 	if m == nil || m.hasKey(key) {
 		return m
 	}
-	if m.IsAttribRecorder() {
-		if len(vals) == 1 {
-			m.attribs.Add(NewString(key, fmt.Sprint(vals...)))
-		} else {
-			strs := make([]string, len(vals))
-			for i, val := range vals {
-				strs[i] = fmt.Sprint(val)
-			}
-			m.attribs.Add(NewStrings(key, strs))
+	// Formatted safely once for all writers with the budget
+	// of the message, see sprintChecked
+	budget := m.loggablePath().checkBudget()
+	if len(vals) == 1 {
+		str := sprintChecked(budget, vals...)
+		if m.IsAttribRecorder() {
+			m.attribs.Add(NewString(key, str))
+			return m
+		}
+		for _, w := range m.writers {
+			w.WriteKey(key)
+			w.WriteString(str)
 		}
 		return m
 	}
-	if len(vals) == 1 {
-		for _, w := range m.writers {
-			w.WriteKey(key)
-			w.WriteString(fmt.Sprint(vals...))
+	strs := make([]string, len(vals))
+	for i, val := range vals {
+		strs[i] = sprintChecked(budget, val)
+	}
+	if m.IsAttribRecorder() {
+		m.attribs.Add(NewStrings(key, strs))
+		return m
+	}
+	for _, w := range m.writers {
+		w.WriteSliceKey(key)
+		for _, str := range strs {
+			w.WriteString(str)
 		}
-	} else {
-		for _, w := range m.writers {
-			w.WriteSliceKey(key)
-			for _, val := range vals {
-				w.WriteString(fmt.Sprint(val))
-			}
-			w.WriteSliceEnd()
-		}
+		w.WriteSliceEnd()
 	}
 	return m
 }
@@ -1388,11 +1813,37 @@ func (m *Message) Strs(key string, vals []string) *Message {
 	return m
 }
 
+// Stringer logs the result of the String method of val,
+// null for a nil val or a nil pointer whose String method panics,
+// or an error if the String method of a value panics.
 func (m *Message) Stringer(key string, val fmt.Stringer) *Message {
+	if m == nil || m.hasKey(key) {
+		return m
+	}
 	if val == nil {
 		return m.Nil(key)
 	}
-	return m.Str(key, val.String())
+	if isNilPointer(val) {
+		// A String method with pointer receiver can handle nil,
+		// but like the fmt package, which formats it as <nil>,
+		// a nil pointer whose String method panics is null
+		if str, ok := nilPointerString(val); ok {
+			return m.Str(key, str)
+		}
+		return m.Nil(key)
+	}
+	return m.Str(key, safeString(val))
+}
+
+// nilPointerString returns the result of the String method of s,
+// which is a nil pointer, or false if it panics.
+func nilPointerString(s fmt.Stringer) (str string, ok bool) {
+	defer func() {
+		if recover() != nil {
+			str, ok = "", false
+		}
+	}()
+	return s.String(), true
 }
 
 // Time logs a time.Time formatted using the configured TimeFormat,
@@ -1601,7 +2052,7 @@ func (m *Message) AsJSON(key string, val any) *Message {
 	if m == nil || m.hasKey(key) {
 		return m
 	}
-	jsonVal, err := json.Marshal(val)
+	jsonVal, err := safeJSONMarshal(val, m.loggablePath().checkBudget())
 	if err != nil {
 		return m.Error(key, fmt.Errorf("can't log %T AsJSON because of: %w", val, err))
 	}
@@ -1654,17 +2105,23 @@ func (m *Message) StrBytes(key string, val []byte) *Message {
 // object to buf, or JSON null if it logs no attribs. The attribs are
 // recorded with an attrib recorder message of logger, which can be nil,
 // instead of being written to any writer.
-func appendLoggableJSON(buf []byte, logger *Logger, loggable Loggable) []byte {
+func appendLoggableJSON(buf []byte, logger *Logger, loggable Loggable, path valuePath) []byte {
 	recorder := newAttribRecorderMessage(logger, nil)
-	loggable.Log(recorder)
-	buf = recorder.attribs.AppendJSON(buf)
-	recorder.reset() // Frees the recorded attribs
-	messagePool.PutBack(recorder)
-	return buf
+	defer func() {
+		recorder.reset() // Frees the recorded attribs
+		messagePool.PutBack(recorder)
+	}()
+	recorder.loggables = path
+	if err := safeLog(loggable, recorder); err != nil {
+		return encjson.AppendString(buf, err.Error())
+	}
+	// The values of Any attribs with the path,
+	// so a value that leads back to loggable is written as error
+	return recorder.attribs.appendJSON(buf, path)
 }
 
-// isNullValue returns true for a nil pointer
-// or a value whose IsNull method returns true,
+// isNullValue returns true for a nil pointer or function,
+// a pointer to a nil function, or a value whose IsNull method returns true,
 // which tryWriteInterface writes as null.
 func isNullValue(v reflect.Value) bool {
 	if v.Kind() == reflect.Interface {
@@ -1674,12 +2131,21 @@ func isNullValue(v reflect.Value) bool {
 		}
 		v = v.Elem()
 	}
-	if v.Kind() == reflect.Pointer && v.IsNil() {
-		// Never call an IsNull method with value receiver on a nil pointer
+	if (v.Kind() == reflect.Pointer || v.Kind() == reflect.Func) && v.IsNil() {
+		// Never call an IsNull method with value receiver on a nil pointer,
+		// and never call a nil LoggableFunc
 		return true
 	}
+	if v.Kind() == reflect.Pointer && v.Elem().Kind() == reflect.Func && v.Elem().IsNil() {
+		// A *LoggableFunc is a Loggable that would call the nil function
+		return true
+	}
+	if !v.Type().Implements(isNullIfaceType) {
+		// Don't copy the value with Interface for nothing
+		return false
+	}
 	nullable, ok := v.Interface().(interface{ IsNull() bool })
-	return ok && nullable.IsNull()
+	return ok && safeIsNull(nullable)
 }
 
 // byteSliceOf returns the bytes of v and true if v is a slice of bytes,
@@ -1772,12 +2238,7 @@ func implementsOwnFormat(t reflect.Type) bool {
 	if t.NumMethod() == 0 {
 		return false // Fast path for []byte without methods
 	}
-	for _, i := range ownFormatInterfaces {
-		if t.Implements(i) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(ownFormatInterfaces, t.Implements)
 }
 
 // bytesAsString returns the bytes as string if they are valid UTF-8,
@@ -1842,8 +2303,8 @@ func (m *Message) StrBytesMax(key string, val []byte, maxNumRunes int) *Message 
 // To disable header logging, pass an impossible header name
 // like an empty string as onlyHeaders.
 func (m *Message) Request(request *http.Request, onlyHeaders ...string) *Message {
-	if m == nil {
-		return nil
+	if m == nil || request == nil {
+		return m
 	}
 
 	AttribsFromContext(request.Context()).Log(m)

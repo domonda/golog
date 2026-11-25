@@ -413,10 +413,13 @@ func (w *Writer) WriteError(val error) {
 	// errorContextKey (i.e. via Message.Err) so CommitMessage can surface it as
 	// a proper Sentry exception. Errors inside a slice (Message.Errs) or under
 	// other keys stay context data only, to keep the issue title/grouping clean.
+	// Call Error first, so a panic of it doesn't leave
+	// an error that panics again in CommitMessage
+	str := val.Error()
 	if w.err == nil && w.slice == nil && w.key == errorContextKey {
 		w.err = val
 	}
-	w.writeVal(val.Error())
+	w.writeVal(str)
 }
 
 func (w *Writer) WriteTime(val time.Time) {

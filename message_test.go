@@ -1662,6 +1662,490 @@ func TestMessage_Any_Loggable(t *testing.T) {
 	assert.Equal(t, `{"time":"2006-01-02 15:04:05","level":"INFO","message":"Msg","inner":"v","n":1}`+"\n", jsonOut.String())
 }
 
+// testNullLoggable has the IsNull and Log methods with pointer receiver,
+// which a value of the type lacks.
+type testNullLoggable struct{ null bool }
+
+func (n *testNullLoggable) IsNull() bool { return n == nil || n.null }
+
+func (n *testNullLoggable) Log(m *Message) { m.Str("v", "x") }
+
+// testValueNullLoggable has the IsNull and Log methods with value
+// receiver, which panic when called on a nil pointer to the type.
+type testValueNullLoggable struct{ null bool }
+
+func (n testValueNullLoggable) IsNull() bool { return n.null }
+
+func (n testValueNullLoggable) Log(m *Message) { m.Str("v", "x") }
+
+// TestMessage_Any_NullLoggable tests that Message.Any writes a Loggable
+// that is null as null: a nil LoggableFunc, which used to panic,
+// also as an element of an array, and a null Loggable behind two
+// pointers, which used to be written as {} because only the value at
+// the end of the pointers was checked, which lacks the methods with
+// pointer receiver. The Any attrib, which records a Loggable for
+// a Loggable logged with Message.Any, writes them the same way.
+func TestMessage_Any_NullLoggable(t *testing.T) {
+	timestamp, _ := time.Parse("2006-01-02 15:04:05", "2006-01-02 15:04:05")
+	log, textOut, jsonOut := newTestLogger()
+	infoLevel := log.Config().InfoLevel()
+
+	null := &testNullLoggable{null: true}
+	notNull := &testNullLoggable{}
+	var nilPtr *testNullLoggable
+
+	for _, tc := range []struct {
+		name string
+		val  any
+		text string
+		json string
+		// noAttrib skips the check of the Any attrib,
+		// which writes arrays with encoding/json
+		noAttrib bool
+	}{
+		{name: "nil LoggableFunc", val: LoggableFunc(nil), text: `nil`, json: `null`},
+		{name: "LoggableFunc", val: LoggableFunc(func(m *Message) { m.Int("a", 1) }), text: `{"a":1}`, json: `{"a":1}`},
+		{name: "nil LoggableFunc in array", val: [2]Loggable{nil, LoggableFunc(nil)}, text: `[nil,nil]`, json: `[null,null]`, noAttrib: true},
+		{name: "nil LoggableFunc in []any", val: []any{LoggableFunc(nil), 1}, text: `[nil,1]`, json: `[null,1]`},
+		// A *LoggableFunc is a Loggable too
+		{name: "pointer to nil LoggableFunc", val: new(LoggableFunc), text: `nil`, json: `null`},
+		{name: "pointer to nil LoggableFunc in []any", val: []any{new(LoggableFunc)}, text: `[nil]`, json: `[null]`},
+		{name: "null pointer", val: null, text: `nil`, json: `null`},
+		{name: "null behind two pointers", val: &null, text: `nil`, json: `null`},
+		{name: "not null behind two pointers", val: &notNull, text: `{"v":"x"}`, json: `{"v":"x"}`},
+		{name: "nil pointer behind pointer", val: &nilPtr, text: `nil`, json: `null`},
+		{name: "null behind two pointers in []any", val: []any{&null, &notNull}, text: `[nil,{"v":"x"}]`, json: `[null,{"v":"x"}]`},
+		{name: "nil pointer to value receiver methods", val: (*testValueNullLoggable)(nil), text: `nil`, json: `null`},
+		{name: "null value receiver", val: testValueNullLoggable{null: true}, text: `nil`, json: `null`},
+		{name: "value receiver", val: testValueNullLoggable{}, text: `{"v":"x"}`, json: `{"v":"x"}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			log.NewMessageAt(context.Background(), timestamp, infoLevel, "Msg").Any("l", tc.val).Log()
+			assert.Equal(t, `2006-01-02 15:04:05 |INFO | Msg l=`+tc.text+"\n", textOut.String())
+			assert.Equal(t, `{"time":"2006-01-02 15:04:05","level":"INFO","message":"Msg","l":`+tc.json+"}\n", jsonOut.String())
+			textOut.Reset()
+			jsonOut.Reset()
+
+			// A sub-logger writes the recorded Any attrib the same way
+			subLog := log.With().Any("l", tc.val).SubLogger()
+			subLog.NewMessageAt(context.Background(), timestamp, infoLevel, "Msg").Log()
+			assert.Equal(t, `{"time":"2006-01-02 15:04:05","level":"INFO","message":"Msg","l":`+tc.json+"}\n", jsonOut.String())
+			subLog.RemoveAttribs()
+			textOut.Reset()
+			jsonOut.Reset()
+
+			if tc.noAttrib {
+				return
+			}
+			// Logged by a Loggable, the value is recorded as Any attrib
+			// and written with Any.AppendJSON
+			log.NewMessageAt(context.Background(), timestamp, infoLevel, "Msg").Any("l", Attribs{NewAny("a", tc.val)}).Log()
+			assert.Equal(t, `{"time":"2006-01-02 15:04:05","level":"INFO","message":"Msg","l":{"a":`+tc.json+"}}\n", jsonOut.String())
+			textOut.Reset()
+			jsonOut.Reset()
+		})
+	}
+}
+
+// TestMessage_Loggable_Null tests that Message.Loggable logs nothing for
+// the null Loggables that Message.Any writes as null, instead of calling
+// a nil LoggableFunc, which logged a recovered panic as "error" attrib.
+func TestMessage_Loggable_Null(t *testing.T) {
+	log, _, jsonOut := newTestLogger()
+	for name, loggable := range map[string]Loggable{
+		"nil LoggableFunc":             LoggableFunc(nil),
+		"pointer to nil LoggableFunc":  new(LoggableFunc),
+		"null pointer":                 &testNullLoggable{null: true},
+		"nil pointer":                  (*testNullLoggable)(nil),
+		"nil pointer to value methods": (*testValueNullLoggable)(nil),
+		"null value receiver":          testValueNullLoggable{null: true},
+	} {
+		t.Run(name, func(t *testing.T) {
+			log.Info("Msg").Loggable(loggable).Err(errors.New("e")).Log()
+			assert.Contains(t, jsonOut.String(), `"message":"Msg","error":"e"}`)
+			jsonOut.Reset()
+		})
+	}
+	log.Info("Msg").Loggable(testValueNullLoggable{}).Log()
+	assert.Contains(t, jsonOut.String(), `"message":"Msg","v":"x"}`)
+}
+
+// TestMessage_Any_ReferenceCycle tests that Message.Any and the Any
+// attrib return for values that reference themselves, which they
+// used to dereference forever, and write them as null.
+func TestMessage_Any_ReferenceCycle(t *testing.T) {
+	var cyclicAny any
+	cyclicAny = &cyclicAny
+	var cyclicPtr testRecursivePtr
+	cyclicPtr = &cyclicPtr
+
+	for _, tc := range []struct {
+		name string
+		val  any
+	}{
+		{name: "interface", val: cyclicAny},
+		{name: "pointer type", val: cyclicPtr},
+		{name: "in []any", val: []any{cyclicAny, cyclicPtr}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			log, textOut, jsonOut := newTestLogger()
+			done := make(chan struct{})
+			var attribJSON, attribString string
+			go func() {
+				defer close(done)
+				log.Info("Msg").Any("l", tc.val).Log()
+				attribJSON = string(NewAny("l", tc.val).AppendJSON(nil))
+				attribString = NewAny("l", tc.val).ValueString()
+			}()
+			select {
+			case <-done:
+			case <-time.After(5 * time.Second):
+				t.Fatal("Message.Any or the Any attrib did not return for a reference cycle")
+			}
+			want := `null`
+			if _, ok := tc.val.([]any); ok {
+				want = `[null,null]`
+			}
+			assert.Contains(t, jsonOut.String(), `"l":`+want+`}`)
+			assert.Contains(t, textOut.String(), `l=`+strings.ReplaceAll(want, "null", "nil"))
+			assert.Equal(t, `"l":`+want, attribJSON)
+			assert.NotEmpty(t, attribString)
+		})
+	}
+}
+
+// testPtrLoggableSlice is a slice type with a Log method
+// with pointer receiver, which its value lacks.
+type testPtrLoggableSlice []int
+
+func (l *testPtrLoggableSlice) Log(m *Message) { m.Int("n", len(*l)) }
+
+// testErrorSlice is a slice type that is an error,
+// which is written as one error string instead of as array.
+type testErrorSlice []string
+
+func (e testErrorSlice) Error() string { return strings.Join(e, ";") }
+
+// testNullSlice is a slice type that is always null.
+type testNullSlice []int
+
+func (testNullSlice) IsNull() bool { return true }
+
+// TestMessage_Any_BehindPointers tests that Message.Any writes a value
+// behind several pointers and interfaces as the one value that it finds
+// on the way, like a Loggable slice type as object instead of as array
+// of one object, a slice behind a pointer to an interface as array
+// instead of as values without array, and null like the Any attrib
+// for a nil function and an IsNull method with pointer receiver.
+func TestMessage_Any_BehindPointers(t *testing.T) {
+	timestamp, _ := time.Parse("2006-01-02 15:04:05", "2006-01-02 15:04:05")
+	log, textOut, jsonOut := newTestLogger()
+	infoLevel := log.Config().InfoLevel()
+
+	attribs := Attribs{NewInt("x", 1)}
+	attribsPtr := &attribs
+	loggableSlice := testPtrLoggableSlice{1, 2}
+	loggableSlicePtr := &loggableSlice
+	var anySlice any = []int{1, 2}
+	var nilBytes []byte
+	errSlice := testErrorSlice{"a", "b"}
+	nullSlice := testNullSlice{1}
+	var anyIP any = net.IPv4(1, 2, 3, 4)
+	var anyBytes any = []byte("hi")
+	rawJSON := json.RawMessage(`{"a":1}`)
+	nullPtr := &ptrRcvNull{isnull: true}
+	var nilFunc func()
+	// An int behind maxAnyDerefSteps pointers, the most that are followed
+	i := 1
+	p1 := &i
+	p2 := &p1
+	p3 := &p2
+	p4 := &p3
+	p5 := &p4
+	p6 := &p5
+	p7 := &p6
+	p8 := &p7
+
+	for _, tc := range []struct {
+		name string
+		val  any
+		json string
+		// noAttrib skips the check of the Any attrib,
+		// which writes the value differently
+		noAttrib bool
+	}{
+		{name: "Attribs behind two pointers", val: &attribsPtr, json: `{"x":1}`},
+		{name: "Loggable slice behind two pointers", val: &loggableSlicePtr, json: `{"n":2}`},
+		{name: "slice behind pointer to interface", val: &anySlice, json: `[1,2]`},
+		{name: "nil function", val: (func())(nil), json: `null`},
+		{name: "IsNull with pointer receiver", val: &ptrRcvNull{isnull: true}, json: `null`},
+		{name: "pointer to nil bytes", val: &nilBytes, json: `null`},
+		// A slice type that is an error or null is one value,
+		// also without a pointer, not an array of its elements
+		{name: "error slice", val: errSlice, json: `"a;b"`},
+		{name: "error slice behind pointer", val: &errSlice, json: `"a;b"`},
+		{name: "null slice", val: nullSlice, json: `null`},
+		{name: "null slice behind pointer", val: &nullSlice, json: `null`},
+		// Byte slices behind a pointer to an interface are one value
+		// with their own format or as string, not an array
+		{name: "net.IP behind pointer to interface", val: &anyIP, json: `"1.2.3.4"`},
+		// The Any attrib writes the bytes behind a pointer
+		// to an interface with encoding/json as base64
+		{name: "bytes behind pointer to interface", val: &anyBytes, json: `"hi"`, noAttrib: true},
+		{name: "json.RawMessage behind pointer", val: &rawJSON, json: `{"a":1}`},
+		// Null found by the Any attrib on the way through pointers
+		{name: "IsNull with pointer receiver behind two pointers", val: &nullPtr, json: `null`},
+		{name: "nil function behind pointer", val: &nilFunc, json: `null`},
+		// A pointer chain as long as the limit for reference cycles
+		// is still followed to its value
+		{name: "int behind 8 pointers", val: p8, json: `1`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			log.NewMessageAt(context.Background(), timestamp, infoLevel, "Msg").Any("l", tc.val).Log()
+			assert.Equal(t, `{"time":"2006-01-02 15:04:05","level":"INFO","message":"Msg","l":`+tc.json+"}\n", jsonOut.String())
+			if !tc.noAttrib {
+				assert.Equal(t, `"l":`+tc.json, string(NewAny("l", tc.val).AppendJSON(nil)), "Any attrib")
+			}
+			textOut.Reset()
+			jsonOut.Reset()
+		})
+	}
+}
+
+// testValueError is an error with value receiver.
+type testValueError struct{ Code int }
+
+func (testValueError) Error() string { return "value error" }
+
+// testPtrError is an error with pointer receiver,
+// which a value of the type lacks.
+type testPtrError struct{ Code int }
+
+func (*testPtrError) Error() string { return "pointer error" }
+
+// testStringerErrors is a slice of errors with a String method,
+// which Message.Any ignores for a slice that is no byte slice.
+type testStringerErrors []error
+
+func (testStringerErrors) String() string { return "errors" }
+
+// testPtrLog is a Loggable with pointer receiver, which a value lacks.
+type testPtrLog struct{ Code int }
+
+func (*testPtrLog) Log(m *Message) { m.Str("called", "Log") }
+
+// TestMessage_Any_ErrorElements tests that Message.Any and the Any attrib
+// write the elements of a slice or array that are errors as their error
+// strings instead of as the structs or slices that implement them,
+// also behind pointers and interfaces. The Any attrib used to write
+// them with encoding/json as {} or as the fields of the struct.
+func TestMessage_Any_ErrorElements(t *testing.T) {
+	timestamp, _ := time.Parse("2006-01-02 15:04:05", "2006-01-02 15:04:05")
+	log, textOut, jsonOut := newTestLogger()
+	infoLevel := log.Config().InfoLevel()
+	errs := []error{errors.New("a"), nil}
+
+	for _, tc := range []struct {
+		name string
+		val  any
+		text string
+		json string
+	}{
+		{name: "[]error", val: errs, text: "[`a`,nil]", json: `["a",null]`},
+		{name: "pointer to []error", val: &errs, text: "[`a`,nil]", json: `["a",null]`},
+		{name: "[2]error", val: [2]error{errors.New("a")}, text: "[`a`,nil]", json: `["a",null]`},
+		{name: "value receiver", val: []testValueError{{Code: 1}}, text: "[`value error`]", json: `["value error"]`},
+		{name: "error slices", val: []testErrorSlice{{"a", "b"}}, text: "[`a;b`]", json: `["a;b"]`},
+		{name: "[]error behind pointer to interface", val: func() any { var a any = errs; return &a }(), text: "[`a`,nil]", json: `["a",null]`},
+		{name: "[]error type with String method", val: testStringerErrors{errors.New("a")}, text: "[`a`]", json: `["a"]`},
+		// A value whose Error or Log method has a pointer receiver
+		// is no error or Loggable, even as addressable slice element.
+		// Calling the method on the caller's element could change it,
+		// panic for a zero value, or log what a format of its own hides.
+		{name: "pointer receiver Error", val: []testPtrError{{Code: 1}}, text: `[{"Code":1}]`, json: `[{"Code":1}]`},
+		{name: "pointer receiver Error in array behind pointer", val: &[1]testPtrError{{Code: 1}}, text: `[{"Code":1}]`, json: `[{"Code":1}]`},
+		{name: "pointer receiver Log", val: []testPtrLog{{Code: 1}}, text: `[{"Code":1}]`, json: `[{"Code":1}]`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			log.NewMessageAt(context.Background(), timestamp, infoLevel, "Msg").Any("l", tc.val).Log()
+			assert.Equal(t, `2006-01-02 15:04:05 |INFO | Msg l=`+tc.text+"\n", textOut.String())
+			assert.Equal(t, `{"time":"2006-01-02 15:04:05","level":"INFO","message":"Msg","l":`+tc.json+"}\n", jsonOut.String())
+			assert.Equal(t, `"l":`+tc.json, string(NewAny("l", tc.val).AppendJSON(nil)), "Any attrib")
+			textOut.Reset()
+			jsonOut.Reset()
+		})
+	}
+}
+
+// testRedactJSON redacts its secret with a MarshalJSON method
+// with pointer receiver.
+type testRedactJSON struct{ Secret string }
+
+func (*testRedactJSON) MarshalJSON() ([]byte, error) { return []byte(`"***"`), nil }
+
+// testRedactText redacts its secret with a MarshalText method
+// with pointer receiver.
+type testRedactText struct{ Secret string }
+
+func (*testRedactText) MarshalText() ([]byte, error) { return []byte("***"), nil }
+
+// testRedactString redacts itself with a MarshalJSON method with value
+// receiver, which encoding/json uses for every kind of value.
+type testRedactString string
+
+func (testRedactString) MarshalJSON() ([]byte, error) { return []byte(`"***"`), nil }
+
+// testRedactStrings is a slice type that redacts itself.
+type testRedactStrings []string
+
+func (testRedactStrings) MarshalJSON() ([]byte, error) { return []byte(`"***"`), nil }
+
+// testLevel writes its name with a MarshalText method.
+type testLevel int
+
+func (l testLevel) MarshalText() ([]byte, error) { return []byte([]string{"low", "high"}[l]), nil }
+
+// TestMessage_Any_ValueReceiverMarshaler tests that Message.Any uses the
+// MarshalJSON and MarshalText methods of every kind of value like
+// encoding/json and the Any attrib, for example of a type Secret string
+// that redacts itself. Message.Any used to log the value raw.
+func TestMessage_Any_ValueReceiverMarshaler(t *testing.T) {
+	timestamp, _ := time.Parse("2006-01-02 15:04:05", "2006-01-02 15:04:05")
+	log, textOut, jsonOut := newTestLogger()
+	infoLevel := log.Config().InfoLevel()
+	for _, tc := range []struct {
+		name string
+		val  any
+		text string
+		json string
+	}{
+		{name: "string", val: testRedactString("pw"), text: `"***"`, json: `"***"`},
+		{name: "string behind pointer", val: func() any { s := testRedactString("pw"); return &s }(), text: `"***"`, json: `"***"`},
+		{name: "string elements", val: []testRedactString{"pw"}, text: `["***"]`, json: `["***"]`},
+		{name: "slice type", val: testRedactStrings{"pw"}, text: `"***"`, json: `"***"`},
+		{name: "MarshalText", val: testLevel(1), text: `"high"`, json: `"high"`},
+		{name: "MarshalText elements", val: []testLevel{0, 1}, text: `["low","high"]`, json: `["low","high"]`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			log.NewMessageAt(context.Background(), timestamp, infoLevel, "Msg").Any("l", tc.val).Log()
+			assert.Equal(t, `2006-01-02 15:04:05 |INFO | Msg l=`+tc.text+"\n", textOut.String())
+			assert.Equal(t, `{"time":"2006-01-02 15:04:05","level":"INFO","message":"Msg","l":`+tc.json+"}\n", jsonOut.String())
+			assert.Equal(t, `"l":`+tc.json, string(NewAny("l", tc.val).AppendJSON(nil)), "Any attrib")
+			textOut.Reset()
+			jsonOut.Reset()
+		})
+	}
+}
+
+// TestMessage_Any_PointerReceiverRedaction tests that Message.Any, like
+// encoding/json and the Any attrib, marshals an addressable struct, like
+// one behind a pointer or an element of a slice, through its pointer,
+// so a MarshalJSON or MarshalText method with pointer receiver redacts it.
+// Message.Any used to marshal a copy and log the secret.
+func TestMessage_Any_PointerReceiverRedaction(t *testing.T) {
+	log, _, jsonOut := newTestLogger()
+	for _, tc := range []struct {
+		name string
+		val  any
+		json string
+	}{
+		{name: "MarshalJSON behind pointer", val: &testRedactJSON{Secret: "pw"}, json: `"***"`},
+		{name: "MarshalJSON slice elements", val: []testRedactJSON{{Secret: "pw"}}, json: `["***"]`},
+		{name: "MarshalText behind pointer", val: &testRedactText{Secret: "pw"}, json: `"***"`},
+		{name: "MarshalText slice elements", val: []testRedactText{{Secret: "pw"}}, json: `["***"]`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			log.Info("Msg").Any("l", tc.val).Log()
+			assert.Contains(t, jsonOut.String(), `"l":`+tc.json+`}`)
+			assert.NotContains(t, jsonOut.String(), "pw")
+			assert.Equal(t, `"l":`+tc.json, string(NewAny("l", tc.val).AppendJSON(nil)), "Any attrib")
+			jsonOut.Reset()
+		})
+	}
+}
+
+// testFriend logs its friends, which can be friends of each other.
+type testFriend struct {
+	Name    string
+	Friends []*testFriend `json:"-"`
+}
+
+func (f *testFriend) Log(m *Message) { m.Str("name", f.Name).Any("friends", f.Friends) }
+
+// testCause is an error and a Loggable that logs its causes,
+// which can be causes of each other.
+type testCause struct {
+	Name   string
+	Causes []*testCause `json:"-"`
+}
+
+func (c *testCause) Error() string { return c.Name }
+
+func (c *testCause) Log(m *Message) { m.Str("name", c.Name).Any("causes", c.Causes) }
+
+// testErrorCause logs its causes as []error.
+type testErrorCause struct {
+	Name   string
+	Causes []error `json:"-"`
+}
+
+func (c *testErrorCause) Error() string { return c.Name }
+
+func (c *testErrorCause) Log(m *Message) { m.Str("name", c.Name).Any("causes", c.Causes) }
+
+// testAnyFriend logs its friends as *[]any.
+type testAnyFriend struct {
+	Name    string
+	Friends *[]any `json:"-"`
+}
+
+func (f *testAnyFriend) Log(m *Message) { m.Str("name", f.Name).Any("friends", f.Friends) }
+
+// TestMessage_Any_LoggablesInCycle tests that Message.Any logs Loggables
+// that log each other through a slice in a cycle with their Log methods,
+// and a cycle error for the Loggable that is already being logged.
+// It used to recurse until the stack overflowed, a fatal error
+// that recover can't catch.
+func TestMessage_Any_LoggablesInCycle(t *testing.T) {
+	log, _, jsonOut := newTestLogger()
+
+	t.Run("[]*T", func(t *testing.T) {
+		a := &testFriend{Name: "a"}
+		b := &testFriend{Name: "b", Friends: []*testFriend{a}}
+		a.Friends = []*testFriend{b}
+		log.Info("Msg").Any("user", a).Log()
+		assert.Contains(t, jsonOut.String(), `"user":{"name":"a","friends":[{"name":"b","friends":["golog: encountered a cycle via *golog.testFriend"]}]}`)
+		jsonOut.Reset()
+	})
+	t.Run("[]*T of errors", func(t *testing.T) {
+		a := &testCause{Name: "a"}
+		b := &testCause{Name: "b", Causes: []*testCause{a}}
+		a.Causes = []*testCause{b}
+		log.Info("Msg").Any("err", a).Log()
+		assert.Contains(t, jsonOut.String(), `"err":{"name":"a","causes":[{"name":"b","causes":["golog: encountered a cycle via *golog.testCause"]}]}`)
+		jsonOut.Reset()
+	})
+	t.Run("[]error", func(t *testing.T) {
+		a := &testErrorCause{Name: "a"}
+		b := &testErrorCause{Name: "b", Causes: []error{a}}
+		a.Causes = []error{b}
+		log.Info("Msg").Any("err", a).Log()
+		assert.Contains(t, jsonOut.String(), `"err":{"name":"a","causes":[{"name":"b","causes":["golog: encountered a cycle via *golog.testErrorCause"]}]}`)
+		jsonOut.Reset()
+		log.Info("Msg").Any("errs", []error{a}).Log()
+		assert.Contains(t, jsonOut.String(), `"errs":[{"name":"a","causes":[{"name":"b","causes":["golog: encountered a cycle via *golog.testErrorCause"]}]}]`)
+		jsonOut.Reset()
+	})
+	t.Run("*[]any", func(t *testing.T) {
+		a := &testAnyFriend{Name: "a"}
+		b := &testAnyFriend{Name: "b", Friends: &[]any{a}}
+		a.Friends = &[]any{b}
+		log.Info("Msg").Any("user", a).Log()
+		assert.Contains(t, jsonOut.String(), `"user":{"name":"a","friends":[{"name":"b","friends":["golog: encountered a cycle via *golog.testAnyFriend"]}]}`)
+		jsonOut.Reset()
+	})
+}
+
 type testNamedUUID [16]byte
 
 // TestMessage_Any_Kinds tests how Message.Any writes values by their
@@ -2174,6 +2658,208 @@ func TestMessage_StructFields(t *testing.T) {
 		assert.Contains(t, textOut.String(), `Token="***REDACTED***"`)
 		assert.NotContains(t, textOut.String(), `secret`)
 	})
+}
+
+// TestMessage_StructFields_ReferenceCycle tests that StructFields returns
+// for a pointer that points to itself, which it used to follow forever,
+// and logs no fields for it.
+func TestMessage_StructFields_ReferenceCycle(t *testing.T) {
+	var cyclicPtr testRecursivePtr
+	cyclicPtr = &cyclicPtr
+	log, _, jsonOut := newTestLogger()
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		log.Info("Msg").StructFields(cyclicPtr).Log()
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("StructFields did not return for a reference cycle")
+	}
+	assert.Contains(t, jsonOut.String(), `"message":"Msg"}`)
+}
+
+// TestEmbeddedID is an exported string type to embed in a struct.
+type TestEmbeddedID string
+
+// testEmbeddedID is an unexported string type to embed in a struct.
+type testEmbeddedID string
+
+// TestMessage_StructFields_EmbeddedNonStruct tests that StructFields
+// handles an embedded field that is no struct, like an interface or
+// a string type, like encoding/json as a regular field under its type
+// name if that is exported, instead of panicking.
+func TestMessage_StructFields_EmbeddedNonStruct(t *testing.T) {
+	type withEmbedded struct {
+		io.Reader      // No json tag
+		TestEmbeddedID `json:"id"`
+		testEmbeddedID `json:"unexported"`
+		A              int `json:"a"`
+	}
+	log, _, jsonOut := newTestLogger()
+	log.Info("Msg").StructFields(withEmbedded{TestEmbeddedID: "i", testEmbeddedID: "u", A: 1}).Log()
+	assert.Contains(t, jsonOut.String(), `"message":"Msg","id":"i","a":1}`)
+}
+
+// TestMessage_StructFields_PointerReceiverRedaction tests that
+// StructFields, like encoding/json, uses the MarshalJSON method with
+// pointer receiver of a field of a struct passed as pointer,
+// so a field type that redacts itself is redacted.
+func TestMessage_StructFields_PointerReceiverRedaction(t *testing.T) {
+	type withSecret struct {
+		Creds testRedactJSON `json:"creds"`
+		Log   testPtrLog     `json:"log"`
+	}
+	log, _, jsonOut := newTestLogger()
+	log.Info("Msg").StructFields(&withSecret{Creds: testRedactJSON{Secret: "pw"}, Log: testPtrLog{Code: 1}}).Log()
+	// A Log method with pointer receiver is not called for the field value
+	assert.Contains(t, jsonOut.String(), `"message":"Msg","creds":"***","log":{"Code":1}}`)
+	assert.NotContains(t, jsonOut.String(), "pw")
+}
+
+// testLogRedacted logs itself redacted, but its MarshalText method
+// with pointer receiver, for example for a database, writes the secret.
+type testLogRedacted struct{ secret string }
+
+func (testLogRedacted) Log(m *Message) { m.Str("secret", "***") }
+
+func (l *testLogRedacted) MarshalText() ([]byte, error) { return []byte(l.secret), nil }
+
+// testErrorRedacted is an error that hides its secret,
+// but its MarshalJSON method with pointer receiver writes it.
+type testErrorRedacted struct{ secret string }
+
+func (testErrorRedacted) Error() string { return "***" }
+
+func (e *testErrorRedacted) MarshalJSON() ([]byte, error) { return json.Marshal(e.secret) }
+
+// testNullText is null, but its MarshalText
+// method with pointer receiver writes text.
+type testNullText struct{ secret string }
+
+func (testNullText) IsNull() bool { return true }
+
+func (n *testNullText) MarshalText() ([]byte, error) { return []byte(n.secret), nil }
+
+// TestMessage_StructFields_LoggableBeforeMarshaler tests that StructFields
+// logs a field that is a Loggable, an error or null as such, like
+// Message.Any, before using a MarshalJSON or MarshalText method with
+// pointer receiver of the field, which could write what Log, Error or
+// IsNull hide.
+func TestMessage_StructFields_LoggableBeforeMarshaler(t *testing.T) {
+	type holder struct {
+		L testLogRedacted   `json:"l"`
+		E testErrorRedacted `json:"e"`
+		N testNullText      `json:"n"`
+	}
+	log, _, jsonOut := newTestLogger()
+	log.Info("Msg").StructFields(&holder{L: testLogRedacted{"pw"}, E: testErrorRedacted{"pw"}, N: testNullText{"pw"}}).Log()
+	assert.Contains(t, jsonOut.String(), `"message":"Msg","l":{"secret":"***"},"e":"***","n":null}`)
+	assert.NotContains(t, jsonOut.String(), "pw")
+}
+
+// testFailingMarshal fails in its MarshalJSON method with pointer receiver.
+type testFailingMarshal struct{ Secret string }
+
+func (*testFailingMarshal) MarshalJSON() ([]byte, error) { return nil, errors.New("failed") }
+
+// TestMessage_StructFields_PointerReceiverMarshalError tests that
+// StructFields logs the error of a MarshalJSON method with pointer
+// receiver of a field instead of the field value.
+func TestMessage_StructFields_PointerReceiverMarshalError(t *testing.T) {
+	type holder struct {
+		F testFailingMarshal `json:"f"`
+	}
+	log, _, jsonOut := newTestLogger()
+	log.Info("Msg").StructFields(&holder{F: testFailingMarshal{Secret: "pw"}}).Log()
+	assert.Contains(t, jsonOut.String(), `"f":"error while marshalling golog.testFailingMarshal as JSON for logging: json: error calling MarshalJSON for type *golog.testFailingMarshal: failed"`)
+	assert.NotContains(t, jsonOut.String(), "pw")
+}
+
+// TestMessage_StructFields_NestedRedaction tests that StructFields logs
+// the fields of a struct passed as pointer through their addresses like
+// encoding/json, so the MarshalJSON methods with pointer receiver of the
+// structs and array elements in them redact them too, also when the
+// fields are recorded for a sub-logger, which records a copy that
+// doesn't change with the struct.
+func TestMessage_StructFields_NestedRedaction(t *testing.T) {
+	type inner struct {
+		Creds testRedactJSON
+	}
+	type holder struct {
+		Nested inner             `json:"nested"`
+		Array  [1]testRedactJSON `json:"array"`
+		N      int               `json:"n"`
+	}
+	log, _, jsonOut := newTestLogger()
+	h := &holder{Nested: inner{Creds: testRedactJSON{Secret: "pw"}}, Array: [1]testRedactJSON{{Secret: "pw"}}, N: 1}
+	log.Info("Msg").StructFields(h).Log()
+	assert.Contains(t, jsonOut.String(), `"nested":{"Creds":"***"},"array":["***"],"n":1}`)
+	assert.NotContains(t, jsonOut.String(), "pw")
+	jsonOut.Reset()
+
+	sub := log.With().StructFields(h).SubLogger()
+	h.N = 2
+	sub.Info("Msg").Log()
+	assert.Contains(t, jsonOut.String(), `"nested":{"Creds":"***"},"array":["***"],"n":1}`)
+	assert.NotContains(t, jsonOut.String(), "pw")
+}
+
+// testChain embeds a pointer to the next link of a chain.
+type testChain struct {
+	*testChain
+	Index int `json:"index"`
+}
+
+// TestMessage_StructFields_DeepEmbedding tests that StructFields returns
+// for a long chain of embedded pointers, logging the fields of the
+// structs up to maxValuePathLen deep.
+func TestMessage_StructFields_DeepEmbedding(t *testing.T) {
+	var chain *testChain
+	for i := range 10000 {
+		chain = &testChain{testChain: chain, Index: i}
+	}
+	log, _, jsonOut := newTestLogger()
+	requireReturns(t, func() { log.Info("Msg").StructFields(chain).Log() })
+	assert.Contains(t, jsonOut.String(), `"index":9999}`)
+}
+
+// testSelfEmbedding embeds a pointer to its own type.
+type testSelfEmbedding struct {
+	*testSelfEmbedding
+	Name string `json:"name"`
+}
+
+// testEmbedsB and testEmbedsA embed pointers to each other.
+type (
+	testEmbedsB struct {
+		*testEmbedsA
+		B string `json:"b"`
+	}
+	testEmbedsA struct {
+		*testEmbedsB
+		A string `json:"a"`
+	}
+)
+
+// TestMessage_StructFields_EmbeddedSelfPointer tests that StructFields
+// logs a struct that embeds a pointer to itself, directly or through
+// another embedded struct, once. It used to recurse until the stack
+// overflowed, a fatal error that recover can't catch.
+func TestMessage_StructFields_EmbeddedSelfPointer(t *testing.T) {
+	log, _, jsonOut := newTestLogger()
+
+	self := &testSelfEmbedding{Name: "x"}
+	self.testSelfEmbedding = self
+	log.Info("Msg").StructFields(self).Log()
+	assert.Contains(t, jsonOut.String(), `"message":"Msg","name":"x"}`)
+	jsonOut.Reset()
+
+	a := &testEmbedsA{A: "a"}
+	a.testEmbedsB = &testEmbedsB{testEmbedsA: a, B: "b"}
+	log.Info("Msg").StructFields(a).Log()
+	assert.Contains(t, jsonOut.String(), `"message":"Msg","b":"b","a":"a"}`)
 }
 
 func TestMessage_TaggedStructFields(t *testing.T) {

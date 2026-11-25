@@ -36,6 +36,8 @@ Sub-packages **without** their own `go.mod` (part of the root module):
 - `logfile/` — size-based rotating file writer.
 - `mempool/` — generic pooling primitives (`Pointer[T]`, `Slice[T]`) used everywhere for
   zero-alloc reuse.
+- `tests/terminaldetection/` — Docker-based integration test of the terminal detection of the `log`
+  package, see its `README.md`.
 
 ## Build, test, lint
 

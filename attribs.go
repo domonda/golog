@@ -1,8 +1,14 @@
 package golog
 
 import (
+	"bytes"
 	"context"
+	"fmt"
 	"net/http"
+	"reflect"
+	"runtime"
+	"slices"
+	"sync"
 
 	"github.com/domonda/go-encjson"
 )
@@ -324,6 +330,199 @@ func (a Attribs) AppendJSON(buf []byte) []byte {
 // MarshalJSON implements encoding/json.Marshaler
 // by returning a JSON object with the attribs as key-value pairs.
 // The JSON null value is returned for empty Attribs.
+//
+// encoding/json calls it also for Attribs nested in a value that golog
+// marshals with encoding/json, like a struct field, which golog can't
+// track through encoding/json. So Attribs that the same goroutine is
+// already marshalling further up its call stack, because a value
+// references itself through them, return a cycle error instead of
+// recursing until the stack overflows. A walk of the value before
+// marshalling it couldn't find every such cycle, because a Loggable
+// like a LoggableFunc can log a value that it doesn't hold.
 func (a Attribs) MarshalJSON() ([]byte, error) {
-	return a.AppendJSON(nil), nil
+	if !a.mayMarshalAttribs() {
+		// Fast path without tracking for Attribs that can't
+		// make encoding/json marshal Attribs again
+		return a.AppendJSON(nil), nil
+	}
+	goroutine, ok := goroutineID()
+	if !ok {
+		// Not tracked if the ID can't be parsed, instead of
+		// mistaking Attribs that goroutines marshal for a cycle
+		return a.AppendJSON(nil), nil
+	}
+	key := marshallingAttribsKey{
+		ref:       valueRef{ptr: reflect.ValueOf(a).Pointer(), len: len(a), typ: reflect.TypeFor[Attribs]()},
+		goroutine: goroutine,
+	}
+	if _, marshalling := marshallingAttribs.LoadOrStore(key, struct{}{}); marshalling {
+		return nil, cycleError(reflect.TypeFor[Attribs]())
+	}
+	defer marshallingAttribs.Delete(key)
+	// Attribs that are marshalled nested in each other share the counters
+	// of their paths, so Attribs that reference the same values many times
+	// end with an error instead of taking exponential time
+	work, nested := attribsMarshalWork.Load(goroutine)
+	if !nested {
+		work = new(valuePathWork)
+		attribsMarshalWork.Store(goroutine, work)
+		defer attribsMarshalWork.Delete(goroutine)
+	}
+	w := work.(*valuePathWork)
+	if w.marshalDepth >= maxNestedAttribsMarshals {
+		return nil, fmt.Errorf("golog: Attribs marshalled as JSON nested more than %d deep", maxNestedAttribsMarshals)
+	}
+	if nested {
+		// Attribs that are marshalled again, because a value
+		// references them several times, end with an error after
+		// maxRepeatedAttribsMarshals instead of taking exponential time
+		if _, again := w.marshaled[key.ref]; again {
+			if w.repeats++; w.repeats > maxRepeatedAttribsMarshals {
+				return nil, fmt.Errorf("golog: the same Attribs marshalled as JSON more than %d times inside one value", maxRepeatedAttribsMarshals)
+			}
+		} else {
+			if w.marshaled == nil {
+				w.marshaled = make(map[valueRef]struct{})
+			}
+			w.marshaled[key.ref] = struct{}{}
+		}
+	}
+	w.marshalDepth++
+	defer func() { w.marshalDepth-- }()
+	return a.appendJSON(nil, valuePath{work: w}), nil
+}
+
+// mayMarshalAttribs returns true if writing a can make encoding/json
+// marshal Attribs again: if a has an Any attrib with a value that
+// encoding/json marshals, which can hold Attribs, or a Loggable,
+// which can log any value.
+func (a Attribs) mayMarshalAttribs() bool {
+	for _, attrib := range a {
+		x, ok := attrib.(*Any)
+		if !ok || x.val == nil {
+			continue
+		}
+		if typeMayMarshalAttribs(reflect.TypeOf(x.val)) {
+			return true
+		}
+	}
+	return false
+}
+
+// typesThatMayMarshalAttribs caches the results of typeMayMarshalAttribs.
+var typesThatMayMarshalAttribs sync.Map // map[reflect.Type]bool
+
+// typeMayMarshalAttribs returns true if writing a value of type t as JSON
+// can marshal Attribs: if Attribs, an interface, a Loggable, or a type
+// with a MarshalJSON, MarshalText, Error or String method, except of the
+// standard library types in safeMarshalerPackages, can be reached from t.
+func typeMayMarshalAttribs(t reflect.Type) bool {
+	if may, ok := typesThatMayMarshalAttribs.Load(t); ok {
+		return may.(bool)
+	}
+	may := typeMayMarshalAttribsVisiting(t, make(map[reflect.Type]struct{}))
+	typesThatMayMarshalAttribs.Store(t, may)
+	return may
+}
+
+// typeMayMarshalAttribsVisiting is typeMayMarshalAttribs for t, which
+// is not checked if it was visited, so every type is checked once.
+// It also returns true for a type with an Error or String method,
+// which golog calls for a value in a nested slice, see formatsWithString.
+func typeMayMarshalAttribsVisiting(t reflect.Type, visited map[reflect.Type]struct{}) bool {
+	if _, ok := visited[t]; ok {
+		return false // Checked or being checked
+	}
+	visited[t] = struct{}{}
+	switch {
+	case t.Kind() == reflect.Interface || t.Implements(loggableType) || reflect.PointerTo(t).Implements(loggableType):
+		return true
+	case implementsJSONOrTextFormat(t) || implementsJSONOrTextFormat(reflect.PointerTo(t)) ||
+		t.Implements(errorType) || t.Implements(fmtStringerType):
+		// encoding/json or golog uses the method instead of the fields
+		return !slices.Contains(safeMarshalerPackages, t.PkgPath())
+	}
+	switch t.Kind() {
+	case reflect.Pointer, reflect.Slice, reflect.Array:
+		return typeMayMarshalAttribsVisiting(t.Elem(), visited)
+	case reflect.Map:
+		return typeMayMarshalAttribsVisiting(t.Key(), visited) || typeMayMarshalAttribsVisiting(t.Elem(), visited)
+	case reflect.Struct:
+		for i := range t.NumField() {
+			if typeMayMarshalAttribsVisiting(t.Field(i).Type, visited) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// safeMarshalerPackages are the standard library packages whose types
+// with a MarshalJSON, MarshalText, Error or String method never marshal
+// Attribs.
+var safeMarshalerPackages = []string{"time", "net", "net/netip", "net/url", "math/big", "encoding/json", "regexp", "errors", "io/fs", "os"}
+
+// maxNestedAttribsMarshals is the maximum depth of Attribs.MarshalJSON
+// calls nested in each other, because encoding/json scans the JSON of
+// every MarshalJSON call again for every MarshalJSON call around it,
+// which takes time quadratic in the depth.
+const maxNestedAttribsMarshals = 1000
+
+// maxRepeatedAttribsMarshals is the maximum number of Attribs.MarshalJSON
+// calls inside the outermost one of a goroutine for Attribs that were
+// marshalled before inside it.
+const maxRepeatedAttribsMarshals = 1000
+
+// attribsMarshalWork holds the counters of the paths of the
+// outermost Attribs that each goroutine marshals, see MarshalJSON.
+var attribsMarshalWork sync.Map // map[uint64]*valuePathWork
+
+// appendJSON is AppendJSON for Attribs written on path, so the values
+// of Any attribs that lead back to a value on path are written as
+// error, see appendNestedAnyJSON.
+func (a Attribs) appendJSON(buf []byte, path valuePath) []byte {
+	if len(a) == 0 {
+		return encjson.AppendNull(buf)
+	}
+	buf = encjson.AppendObjectStart(buf)
+	for _, attrib := range a {
+		if x, ok := attrib.(*Any); ok {
+			buf = appendNestedAnyJSON(encjson.AppendKey(buf, x.key), x.val, path)
+		} else {
+			buf = attrib.AppendJSON(buf)
+		}
+	}
+	return encjson.AppendObjectEnd(buf)
+}
+
+// marshallingAttribsKey identifies Attribs that a goroutine is marshalling.
+type marshallingAttribsKey struct {
+	ref       valueRef
+	goroutine uint64
+}
+
+// marshallingAttribs holds the Attribs that Attribs.MarshalJSON
+// calls are marshalling. A sync.Map, because its keys are
+// disjoint per goroutine, so goroutines don't wait for each other.
+var marshallingAttribs sync.Map // map[marshallingAttribsKey]struct{}
+
+// goroutineID returns the ID of the calling goroutine from the first line
+// of its stack trace: "goroutine 18 [running]:", or false if the line has
+// another format, which TestGoroutineID checks for new Go versions.
+func goroutineID() (id uint64, ok bool) {
+	var buf [64]byte
+	line := buf[:runtime.Stack(buf[:], false)]
+	line, ok = bytes.CutPrefix(line, []byte("goroutine "))
+	if !ok {
+		return 0, false
+	}
+	digits := 0
+	for _, c := range line {
+		if c < '0' || c > '9' {
+			break
+		}
+		id = id*10 + uint64(c-'0')
+		digits++
+	}
+	return id, digits > 0 && digits < len(line) && line[digits] == ' '
 }

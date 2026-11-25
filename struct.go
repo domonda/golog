@@ -107,14 +107,14 @@ func invokeIsNull(fv reflect.Value) (result, ok bool) {
 	// Value-receiver fast path: no allocation, works when fv's type itself
 	// is in the method set.
 	if n, ok := fv.Interface().(interface{ IsNull() bool }); ok {
-		return n.IsNull(), true
+		return safeIsNull(n), true
 	}
 	// Pointer-receiver path: only applies if *T has the method.
 	if !reflect.PointerTo(fv.Type()).Implements(isNullIfaceType) {
 		return false, false
 	}
 	addr := asAddressableValue(fv).Addr()
-	return addr.Interface().(interface{ IsNull() bool }).IsNull(), true
+	return safeIsNull(addr.Interface().(interface{ IsNull() bool })), true
 }
 
 // invokeIsZero calls IsZero() bool on fv if its dynamic type implements the
@@ -122,13 +122,13 @@ func invokeIsNull(fv reflect.Value) (result, ok bool) {
 // See invokeIsNull for the addressability strategy.
 func invokeIsZero(fv reflect.Value) (result, ok bool) {
 	if z, ok := fv.Interface().(interface{ IsZero() bool }); ok {
-		return z.IsZero(), true
+		return safeIsZero(z), true
 	}
 	if !reflect.PointerTo(fv.Type()).Implements(isZeroIfaceType) {
 		return false, false
 	}
 	addr := asAddressableValue(fv).Addr()
-	return addr.Interface().(interface{ IsZero() bool }).IsZero(), true
+	return safeIsZero(addr.Interface().(interface{ IsZero() bool })), true
 }
 
 // asAddressableValue returns fv if it is already addressable, otherwise a

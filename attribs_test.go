@@ -325,3 +325,33 @@ func TestAttribs_MarshalJSON(t *testing.T) {
 		})
 	}
 }
+
+// TestGoroutineID tests that goroutineID parses the ID of the calling
+// goroutine from its stack trace, which Attribs.MarshalJSON uses to find
+// Attribs that reference themselves, so a new Go version that changes
+// the format of the stack trace fails this test.
+func TestGoroutineID(t *testing.T) {
+	id, ok := goroutineID()
+	require.True(t, ok, "goroutine ID parsed")
+	require.NotZero(t, id)
+	ids := make(chan uint64)
+	go func() {
+		other, _ := goroutineID()
+		ids <- other
+	}()
+	require.NotEqual(t, id, <-ids, "IDs of different goroutines")
+}
+
+// TestAttribs_MarshalJSON_LoggableFuncCycle tests a cycle through
+// Attribs.MarshalJSON that no walk of the value could find, because
+// a LoggableFunc logs the value that holds it.
+func TestAttribs_MarshalJSON_LoggableFuncCycle(t *testing.T) {
+	holder := &testAttribsHolder{}
+	holder.A = Attribs{NewAny("f", LoggableFunc(func(m *Message) { m.Any("h", holder) }))}
+	requireReturns(t, func() {
+		// The inner marshalling of holder writes the cycle error as string
+		j, err := json.Marshal(holder)
+		require.NoError(t, err)
+		require.Contains(t, string(j), "golog: encountered a cycle via golog.Attribs")
+	})
+}

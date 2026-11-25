@@ -2,7 +2,6 @@ package golog
 
 import (
 	"context"
-	"fmt"
 	"time"
 )
 
@@ -311,12 +310,13 @@ func (l *Logger) NewMessage(ctx context.Context, level Level, text string) *Mess
 
 // NewMessagef starts a new message formatted using fmt.Sprintf
 func (l *Logger) NewMessagef(ctx context.Context, level Level, format string, args ...any) *Message {
-	return l.NewMessageAt(ctx, TimestampFromContextOrNow(ctx), level, fmt.Sprintf(format, args...))
+	return l.NewMessageAt(ctx, TimestampFromContextOrNow(ctx), level, safeSprintf(format, args...))
 }
 
-// FatalAndPanic is a shortcut for Fatal(fmt.Sprint(p)).LogAndPanic()
+// FatalAndPanic logs p at fatal level, formatted safely like
+// fmt.Sprint(p), and then panics with p.
 func (l *Logger) FatalAndPanic(p any) {
-	l.Fatal(fmt.Sprint(p)).Log()
+	l.Fatal(safeSprint(p)).Log()
 	panic(p)
 }
 
@@ -381,7 +381,7 @@ func (l *Logger) Errorf(format string, args ...any) *Message {
 	if l == nil {
 		return nil
 	}
-	return l.NewMessage(context.Background(), l.config.ErrorLevel(), fmt.Errorf(format, args...).Error())
+	return l.NewMessage(context.Background(), l.config.ErrorLevel(), safeErrorf(format, args...).Error())
 }
 
 // ErrorfCtx uses fmt.Errorf underneath to support Go 1.13 wrapped error formatting with %w
@@ -389,7 +389,7 @@ func (l *Logger) ErrorfCtx(ctx context.Context, format string, args ...any) *Mes
 	if l == nil {
 		return nil
 	}
-	return l.NewMessage(ctx, l.config.ErrorLevel(), fmt.Errorf(format, args...).Error())
+	return l.NewMessage(ctx, l.config.ErrorLevel(), safeErrorf(format, args...).Error())
 }
 
 // Warn starts a new warn level log message.

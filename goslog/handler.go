@@ -48,6 +48,7 @@ package goslog
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"slices"
 
@@ -146,11 +147,12 @@ func (h *handler) Enabled(ctx context.Context, level slog.Level) bool {
 // applied to attribute keys.
 func (h *handler) Handle(ctx context.Context, record slog.Record) error {
 	msg := h.logger.NewMessageAt(ctx, record.Time, h.convertLevel(record.Level), record.Message)
+	var written int
 	for _, a := range h.attrs {
-		msg = writeAttr(msg, "", a.Key, a.Value)
+		msg = writeAttr(msg, "", a.Key, a.Value, 0, &written)
 	}
 	record.Attrs(func(a slog.Attr) bool {
-		msg = writeAttr(msg, h.groupPrefix, a.Key, a.Value)
+		msg = writeAttr(msg, h.groupPrefix, a.Key, a.Value, 0, &written)
 		return true
 	})
 	msg.Log()
@@ -216,12 +218,33 @@ func (h *handler) WithGroup(name string) slog.Handler {
 //   - Any (for untyped values)
 //
 // Group names are prefixed to attribute keys using dot notation (e.g., "group.key").
-func writeAttr(m *golog.Message, group, key string, value slog.Value) *golog.Message {
+//
+// A LogValuer is resolved with slog.Value.Resolve, which recovers a panic
+// of its LogValue method and ends a chain of LogValuers. depth counts the
+// groups around the attribute, so groups nested more than maxGroupDepth
+// deep, like a LogValuer whose group contains itself, are logged as error
+// instead of recursing until the stack overflows. written counts the
+// attributes of the record, which are limited to maxRecordAttrs, so
+// groups that contain themselves several times don't take exponential time.
+func writeAttr(m *golog.Message, group, key string, value slog.Value, depth int, written *int) *golog.Message {
+	if *written > maxRecordAttrs {
+		// The error was logged instead of the first attribute above the limit
+		return m
+	}
+	if *written++; *written > maxRecordAttrs {
+		return m.Error(prefixKey(group, key), fmt.Errorf("goslog: more than %d attributes in the record", maxRecordAttrs))
+	}
+	if value.Kind() == slog.KindLogValuer {
+		value = value.Resolve()
+	}
 	kind := value.Kind()
 	if kind == slog.KindGroup {
 		group = prefixKey(group, key)
+		if depth >= maxGroupDepth {
+			return m.Error(group, fmt.Errorf("goslog: groups nested more than %d deep", maxGroupDepth))
+		}
 		for _, attr := range value.Group() {
-			m = writeAttr(m, group, attr.Key, attr.Value)
+			m = writeAttr(m, group, attr.Key, attr.Value, depth+1, written)
 		}
 		return m
 	}
@@ -245,13 +268,18 @@ func writeAttr(m *golog.Message, group, key string, value slog.Value) *golog.Mes
 		return m.Time(prefixKey(group, key), value.Time())
 	case slog.KindUint64:
 		return m.Uint64(prefixKey(group, key), value.Uint64())
-	case slog.KindLogValuer:
-		return writeAttr(m, group, key, value.LogValuer().LogValue().Resolve())
 	default:
 		// Should never happen, but don't panic and still log any value
 		return m.Any(prefixKey(group, key), value)
 	}
 }
+
+// maxGroupDepth is the maximum number of nested groups that writeAttr writes.
+const maxGroupDepth = 64
+
+// maxRecordAttrs is the maximum number of attributes,
+// including groups, that writeAttr writes for a record.
+const maxRecordAttrs = 10_000
 
 // prefixKey combines a group name and a key with dot notation.
 //
