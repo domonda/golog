@@ -1,8 +1,11 @@
 package golog
 
 import (
+	"bytes"
 	"crypto/rand"
+	"encoding"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
@@ -134,24 +137,44 @@ func IsNilUUID(id [16]byte) bool {
 	return id == nilID
 }
 
-var assignAsUUID = reflect.ValueOf(func(uuid [16]byte) [16]byte { return uuid })
-
 func isUUID(v reflect.Value) bool {
-	if !v.Type().AssignableTo(reflect.TypeFor[[16]byte]()) {
-		return false
-	}
-	uuid := assignAsUUID.Call([]reflect.Value{v})[0].Interface().([16]byte)
-	return ValidateUUID(uuid) == nil || IsNilUUID(uuid)
+	_, ok := asUUID(v)
+	return ok
 }
 
+// asUUID returns the bytes of v if it is logged as UUID: a [16]byte,
+// which Message.Any and Message.UUID log as UUID whatever it holds,
+// or a named [16]byte type that holds a valid or nil UUID.
+// It copies the bytes with one memmove without allocating,
+// because it is called for every array logged with Any.
 func asUUID(v reflect.Value) (uuid [16]byte, ok bool) {
-	if !v.Type().AssignableTo(reflect.TypeFor[[16]byte]()) {
+	if v.Kind() != reflect.Array || v.Len() != 16 || !v.Type().AssignableTo(uuidType) {
 		return [16]byte{}, false
 	}
-
-	uuid = assignAsUUID.Call([]reflect.Value{v})[0].Interface().([16]byte)
-	if ValidateUUID(uuid) != nil && !IsNilUUID(uuid) {
+	reflect.Copy(reflect.ValueOf(&uuid).Elem(), v)
+	if v.Type() != uuidType && ValidateUUID(uuid) != nil && !IsNilUUID(uuid) {
 		return [16]byte{}, false
 	}
 	return uuid, true
+}
+
+var uuidType = reflect.TypeFor[[16]byte]()
+
+// marshalsAsUUID returns true if the MarshalJSON or MarshalText method
+// of x, which encoding/json would use, formats uuid like FormatUUID,
+// like the UUID type of github.com/google/uuid does, so x is logged as
+// UUID, and a nil UUID as null. A type that formats itself differently,
+// for example to redact a secret, is logged with its method instead.
+func marshalsAsUUID(x any, uuid [16]byte) bool {
+	var formatted [38]byte
+	switch m := x.(type) {
+	case json.Marshaler:
+		j, err := safeMarshalJSON(m)
+		quoted := append(AppendUUID(append(formatted[:0], '"'), uuid), '"')
+		return err == nil && bytes.Equal(j, quoted)
+	case encoding.TextMarshaler:
+		text, err := safeMarshalText(m)
+		return err == nil && bytes.Equal(text, AppendUUID(formatted[:0], uuid))
+	}
+	return false
 }

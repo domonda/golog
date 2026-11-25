@@ -130,3 +130,61 @@ func (b *syncBuffer) String() string {
 	defer b.mtx.Unlock()
 	return b.buf.String()
 }
+
+// panicValuer panics in its LogValue method.
+type panicValuer struct{}
+
+func (panicValuer) LogValue() slog.Value { panic("LogValue boom") }
+
+// cyclicValuer logs a group that contains itself.
+type cyclicValuer struct{ next *cyclicValuer }
+
+func (v *cyclicValuer) LogValue() slog.Value {
+	return slog.GroupValue(slog.Any("next", v.next))
+}
+
+// TestHandler_NeverPanicsOrHangs tests that a LogValue method that panics
+// is logged as error, and that groups nested in each other without end,
+// like a LogValuer whose group contains itself, end with an error
+// instead of recursing until the stack overflows.
+func TestHandler_NeverPanicsOrHangs(t *testing.T) {
+	var rec recorder
+	config := golog.NewConfig(&golog.DefaultLevels, golog.AllLevelsActive, &rec)
+	logger := slog.New(Handler(golog.NewLogger(config), ConvertDefaultLevels))
+
+	logger.Info("panic", "k", panicValuer{})
+	require.Len(t, rec.Result, 1)
+	require.Contains(t, fmt.Sprint(rec.Result[0]["k"]), "LogValue panicked")
+
+	cyclic := &cyclicValuer{}
+	cyclic.next = cyclic
+	logger.Info("cycle", "k", cyclic)
+	require.Len(t, rec.Result, 2)
+	require.Contains(t, fmt.Sprint(rec.Result[1]), "nested more than 64 deep")
+}
+
+// TestHandler_MaxRecordAttrs tests that a record with exactly
+// maxRecordAttrs attributes is logged completely, and that only the
+// attribute above the limit is replaced by the error.
+func TestHandler_MaxRecordAttrs(t *testing.T) {
+	var rec recorder
+	config := golog.NewConfig(&golog.DefaultLevels, golog.AllLevelsActive, &rec)
+	logger := slog.New(Handler(golog.NewLogger(config), ConvertDefaultLevels))
+
+	attrs := make([]any, 0, maxRecordAttrs+2)
+	for i := range maxRecordAttrs {
+		attrs = append(attrs, slog.Int(fmt.Sprintf("k%d", i), i))
+	}
+	logger.Info("at limit", attrs...)
+	require.Len(t, rec.Result, 1)
+	last := fmt.Sprintf("k%d", maxRecordAttrs-1)
+	require.Equal(t, int64(maxRecordAttrs-1), rec.Result[0][last], "last attribute at the limit")
+	require.NotContains(t, fmt.Sprint(rec.Result[0]), "more than")
+
+	attrs = append(attrs, slog.Int("over", 1), slog.Int("ignored", 2))
+	logger.Info("over limit", attrs...)
+	require.Len(t, rec.Result, 2)
+	require.Equal(t, int64(maxRecordAttrs-1), rec.Result[1][last])
+	require.Contains(t, fmt.Sprint(rec.Result[1]["over"]), "more than 10000 attributes")
+	require.NotContains(t, rec.Result[1], "ignored")
+}

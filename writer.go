@@ -32,6 +32,12 @@ type Writer interface {
 	WriteUint(uint64)
 	WriteFloat(float64)
 	WriteString(string)
+	// WriteError writes the result of the Error method of a non-nil error.
+	// A Writer that calls Error has to call it before writing anything,
+	// because golog recovers a panic of the Error method and calls
+	// WriteError again with an error that reports the panic.
+	// A Writer that keeps the error, like CallbackWriter, should call its
+	// Error method like golog does, see the Error attrib.
 	WriteError(error)
 	WriteTime(time.Time)
 	WriteUUID([16]byte)

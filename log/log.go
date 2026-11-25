@@ -19,7 +19,6 @@ package log
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"time"
 
@@ -116,9 +115,10 @@ func NewMessagef(ctx context.Context, level golog.Level, format string, args ...
 	return Logger.NewMessagef(ctx, level, format, args...)
 }
 
-// FatalAndPanic is a shortcut for `Fatal(fmt.Sprint(p)).LogAndPanic()`
+// FatalAndPanic is a shortcut for `Fatalf("%v", p).LogAndPanic()`,
+// which formats p safely like fmt.Sprint(p)
 func FatalAndPanic(p any) {
-	Fatal(fmt.Sprint(p)).LogAndPanic()
+	Fatalf("%v", p).LogAndPanic()
 }
 
 // FatalfAndPanic is a shortcut for `Fatalf(format, args...).LogAndPanic()`

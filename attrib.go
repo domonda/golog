@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"reflect"
 	"slices"
@@ -141,13 +140,14 @@ func (a *Any) ValueString() string {
 			return bytesAsString(b)
 		}
 	}
-	if _, ok := a.val.([]any); ok || hasOwnByteSliceFormat(reflect.ValueOf(a.val)) {
-		// Like they are logged instead of Go syntax of their types,
-		// like bytes for json.RawMessage or a net.IP, which could
-		// also be a secret that the type redacts when it is logged
+	if t := reflect.TypeOf(a.val); t != nil && !formatsPlainly(t) &&
+		t.Kind() != reflect.Chan && t.Kind() != reflect.Func && t.Kind() != reflect.UnsafePointer {
+		// Like it is logged instead of in Go syntax: a Loggable, an error,
+		// a type with a format of its own, like a net.IP, or a struct or
+		// map with such fields could hide a secret that %#v would show
 		return string(appendAnyJSON(nil, a.val))
 	}
-	return fmt.Sprintf("%#v", a.val)
+	return safeSprintf("%#v", a.val)
 }
 
 func (a *Any) Log(m *Message) {
@@ -162,6 +162,14 @@ func (a Any) AppendJSON(buf []byte) []byte {
 // after a preceding value, written like Message.Any writes it,
 // also for the elements of a []any.
 func appendAnyJSON(buf []byte, val any) []byte {
+	return appendNestedAnyJSON(buf, val, valuePath{})
+}
+
+// appendNestedAnyJSON is appendAnyJSON for val nested in the pointers,
+// slices and maps on path, including the Loggables whose attribs
+// are being written, so a value that references itself is written
+// as cycle error instead of recursing until the stack overflows.
+func appendNestedAnyJSON(buf []byte, val any, path valuePath) []byte {
 	switch v := val.(type) {
 	case nil:
 		return encjson.AppendNull(buf)
@@ -222,75 +230,175 @@ func appendAnyJSON(buf []byte, val any) []byte {
 			return encjson.AppendString(buf, string(v))
 		}
 		return compacted.Bytes()
-	case Loggable:
-		// Like Message.Any, as JSON object of the attribs that it logs
-		// instead of encoding/json, which can't see the unexported
-		// fields of attribs and would encode Attribs as [{},{}]
-		if rv := reflect.ValueOf(v); rv.Kind() == reflect.Pointer && rv.IsNil() {
-			return encjson.AppendNull(buf)
-		}
-		return appendLoggableJSON(buf, nil, v)
-	case error:
-		// Like Message.Any, the error message instead of encoding/json,
-		// which encodes most errors as empty object
-		if rv := reflect.ValueOf(v); rv.Kind() == reflect.Pointer && rv.IsNil() {
-			return encjson.AppendNull(buf)
-		}
-		return encjson.AppendString(buf, v.Error())
 	case []any:
 		// Every element written like a single value, for example
-		// the mixed elements of a slice passed to a MessageCallback.
-		// Not encjson.AppendArrayStart, which would prepend a comma
-		// to a []any that is the first element of a []any
-		buf = append(appendJSONSeparator(buf), '[')
-		for _, elem := range v {
-			buf = appendAnyJSON(buf, elem)
-		}
-		return encjson.AppendArrayEnd(buf)
+		// the mixed elements of a slice passed to a MessageCallback
+		return appendElementsJSON(buf, reflect.ValueOf(v), path)
 	default:
-		rv := reflect.ValueOf(v)
-		// A pointer to a byte slice type with a format of its own,
-		// also through several pointers: follow the pointers only up to
-		// the first type that has the format methods, which can have
-		// pointer receivers, and write it with the cases above
-		if rv.Kind() == reflect.Pointer && hasOwnByteSliceFormat(rv) && !implementsOwnFormat(rv.Type()) {
-			for rv.Kind() == reflect.Pointer && !implementsOwnFormat(rv.Type()) {
-				if rv.IsNil() {
-					return encjson.AppendNull(buf)
-				}
-				rv = rv.Elem()
-			}
-			return appendAnyJSON(buf, rv.Interface())
+		return appendValueJSON(buf, reflect.ValueOf(v), path)
+	}
+}
+
+// appendValueJSON appends the reflected v like appendNestedAnyJSON,
+// written like Message.Any writes it with writeAny: classifyOneValue
+// decides which values are written as one value by their type or
+// methods, following pointers and interfaces, trying every step,
+// because an intermediate pointer has the methods with pointer receiver,
+// like IsNull or Log, that the value it points to lacks. The steps are
+// limited like in Message.Any, which writes a reference cycle as null.
+// Like encoding/json, an addressable struct or map, like one behind a
+// pointer or an element of a slice, is marshalled through its pointer,
+// so the methods with pointer receiver of a type that redacts a secret
+// are used.
+func appendValueJSON(buf []byte, v reflect.Value, path valuePath) []byte {
+	if v.Kind() == reflect.Interface && !v.IsNil() {
+		// The fast path of appendNestedAnyJSON for the value it holds,
+		// for example an element of a []any. Interface doesn't copy it.
+		return appendNestedAnyJSON(buf, v.Interface(), path)
+	}
+	for step := 0; ; step++ {
+		if class, cv := classifyOneValue(v); class != notOneValue {
+			return appendOneValueJSON(buf, class, cv, path)
 		}
-		// Named byte slice types and pointers to byte slices
-		if b, ok := byteSliceOf(rv); ok {
-			if isNullValue(rv) {
-				// Like Message.Any
-				return encjson.AppendNull(buf)
-			}
-			return appendBytesJSON(buf, b)
+		if (v.Kind() != reflect.Pointer && v.Kind() != reflect.Interface) || step == maxAnyDerefSteps {
+			break
 		}
-		// A byte slice type with a format of its own, like net.IP,
-		// only with String instead of as base64 by encoding/json,
-		// which uses MarshalJSON and MarshalText like Message.Any
-		if s, ok := v.(fmt.Stringer); ok && hasOwnByteSliceFormat(rv) {
-			_, marshaler := v.(json.Marshaler)
-			_, textMarshaler := v.(encoding.TextMarshaler)
-			if !marshaler && !textMarshaler {
-				if rv.Kind() == reflect.Pointer && rv.IsNil() {
-					// Don't call a String method on a nil pointer
-					return encjson.AppendNull(buf)
-				}
-				return encjson.AppendString(buf, s.String())
-			}
+		v = v.Elem()
+	}
+	switch v.Kind() {
+	case reflect.Pointer, reflect.Interface:
+		// A non-nil pointer or interface is left after
+		// maxAnyDerefSteps only by a reference cycle
+		return encjson.AppendNull(buf)
+	case reflect.Bool:
+		return encjson.AppendBool(buf, v.Bool())
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return encjson.AppendInt(buf, v.Int())
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		return encjson.AppendUint(buf, v.Uint())
+	case reflect.Float32, reflect.Float64:
+		return encjson.AppendFloat(buf, v.Float())
+	case reflect.String:
+		return encjson.AppendString(buf, v.String())
+	case reflect.Array:
+		// A named UUID type without a format of its own as UUID,
+		// any other array element by element like a slice
+		if uuid, ok := asUUID(v); ok {
+			return appendOneValueJSON(buf, oneUUID, reflect.ValueOf(uuid), path)
 		}
-		// Slower escape hatch for all other types
-		j, err := json.Marshal(v)
+		return appendElementsJSON(buf, v, path)
+	case reflect.Slice:
+		// Element by element, so errors, Loggables, UUIDs,
+		// times and bytes are written like single values
+		return appendElementsJSON(buf, v, path)
+	case reflect.Struct, reflect.Map:
+		if v.CanAddr() {
+			return appendMarshalledJSON(buf, v.Addr().Interface(), path)
+		}
+	}
+	// Slower escape hatch for all other types
+	return appendMarshalledJSON(buf, v.Interface(), path)
+}
+
+// appendOneValueJSON appends v as JSON like tryWriteInterface writes it,
+// see classifyOneValue, which returned class and v.
+func appendOneValueJSON(buf []byte, class oneValue, v reflect.Value, path valuePath) []byte {
+	switch class {
+	case oneLoggable:
+		// Like Message.Any, as JSON object of the attribs that it logs
+		// instead of encoding/json, which can't see the unexported
+		// fields of attribs and would encode Attribs as [{},{}].
+		path, err := path.enterLoggable(v)
 		if err != nil {
 			return encjson.AppendString(buf, err.Error())
 		}
-		return encjson.AppendJSON(buf, j)
+		return appendLoggableJSON(buf, nil, v.Interface().(Loggable), path)
+	case oneError:
+		// Like Message.Any, the error message instead of encoding/json,
+		// which encodes most errors as empty object
+		return encjson.AppendString(buf, safeErrorString(v.Interface().(error)))
+	case oneUUID, oneRawJSON, oneTime:
+		// The fast path of appendNestedAnyJSON for these types
+		return appendNestedAnyJSON(buf, v.Interface(), path)
+	case oneOwnByteFormat, oneMarshaler:
+		x := v.Interface()
+		if uuid, ok := asUUID(reflect.Indirect(v)); ok && marshalsAsUUID(x, uuid) {
+			return appendNestedAnyJSON(buf, uuid, path)
+		}
+		if s, ok := x.(fmt.Stringer); ok && class == oneOwnByteFormat {
+			_, marshaler := x.(json.Marshaler)
+			_, textMarshaler := x.(encoding.TextMarshaler)
+			if !marshaler && !textMarshaler {
+				// Instead of as base64 by encoding/json
+				return encjson.AppendString(buf, safeString(s))
+			}
+		}
+		// encoding/json uses MarshalJSON or MarshalText like Message.Any
+		return appendMarshalledJSON(buf, x, path)
+	case oneBytes:
+		b, _ := byteSliceOf(v)
+		return appendBytesJSON(buf, b)
 	}
+	return encjson.AppendNull(buf) // oneNull
+}
+
+// appendElementsJSON appends the slice or array v as JSON array,
+// every element written like a single value by appendValueJSON,
+// or an error if v is a slice that contains itself, see
+// valuePath.enterElements.
+// Not encjson.AppendArrayStart, which would prepend a comma
+// to an array that is the first element of an array.
+func appendElementsJSON(buf []byte, v reflect.Value, path valuePath) []byte {
+	if v.Kind() == reflect.Slice && v.IsNil() {
+		// Like encoding/json
+		return encjson.AppendNull(buf)
+	}
+	// The elements of a slice nested in a slice are written with their
+	// String method like the fmt package formats them, see writeNestedSlice
+	nested := path.inElements
+	path, err := path.enterElements(v)
+	if err != nil {
+		return encjson.AppendString(buf, err.Error())
+	}
+	buf = append(appendJSONSeparator(buf), '[')
+	for i := range v.Len() {
+		if s, ok := stringerElem(v.Index(i)); nested && ok {
+			buf = encjson.AppendString(buf, safeString(s))
+		} else {
+			buf = appendValueJSON(buf, v.Index(i), path)
+		}
+	}
+	return encjson.AppendArrayEnd(buf)
+}
+
+// stringerElem returns the element elem, also held by an interface,
+// if the fmt package formats it with its String method, see
+// formatsWithString, and it is no nil pointer.
+func stringerElem(elem reflect.Value) (fmt.Stringer, bool) {
+	if elem.Kind() == reflect.Interface && !elem.IsNil() {
+		elem = elem.Elem()
+	}
+	if !elem.IsValid() || !elem.CanInterface() || !formatsWithString(elem.Type()) ||
+		(elem.Kind() == reflect.Pointer && elem.IsNil()) ||
+		(elem.CanAddr() && implementsJSONOrTextFormat(reflect.PointerTo(elem.Type()))) {
+		// Not a MarshalJSON or MarshalText method with pointer receiver
+		// of an addressable element, which encoding/json uses instead
+		return nil, false
+	}
+	s, ok := elem.Interface().(fmt.Stringer)
+	return s, ok
+}
+
+// appendMarshalledJSON appends val encoded by encoding/json,
+// or the error string if it can't be encoded, checked with
+// the budget of path, see valuePath.checkBudget.
+func appendMarshalledJSON(buf []byte, val any, path valuePath) []byte {
+	j, err := safeJSONMarshal(val, path.checkBudget())
+	if err != nil {
+		// The error of a MarshalJSON method can panic, like a typed nil
+		return encjson.AppendString(buf, safeErrorString(err))
+	}
+	return encjson.AppendJSON(buf, j)
 }
 
 // appendJSONSeparator appends a comma to buf if buf ends
@@ -804,10 +912,10 @@ func (a *Error) Free() {
 func (a *Error) Key() string { return a.key }
 func (a *Error) Value() any  { return a.val }
 func (a *Error) ValueString() string {
-	if a.val == nil {
+	if a.val == nil || isNilPointer(a.val) {
 		return "<nil>"
 	}
-	return a.val.Error()
+	return safeErrorString(a.val)
 }
 
 func (a *Error) Log(m *Message) {
@@ -816,10 +924,10 @@ func (a *Error) Log(m *Message) {
 
 func (a *Error) AppendJSON(buf []byte) []byte {
 	buf = encjson.AppendKey(buf, a.key)
-	if a.val == nil {
+	if a.val == nil || isNilPointer(a.val) {
 		return encjson.AppendNull(buf)
 	}
-	return encjson.AppendString(buf, a.val.Error())
+	return encjson.AppendString(buf, safeErrorString(a.val))
 }
 
 func (a *Error) String() string {
@@ -854,11 +962,21 @@ func (a *Errors) Key() string { return a.key }
 func (a *Errors) Value() any  { return a.vals }
 
 func (a *Errors) ValueString() string {
-	// errors.Join returns nil for no or only nil errors
-	if err := errors.Join(a.vals...); err != nil {
-		return err.Error()
+	var b strings.Builder
+	for _, val := range a.vals {
+		if val == nil || isNilPointer(val) {
+			continue
+		}
+		if b.Len() > 0 {
+			// Like errors.Join
+			b.WriteByte('\n')
+		}
+		b.WriteString(safeErrorString(val))
 	}
-	return "<nil>"
+	if b.Len() == 0 {
+		return "<nil>"
+	}
+	return b.String()
 }
 
 func (a *Errors) Log(m *Message) {
@@ -868,10 +986,10 @@ func (a *Errors) Log(m *Message) {
 func (a *Errors) AppendJSON(buf []byte) []byte {
 	buf = encjson.AppendArrayStart(encjson.AppendKey(buf, a.key))
 	for _, val := range a.vals {
-		if val == nil {
+		if val == nil || isNilPointer(val) {
 			buf = encjson.AppendNull(buf)
 		} else {
-			buf = encjson.AppendString(buf, val.Error())
+			buf = encjson.AppendString(buf, safeErrorString(val))
 		}
 	}
 	return encjson.AppendArrayEnd(buf)

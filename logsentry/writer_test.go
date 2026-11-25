@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"math"
 	"runtime"
@@ -721,4 +722,30 @@ func TestWithContextHub(t *testing.T) {
 			}
 		}
 	})
+}
+
+// panicError panics in its Error method.
+type panicError struct{}
+
+func (panicError) Error() string { panic("Error boom") }
+
+// TestWriterErrPanics verifies that an error whose Error method panics is
+// sent as an event with the recovered panic as error, instead of being
+// kept as exception that panics again and drops the whole event.
+func TestWriterErrPanics(t *testing.T) {
+	transport := &captureTransport{}
+	hub := newTestHub(t, transport)
+
+	config := NewWriterConfig(hub, golog.NewDefaultFormat(), golog.AllLevelsActive, false, nil)
+	logger := golog.NewLogger(golog.NewConfig(&golog.DefaultLevels, golog.AllLevelsActive, config))
+
+	logger.Error("Failed").Err(panicError{}).Log()
+	hub.Flush(time.Second)
+
+	if len(transport.events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(transport.events))
+	}
+	if got := fmt.Sprint(transport.events[0].Contexts["log"]["error"]); !strings.Contains(got, "Error boom") {
+		t.Errorf(`log["error"] = %q, want the recovered panic`, got)
+	}
 }

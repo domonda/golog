@@ -62,3 +62,60 @@ func TestParseUUID(t *testing.T) {
 		})
 	}
 }
+
+// testSecretUUID is a UUID type that redacts itself.
+type testSecretUUID [16]byte
+
+func (testSecretUUID) MarshalJSON() ([]byte, error) { return []byte(`"***"`), nil }
+
+// testTextUUID is a UUID type with a MarshalText method that formats it
+// as UUID, like the UUID type of github.com/google/uuid.
+type testTextUUID [16]byte
+
+func (u testTextUUID) MarshalText() ([]byte, error) { return []byte(FormatUUID(u)), nil }
+
+// testPtrSecretUUID redacts itself with a method with pointer receiver.
+type testPtrSecretUUID [16]byte
+
+func (*testPtrSecretUUID) MarshalText() ([]byte, error) { return []byte("***"), nil }
+
+// TestMessage_Any_UUIDTypes tests that Message.Any, a sub-logger and
+// the Any attrib log [16]byte types the same way: a UUID type with a
+// MarshalJSON or MarshalText method that redacts it with that method,
+// one whose method formats it as UUID as UUID, and a [16]byte as UUID
+// whatever it holds, also behind a pointer, where it used to be logged
+// as an array of one UUID by Message.Any and of 16 numbers as JSON.
+func TestMessage_Any_UUIDTypes(t *testing.T) {
+	uuid := MustParseUUID("97dbd43d-2f8a-4c87-9a43-3bf3f5a9a0d1")
+	notUUID := [16]byte{1, 2, 3}
+	ptrSecret := testPtrSecretUUID(uuid)
+	for _, tc := range []struct {
+		name string
+		val  any
+		json string
+	}{
+		{name: "redacting UUID type", val: testSecretUUID(uuid), json: `"***"`},
+		{name: "redacting UUID type behind pointer", val: new(testSecretUUID(uuid)), json: `"***"`},
+		{name: "redacting UUID type in slice", val: []testSecretUUID{testSecretUUID(uuid)}, json: `["***"]`},
+		{name: "redacting pointer method", val: &ptrSecret, json: `"***"`},
+		{name: "UUID type with MarshalText", val: testTextUUID(uuid), json: `"97dbd43d-2f8a-4c87-9a43-3bf3f5a9a0d1"`},
+		{name: "nil UUID type with MarshalText", val: testTextUUID{}, json: `null`},
+		{name: "[16]byte that is no UUID", val: notUUID, json: `"01020300-0000-0000-0000-000000000000"`},
+		{name: "pointer to [16]byte that is no UUID", val: &notUUID, json: `"01020300-0000-0000-0000-000000000000"`},
+		{name: "[16]byte that is no UUID in []any", val: []any{&notUUID}, json: `["01020300-0000-0000-0000-000000000000"]`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			log, _, jsonOut := newTestLogger()
+			want := `"message":"Msg","k":` + tc.json + "}\n"
+
+			log.Info("Msg").Any("k", tc.val).Log()
+			assert.Contains(t, jsonOut.String(), want, "Message.Any")
+			jsonOut.Reset()
+
+			log.With().Any("k", tc.val).SubLogger().Info("Msg").Log()
+			assert.Contains(t, jsonOut.String(), want, "sub-logger")
+
+			assert.Equal(t, tc.json, string(appendAnyJSON(nil, tc.val)), "appendAnyJSON")
+		})
+	}
+}

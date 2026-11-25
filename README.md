@@ -58,6 +58,7 @@ Set the `LOG_LEVEL` environment variable to `TRACE`, `DEBUG`, `INFO`, `WARN`, `E
 - **Logs structs by their tags** — reuses your `json` tags (or `golog` and `log` tags) with `omitempty`-style modifiers, and prints `***REDACTED***` for fields tagged `redact`.
 - **Backs `log/slog`** — the `goslog` module turns a golog logger into a `slog.Handler` that passes the standard library's `slogtest` suite.
 - **Ignores a nil logger** — `Info`, `Error` and the other level methods on a nil `*Logger` return a message that logs nothing, instead of panicking.
+- **Never panics or hangs on a logged value** — a panic in a method golog calls on a value, like `Error`, `String`, `Log` or `MarshalJSON`, is logged as error string, and a value that references itself, like a `[]any` that contains itself or Loggables that log each other, is logged with a cycle error instead of recursing forever, and a value that would take exponential time to write is logged as error.
 
 `goslog` and `logsentry` are separate modules, so the core module doesn't pull in the Sentry SDK:
 
@@ -179,7 +180,7 @@ log.Info("Processing request").
 
 Bytes have one meaning everywhere: a string if they are valid UTF-8, else encoded with `golog.BinaryEncoder`, as `StrBytes` logs them. That includes bytes passed to `Any` or logged as struct fields. A byte slice type with a format of its own, like `net.IP` or `net.HardwareAddr`, is logged as one value with that format instead of as bytes: as error or `Loggable`, else with its `MarshalJSON`, `MarshalText` or `String` method. Three methods exist for other purposes: `Bytes` always logs binary data encoded with `golog.BinaryEncoder`, `JSON` logs JSON, and `Uint8s` logs a `[]uint8` (the same Go type as `[]byte`) as numbers. `golog.BinaryEncoder` defaults to unpadded URL-safe base64; set it at program start for another encoding, for example `golog.BinaryEncoder = hex.EncodeToString`. Only a struct or map passed as a whole to `Any` is encoded by `encoding/json`, which writes its bytes as standard base64 with padding; `StructFields` logs struct fields with golog's rules.
 
-`Any` logs other values like the matching typed method: a `time.Time` like `Time`, formatted with the writer's `TimeFormat` and `Location` and `null` for the zero time, and a `json.RawMessage` like `JSON`. The elements of a `[]any` keep their own types, so `Any("vals", []any{1, "two", true, nil})` logs `[1,"two",true,null]`.
+`Any` logs other values like the matching typed method: a `time.Time` like `Time`, formatted with the writer's `TimeFormat` and `Location` and `null` for the zero time, and a `json.RawMessage` like `JSON`. The elements of a `[]any` keep their own types, so `Any("vals", []any{1, "two", true, nil})` logs `[1,"two",true,null]`. A value that implements `error` is logged as its error string, also as an element of a slice, so `Any("errs", []error{errors.New("a"), nil})` logs `["a",null]`. Like `encoding/json`, a value with a `MarshalJSON` or `MarshalText` method is logged with it, also with pointer receiver for a struct passed as pointer, so a type can redact a secret. A `[16]byte` is logged as UUID, and so is a named `[16]byte` type that holds a UUID, like `uuid.UUID` of `github.com/google/uuid`, unless it has such a method that formats it differently.
 
 ### Types That Log Themselves
 
@@ -211,7 +212,7 @@ log.Info("Team").Any("members", []User{alice, bob}).Log()
 // {"time":"…","level":"INFO","message":"Team","members":[{"id":7,"name":"Alice"},{"id":8,"name":"Bob"}]}
 ```
 
-`Any` logs a nil pointer to a `Loggable` as `null`. `golog.LoggableFunc` turns a `func(*golog.Message)` into a `Loggable`, and `golog.Attribs` is a `Loggable` as well.
+`Any` logs as `null` a nil pointer to a `Loggable`, a `Loggable` whose `IsNull() bool` method returns true and a nil `golog.LoggableFunc`, also behind several pointers, and `Loggable` logs nothing for them. `golog.LoggableFunc` turns a `func(*golog.Message)` into a `Loggable`, and `golog.Attribs` is a `Loggable` as well.
 
 Declare `Log` with a value receiver as above. A `Log` method declared on `*User` is only called for a `*User`: `Any` encodes a `User` value with `encoding/json` instead, which logs all exported fields, `Email` included.
 
