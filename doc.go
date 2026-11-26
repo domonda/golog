@@ -35,10 +35,11 @@ Add typed fields to log messages:
 		Log()
 
 Supported field types include:
-  - Str, Strs: Strings and string slices
-  - Int, Int64, Uint, Uint64: Integer types
-  - Float32, Float: Floating point numbers
-  - Bool: Booleans
+  - Str, Strs: Strings and string slices, including named string types
+  - Int, Uint: Any signed or unsigned integer type, including uintptr and named integer types
+  - Int8 … Int64, Uint8 … Uint64: Integers of exactly that size
+  - Float: Any floating point type; Float32: exactly float32
+  - Bool: Booleans, including named bool types
   - Time, Duration: Time and duration values
   - UUID: UUID values
   - JSON: Raw JSON data
@@ -107,6 +108,27 @@ and [Attribs] is a Loggable as well.
 A Log method declared on the pointer type *User is only called for a *User:
 [Message.Any] encodes a User value with encoding/json instead,
 which logs all exported fields, Email included.
+
+Str, Int, Uint, Float and Bool with their Ptr and slice variants, as well
+as StrMax, UUIDPtr and UUIDs, are generic, so values of named types like a
+custom ID or enum type need no conversion. The Ptr and slice variants can't infer
+the type from an untyped nil: use Nil(key) instead of a literal nil, or pass
+a typed nil like (*int)(nil).
+
+The method the caller picks decides how a value is logged: Int logs an
+integer, Str logs a string. The typed methods write the underlying value
+of a named type and never call its Log, String, MarshalText or
+MarshalJSON method, so Int("timeout", time.Second) logs 1000000000 and
+Str("pw", password) logs the password, even if its type redacts it in
+one of those methods. To log a value in the format of its type, use
+the method for that format instead:
+
+  - [Message.Duration] for a time.Duration, to log "1s"
+  - [Message.Stringer] for the result of a String method,
+    for example "-rwxrwxrwx" for an fs.FileMode
+  - [Message.Loggable] for the attribs that a Log method logs,
+    or [Message.Any], which logs them as JSON object under the key
+  - [Message.Any] for a string type with a MarshalJSON or MarshalText method
 
 # Log Levels
 

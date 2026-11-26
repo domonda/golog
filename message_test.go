@@ -173,7 +173,7 @@ func TestMessageSubLogger(t *testing.T) {
 		subLog := log.With().
 			Str("SuperStr", "SuperStr").
 			Strs("SuperStrs", []string{"A", "B", "C"}).
-			IntPtr("SuperNilInt", nil).
+			IntPtr("SuperNilInt", (*int)(nil)).
 			SubLogger()
 		for i := range numMessages {
 			fmt.Fprintf(&mempoolOutput, "%d:\n", i)
@@ -266,7 +266,7 @@ Returned []golog.Attrib
 		subSubLog := subLog.With().
 			Str("SuperStr", "SuperStr").
 			Strs("SuperStrs", []string{"A", "B", "C"}).
-			IntPtr("SuperNilInt", nil).
+			IntPtr("SuperNilInt", (*int)(nil)).
 			UUID("RequestID", MustParseUUID("46f70c54-043e-476e-8e69-06b0a593a57a")). // Different from the parent, ignored
 			SubLogger()
 		subSubSubLog := subSubLog.With().
@@ -377,7 +377,7 @@ func TestMessageSubLoggerContext(t *testing.T) {
 		subLog, ctx := log.With().
 			Str("SuperStr", "SuperStr").
 			Strs("SuperStrs", []string{"A", "B", "C"}).
-			IntPtr("SuperNilInt", nil).
+			IntPtr("SuperNilInt", (*int)(nil)).
 			SubLoggerContext(ctx)
 		for i := range numMessages {
 			fmt.Fprintf(&mempoolOutput, "%d:\n", i)
@@ -484,7 +484,7 @@ func writeMessage(message *Message) {
 		Int32s("Int32s", []int32{-1, 0, 1, 123}).
 		Int64("Int64", -123).
 		Int64s("Int64s", []int64{-1, 0, 1, 123}).
-		Uint("Uint", 123).
+		Uint("Uint", uint(123)).
 		Uints("Uints", []uint{0, 1, 123}).
 		Uint8("Uint8", 123).
 		Uint8s("Uint8s", []uint8{0, 1, 123}).
@@ -496,7 +496,7 @@ func writeMessage(message *Message) {
 		Uint64s("Uint64s", []uint64{0, 1, 123}).
 		Float32("Float32", -1.5).
 		Float32s("Float32s", []float32{-1.5, 0, float32(math.NaN()), float32(math.Inf(+1)), float32(math.Inf(-1))}).
-		Float("Float", 123).
+		Float("Float", float64(123)).
 		Floats("Floats", []float64{-1.9999, 0, math.NaN(), math.Inf(+1), math.Inf(-1)}).
 		Str("Str", "Hello\n\"World\"!").
 		Strs("Strs", []string{"A", "B", "C"}).
@@ -643,6 +643,537 @@ func TestMessage_Any(t *testing.T) {
 	assert.Equal(t, fmt.Sprintf("%s %s\n", textMsg, `uuid=b14882b9-bfdd-45a4-9c84-1d717211c050 uuidNil=nil`), textOut.String())
 	textOut.Reset()
 	jsonOut.Reset()
+}
+
+// nullableVal implements IsNull() bool, which Any checks before
+// writing a value and logs as nil if it returns true.
+type nullableVal struct{ null bool }
+
+func (n nullableVal) IsNull() bool { return n.null }
+
+// TestMessage_AnyValueKinds pins the output of Any for every kind of
+// value that it handles without a Loggable implementation.
+func TestMessage_AnyValueKinds(t *testing.T) {
+	timestamp, _ := time.Parse("2006-01-02 15:04:05", "2006-01-02 15:04:05")
+	ctx := ContextWithTimestamp(context.Background(), timestamp)
+	const textMsg = `2006-01-02 15:04:05 |INFO | Msg`
+	var (
+		intVal    = 7
+		nilIntPtr *int
+		uuid      = MustParseUUID("b14882b9-bfdd-45a4-9c84-1d717211c050")
+	)
+
+	t.Run("writers", func(t *testing.T) {
+		log, textOut, jsonOut := newTestLogger()
+		log.NewMessage(ctx, log.Config().InfoLevel(), "Msg").
+			Any("nil", nil).
+			Any("bool", true).
+			Any("uint", uint16(3)).
+			Any("float", float32(0.5)).
+			Any("str", "s").
+			Any("ptr", &intVal).
+			Any("nilPtr", nilIntPtr).
+			Any("ptrToNilPtr", &nilIntPtr).
+			Any("struct", struct{ A int }{1}).
+			Any("map", map[string]int{"a": 1}).
+			Any("badJSON", struct{ C chan int }{}).
+			Any("err", errors.New("boom")).
+			Any("null", nullableVal{null: true}).
+			Any("notNull", nullableVal{null: false}).
+			Any("uuid", uuid).
+			Any("uuidPtr", &uuid).
+			Any("array", [2]int{1, 2}).
+			Any("nested", [][]int{{1, 2}, {3}}).  // Inner slices are not traversed
+			Any("nestedArray", [][2]int{{1, 2}}). // Inner arrays neither
+			Any("anys", []any{nil, errors.New("e"), uuid, [16]byte{}}).
+			Any("complex", complex(1, 2)). // No special case, formatted with fmt
+			Log()
+		assert.Equal(t,
+			textMsg+` nil=nil bool=true uint=3 float=0.5 str="s" ptr=7 nilPtr=nil ptrToNilPtr=nil`+
+				` struct={"A":1} map={"a":1}`+
+				" badJSON=`error while marshalling struct { C chan int } as JSON for logging: json: unsupported type: chan int`"+
+				" err=`boom` null=nil notNull={}"+
+				` uuid=b14882b9-bfdd-45a4-9c84-1d717211c050 uuidPtr=b14882b9-bfdd-45a4-9c84-1d717211c050`+
+				` array=[1,2] nested=["[1 2]","[3]"] nestedArray=["[1 2]"]`+
+				" anys=[nil,`e`,b14882b9-bfdd-45a4-9c84-1d717211c050,nil]"+
+				` complex="(1+2i)"`+"\n",
+			textOut.String(),
+		)
+		assert.Equal(t,
+			`{"time":"2006-01-02 15:04:05","level":"INFO","message":"Msg",`+
+				`"nil":null,"bool":true,"uint":3,"float":0.5,"str":"s","ptr":7,"nilPtr":null,"ptrToNilPtr":null,`+
+				`"struct":{"A":1},"map":{"a":1},`+
+				`"badJSON":"error while marshalling struct { C chan int } as JSON for logging: json: unsupported type: chan int",`+
+				`"err":"boom","null":null,"notNull":{},`+
+				`"uuid":"b14882b9-bfdd-45a4-9c84-1d717211c050","uuidPtr":"b14882b9-bfdd-45a4-9c84-1d717211c050",`+
+				`"array":[1,2],"nested":["[1 2]","[3]"],"nestedArray":["[1 2]"],`+
+				`"anys":[null,"e","b14882b9-bfdd-45a4-9c84-1d717211c050",null],`+
+				`"complex":"(1+2i)"}`+"\n",
+			jsonOut.String(),
+		)
+		assert.True(t, json.Valid(jsonOut.Bytes()), "valid JSON message")
+	})
+
+	t.Run("attrib recorder", func(t *testing.T) {
+		log, textOut, _ := newTestLogger()
+		subLog := log.With().
+			Any("slice", []int{1, 2}).
+			Any("nil", nil).
+			SubLogger()
+		subLog.NewMessage(ctx, log.Config().InfoLevel(), "Msg").Log()
+		assert.Equal(t, textMsg+` slice=[1,2] nil=nil`+"\n", textOut.String())
+	})
+}
+
+// namedStr is a type with string as underlying type that the generic
+// string methods must accept without a conversion at the call site.
+type namedStr string
+
+func TestMessage_StrNamedTypes(t *testing.T) {
+	timestamp, _ := time.Parse("2006-01-02 15:04:05", "2006-01-02 15:04:05")
+	ctx := ContextWithTimestamp(context.Background(), timestamp)
+	const textMsg = `2006-01-02 15:04:05 |INFO | Msg`
+
+	t.Run("writers", func(t *testing.T) {
+		log, textOut, jsonOut := newTestLogger()
+		ptrVal := namedStr("ptr")
+		log.NewMessage(ctx, log.Config().InfoLevel(), "Msg").
+			Str("str", namedStr("named")).
+			Str("untyped", "untyped").
+			StrMax("max", namedStr("äöü-long"), 3).
+			StrPtr("ptr", &ptrVal).
+			StrPtr("nilPtr", (*namedStr)(nil)).
+			Strs("strs", []namedStr{"A", "B"}).
+			Strs("nilStrs", []namedStr(nil)).
+			Strs("emptyStrs", []namedStr{}).
+			StrMax("noLimit", namedStr("äöü"), 0). // A limit <= 0 means no limit
+			StrMax("short", namedStr("ab"), 5).
+			Log()
+		assert.Equal(t,
+			textMsg+` str="named" untyped="untyped" max="äöü" ptr="ptr" nilPtr=nil strs=["A","B"] nilStrs=[] emptyStrs=[] noLimit="äöü" short="ab"`+"\n",
+			textOut.String(),
+		)
+		assert.Equal(t,
+			`{"time":"2006-01-02 15:04:05","level":"INFO","message":"Msg","str":"named","untyped":"untyped","max":"äöü","ptr":"ptr","nilPtr":null,"strs":["A","B"],"nilStrs":[],"emptyStrs":[],"noLimit":"äöü","short":"ab"}`+"\n",
+			jsonOut.String(),
+		)
+	})
+
+	t.Run("attrib recorder", func(t *testing.T) {
+		log, textOut, _ := newTestLogger()
+		vals := []namedStr{"A", "B"}
+		subLog := log.With().
+			Str("str", namedStr("named")).
+			Strs("strs", vals).
+			SubLogger()
+		// The recorded attrib must hold a copy, not share the caller's backing array
+		vals[0] = "changed"
+		subLog.NewMessage(ctx, log.Config().InfoLevel(), "Msg").Log()
+		assert.Equal(t, textMsg+` str="named" strs=["A","B"]`+"\n", textOut.String())
+	})
+}
+
+// Named types with numeric, bool and UUID underlying types that the
+// generic methods must accept without a conversion at the call site.
+type (
+	namedInt8    int8
+	namedUint8   uint8
+	namedUintptr uintptr
+	namedF32     float32
+	namedBool    bool
+	namedUUID    [16]byte
+)
+
+func TestMessage_NumericBoolUUIDNamedTypes(t *testing.T) {
+	timestamp, _ := time.Parse("2006-01-02 15:04:05", "2006-01-02 15:04:05")
+	ctx := ContextWithTimestamp(context.Background(), timestamp)
+	const textMsg = `2006-01-02 15:04:05 |INFO | Msg`
+	var (
+		intVal   = namedInt8(-8)
+		uintVal  = namedUint8(8)
+		floatVal = namedF32(0.5)
+		boolVal  = namedBool(true)
+		uuidVal  = namedUUID(MustParseUUID("b14882b9-bfdd-45a4-9c84-1d717211c050"))
+	)
+
+	t.Run("writers", func(t *testing.T) {
+		log, textOut, jsonOut := newTestLogger()
+		log.NewMessage(ctx, log.Config().InfoLevel(), "Msg").
+			Int("untypedInt", 5).
+			Int("rune", 'x').
+			Int("duration", time.Second).
+			Int("int8", intVal).
+			IntPtr("intPtr", &intVal).
+			IntPtr("nilIntPtr", (*int)(nil)).
+			Ints("ints", []time.Duration{time.Millisecond, -1}).
+			Uint("fileMode", os.ModePerm).
+			UintPtr("uintPtr", &uintVal).
+			Uints("uints", []namedUint8{0, 255}).
+			Uint("uintptr", uintptr(7)).
+			Uints("uintptrs", []namedUintptr{1, 2}).
+			Float("untypedFloat", 1.5).
+			Float("float32", floatVal).
+			FloatPtr("floatPtr", &floatVal).
+			Floats("floats", []namedF32{-0.5, 2}).
+			Bool("untypedBool", true).
+			Bool("bool", boolVal).
+			BoolPtr("boolPtr", &boolVal).
+			BoolPtr("nilBoolPtr", (*namedBool)(nil)).
+			Bools("bools", []namedBool{true, false}).
+			UUIDPtr("uuidPtr", &uuidVal).
+			UUIDPtr("nilUUIDPtr", (*namedUUID)(nil)).
+			UUIDs("uuids", []namedUUID{uuidVal, {}}).
+			Log()
+		assert.Equal(t,
+			textMsg+` untypedInt=5 rune=120 duration=1000000000 int8=-8 intPtr=-8 nilIntPtr=nil ints=[1000000,-1]`+
+				` fileMode=511 uintPtr=8 uints=[0,255] uintptr=7 uintptrs=[1,2]`+
+				` untypedFloat=1.5 float32=0.5 floatPtr=0.5 floats=[-0.5,2]`+
+				` untypedBool=true bool=true boolPtr=true nilBoolPtr=nil bools=[true,false]`+
+				` uuidPtr=b14882b9-bfdd-45a4-9c84-1d717211c050 nilUUIDPtr=nil uuids=[b14882b9-bfdd-45a4-9c84-1d717211c050,nil]`+"\n",
+			textOut.String(),
+		)
+		assert.Equal(t,
+			`{"time":"2006-01-02 15:04:05","level":"INFO","message":"Msg",`+
+				`"untypedInt":5,"rune":120,"duration":1000000000,"int8":-8,"intPtr":-8,"nilIntPtr":null,"ints":[1000000,-1],`+
+				`"fileMode":511,"uintPtr":8,"uints":[0,255],"uintptr":7,"uintptrs":[1,2],`+
+				`"untypedFloat":1.5,"float32":0.5,"floatPtr":0.5,"floats":[-0.5,2],`+
+				`"untypedBool":true,"bool":true,"boolPtr":true,"nilBoolPtr":null,"bools":[true,false],`+
+				`"uuidPtr":"b14882b9-bfdd-45a4-9c84-1d717211c050","nilUUIDPtr":null,"uuids":["b14882b9-bfdd-45a4-9c84-1d717211c050",null]}`+"\n",
+			jsonOut.String(),
+		)
+	})
+
+	t.Run("attrib recorder", func(t *testing.T) {
+		log, textOut, _ := newTestLogger()
+		ints := []time.Duration{1, 2}
+		uintptrs := []namedUintptr{1, 2}
+		floats := []namedF32{0.5}
+		bools := []namedBool{true, false}
+		uuids := []namedUUID{uuidVal}
+		subLog := log.With().
+			Int("int", intVal).
+			Ints("ints", ints).
+			Uint("uint", uintVal).
+			Uints("uintptrs", uintptrs).
+			Float("float", floatVal).
+			Floats("floats", floats).
+			Bool("bool", boolVal).
+			Bools("bools", bools).
+			UUIDs("uuids", uuids).
+			SubLogger()
+		// The recorded attribs must hold copies, not share the caller's backing arrays
+		ints[0] = 99
+		uintptrs[0] = 99
+		floats[0] = 99
+		bools[0] = false
+		uuids[0] = namedUUID{}
+		subLog.NewMessage(ctx, log.Config().InfoLevel(), "Msg").Log()
+		assert.Equal(t,
+			textMsg+` int=-8 ints=[1,2] uint=8 uintptrs=[1,2] float=0.5 floats=[0.5] bool=true bools=[true,false] uuids=[b14882b9-bfdd-45a4-9c84-1d717211c050]`+"\n",
+			textOut.String(),
+		)
+	})
+}
+
+// TestMessage_GenericMethodsSkip checks the early returns of the generic
+// methods: a nil *Message, as returned for a filtered log level, must not
+// panic, and a key already set by a sub-logger keeps the sub-logger's value.
+func TestMessage_GenericMethodsSkip(t *testing.T) {
+	timestamp, _ := time.Parse("2006-01-02 15:04:05", "2006-01-02 15:04:05")
+	ctx := ContextWithTimestamp(context.Background(), timestamp)
+	const textMsg = `2006-01-02 15:04:05 |INFO | Msg`
+	uuidVal := namedUUID(MustParseUUID("b14882b9-bfdd-45a4-9c84-1d717211c050"))
+
+	t.Run("nil message", func(t *testing.T) {
+		var m *Message
+		assert.NotPanics(t, func() {
+			m = m.
+				Str("str", namedStr("a")).
+				StrMax("max", namedStr("a"), 1).
+				StrPtr("strPtr", (*string)(nil)).
+				Strs("strs", []namedStr{"a"}).
+				Int("int", namedInt8(1)).
+				IntPtr("intPtr", (*int)(nil)).
+				Ints("ints", []namedInt8{1}).
+				Uint("uint", namedUint8(1)).
+				UintPtr("uintPtr", (*uint)(nil)).
+				Uints("uints", []namedUintptr{1}).
+				Float("float", namedF32(1)).
+				FloatPtr("floatPtr", (*float64)(nil)).
+				Floats("floats", []namedF32{1}).
+				Bool("bool", namedBool(true)).
+				BoolPtr("boolPtr", (*bool)(nil)).
+				Bools("bools", []namedBool{true}).
+				UUIDPtr("uuidPtr", &uuidVal).
+				UUIDs("uuids", []namedUUID{uuidVal})
+		})
+		assert.Nil(t, m)
+	})
+
+	t.Run("key already set by sub-logger", func(t *testing.T) {
+		log, textOut, jsonOut := newTestLogger()
+		subLog := log.With().Str("k", "parent").SubLogger()
+		subLog.NewMessage(ctx, log.Config().InfoLevel(), "Msg").
+			Str("k", namedStr("a")).
+			StrMax("k", namedStr("a"), 1).
+			Strs("k", []namedStr{"a"}).
+			Int("k", namedInt8(1)).
+			Ints("k", []namedInt8{1}).
+			Uint("k", namedUint8(1)).
+			Uints("k", []namedUintptr{1}).
+			Float("k", namedF32(1)).
+			Floats("k", []namedF32{1}).
+			Bool("k", namedBool(true)).
+			Bools("k", []namedBool{true}).
+			UUIDPtr("k", &uuidVal).
+			UUIDs("k", []namedUUID{uuidVal}).
+			Log()
+		assert.Equal(t, textMsg+` k="parent"`+"\n", textOut.String())
+		assert.Equal(t, `{"time":"2006-01-02 15:04:05","level":"INFO","message":"Msg","k":"parent"}`+"\n", jsonOut.String())
+	})
+}
+
+// TestMessage_NamedTypesZeroAlloc checks that the generic methods
+// stay allocation-free for named types through the text and JSON writers.
+func TestMessage_NamedTypesZeroAlloc(t *testing.T) {
+	if raceEnabled {
+		t.Skip("the race detector changes the allocations")
+	}
+	log := NewLogger(newTestConfig(io.Discard, io.Discard))
+	var (
+		strVal    = namedStr("ptr")
+		strs      = []namedStr{"A", "B"}
+		intVal    = namedInt8(-8)
+		durations = []time.Duration{1, 2}
+		uintVal   = namedUint8(8)
+		floatVal  = namedF32(0.5)
+		boolVal   = namedBool(true)
+		uuidVal   = namedUUID(MustParseUUID("b14882b9-bfdd-45a4-9c84-1d717211c050"))
+		uuids     = []namedUUID{uuidVal}
+	)
+	var (
+		uints  = []namedUint8{0, 255}
+		floats = []namedF32{-0.5, 2}
+		bools  = []namedBool{true, false}
+	)
+	// Warm up the pools
+	log.Info("Msg").Str("str", strVal).Log()
+	allocs := testing.AllocsPerRun(100, func() {
+		log.Info("Msg").
+			Str("str", strVal).
+			StrMax("max", namedStr("long"), 2).
+			StrPtr("strPtr", &strVal).
+			Strs("strs", strs).
+			Int("int", time.Second).
+			IntPtr("intPtr", &intVal).
+			Ints("ints", durations).
+			Uint("uint", uintVal).
+			UintPtr("uintPtr", &uintVal).
+			Uints("uints", uints).
+			Float("float", floatVal).
+			FloatPtr("floatPtr", &floatVal).
+			Floats("floats", floats).
+			Bool("bool", boolVal).
+			BoolPtr("boolPtr", &boolVal).
+			Bools("bools", bools).
+			UUIDPtr("uuidPtr", &uuidVal).
+			UUIDs("uuids", uuids).
+			Log()
+	})
+	assert.Zero(t, allocs)
+}
+
+// redactedStr stands for a secret like a password: its Log method writes
+// a redacted value. Only Loggable and Any call Log, the typed methods
+// like Str write the underlying string.
+type redactedStr string
+
+func (redactedStr) Log(m *Message) { m.Str("redacted", "***") }
+
+// loggableInt checks that the typed methods ignore Loggable for non-string types too.
+type loggableInt int
+
+func (v loggableInt) Log(m *Message) { m.Int("loggableInt", int(v)*10) }
+
+// ptrLoggableStr implements Loggable only with a pointer receiver,
+// which the pointer methods like StrPtr ignore as well.
+type ptrLoggableStr string
+
+func (*ptrLoggableStr) Log(m *Message) { m.Str("ptrLoggable", "***") }
+
+// nullLoggable implements IsNull and Loggable with pointer receivers
+// that handle a nil receiver, like a nullable ID or time wrapper.
+// Any must check IsNull before calling Log.
+type nullLoggable struct{ null bool }
+
+func (n *nullLoggable) IsNull() bool   { return n == nil || n.null }
+func (n *nullLoggable) Log(m *Message) { m.Str("nullLoggable", "logged") }
+
+// valueNullLoggable implements IsNull and Loggable with value receivers,
+// which panic when called on a nil pointer.
+type valueNullLoggable struct{ null bool }
+
+func (n valueNullLoggable) IsNull() bool { return n.null }
+func (valueNullLoggable) Log(m *Message) { m.Str("valueNullLoggable", "logged") }
+
+// mixedNullLoggable has a value receiver IsNull and a pointer receiver Log.
+type mixedNullLoggable struct{ null bool }
+
+func (n mixedNullLoggable) IsNull() bool  { return n.null }
+func (*mixedNullLoggable) Log(m *Message) { m.Str("mixedNullLoggable", "logged") }
+
+// nullSecrets is a slice kind Loggable that redacts its elements
+// and is null when empty.
+type nullSecrets []string
+
+func (s nullSecrets) IsNull() bool   { return len(s) == 0 }
+func (s nullSecrets) Log(m *Message) { m.Int("numRedacted", len(s)) }
+
+func TestMessage_LoggableValues(t *testing.T) {
+	timestamp, _ := time.Parse("2006-01-02 15:04:05", "2006-01-02 15:04:05")
+	ctx := ContextWithTimestamp(context.Background(), timestamp)
+	const textMsg = `2006-01-02 15:04:05 |INFO | Msg`
+	var (
+		pw      = redactedStr("secret")
+		ptrRecv = ptrLoggableStr("secret")
+	)
+
+	t.Run("typed methods write the underlying value", func(t *testing.T) {
+		log, textOut, jsonOut := newTestLogger()
+		log.NewMessage(ctx, log.Config().InfoLevel(), "Msg").
+			Str("str", pw).
+			StrPtr("strPtr", &pw).
+			StrMax("strMax", pw, 2).
+			Strs("strs", []redactedStr{"a", "b"}).
+			Int("int", loggableInt(4)).
+			Ints("ints", []loggableInt{5}).
+			StrPtr("ptrRecv", &ptrRecv).
+			Log()
+		assert.Equal(t,
+			textMsg+` str="secret" strPtr="secret" strMax="se" strs=["a","b"] int=4 ints=[5] ptrRecv="secret"`+"\n",
+			textOut.String(),
+		)
+		assert.Equal(t,
+			`{"time":"2006-01-02 15:04:05","level":"INFO","message":"Msg",`+
+				`"str":"secret","strPtr":"secret","strMax":"se","strs":["a","b"],"int":4,"ints":[5],"ptrRecv":"secret"}`+"\n",
+			jsonOut.String(),
+		)
+	})
+
+	t.Run("Loggable and Any call Log", func(t *testing.T) {
+		// Two writers, because Any used to call Log once per writer,
+		// which wrote every field of the Loggable twice.
+		// Any writes what Log logs as JSON object under the key.
+		log, textOut, jsonOut := newTestLogger()
+		log.NewMessage(ctx, log.Config().InfoLevel(), "Msg").
+			Loggable(pw).
+			Any("any", loggableInt(4)).
+			Any("anySlice", []redactedStr{"c"}).
+			Any("anyNested", []any{1, pw}).
+			Log()
+		assert.Equal(t,
+			textMsg+` redacted="***" any={"loggableInt":40} anySlice=[{"redacted":"***"}] anyNested=[1,{"redacted":"***"}]`+"\n",
+			textOut.String(),
+		)
+		assert.Equal(t,
+			`{"time":"2006-01-02 15:04:05","level":"INFO","message":"Msg",`+
+				`"redacted":"***","any":{"loggableInt":40},"anySlice":[{"redacted":"***"}],"anyNested":[1,{"redacted":"***"}]}`+"\n",
+			jsonOut.String(),
+		)
+		assert.True(t, json.Valid(jsonOut.Bytes()), "valid JSON message")
+		assert.NotContains(t, textOut.String()+jsonOut.String(), "secret")
+	})
+
+	t.Run("Any with Loggable collections", func(t *testing.T) {
+		log, textOut, jsonOut := newTestLogger()
+		subLog := log.With().Str("parentKey", "parent").SubLogger()
+		subLog.NewMessage(ctx, log.Config().InfoLevel(), "Msg").
+			Any("ptrToSlice", &[]redactedStr{"d"}).
+			Any("array", [2]loggableInt{1, 2}).
+			Any("nilElem", []Loggable{nil, pw}).       // A nil interface element is null
+			Any("nilPtrElem", []*ptrLoggableStr{nil}). // A nil pointer element is null
+			Any("empty", []redactedStr{}).
+			Any("parentKey", pw). // The sub-logger already set the key
+			Log()
+		assert.Equal(t,
+			textMsg+` parentKey="parent" ptrToSlice=[{"redacted":"***"}] array=[{"loggableInt":10},{"loggableInt":20}] nilElem=[nil,{"redacted":"***"}] nilPtrElem=[nil] empty=[]`+"\n",
+			textOut.String(),
+		)
+		assert.Equal(t,
+			`{"time":"2006-01-02 15:04:05","level":"INFO","message":"Msg","parentKey":"parent",`+
+				`"ptrToSlice":[{"redacted":"***"}],"array":[{"loggableInt":10},{"loggableInt":20}],"nilElem":[null,{"redacted":"***"}],"nilPtrElem":[null],"empty":[]}`+"\n",
+			jsonOut.String(),
+		)
+		assert.True(t, json.Valid(jsonOut.Bytes()), "valid JSON message")
+	})
+
+	t.Run("Any with nil and null Loggable values", func(t *testing.T) {
+		log, textOut, jsonOut := newTestLogger()
+		var (
+			pwPtr       = &pw
+			anyVal  any = pw
+			nullPtr     = &nullLoggable{null: true}
+		)
+		assert.NotPanics(t, func() {
+			log.NewMessage(ctx, log.Config().InfoLevel(), "Msg").
+				Any("null", &nullLoggable{null: true}). // IsNull wins over Log, like before Loggable support in Any
+				Any("nilPtr", (*nullLoggable)(nil)).
+				Any("nilValueRecv", (*redactedStr)(nil)). // Calling a value receiver method on nil would panic
+				Any("nilValueNull", (*valueNullLoggable)(nil)).
+				Any("nilMixed", (*mixedNullLoggable)(nil)).
+				Any("nilFunc", LoggableFunc(nil)).
+				Any("nullBehindPtr", &nullPtr).  // Not marshalled as JSON with its fields
+				Any("nullSlice", nullSecrets{}). // Not written as [nil]
+				Any("notNull", &nullLoggable{}).
+				Any("ptrToPtr", &pwPtr).  // The Loggable is found at any pointer depth
+				Any("ptrToAny", &anyVal). // and behind an interface
+				Any("elems", []*redactedStr{nil, &pw}).
+				Any("nullElems", []*nullLoggable{{null: true}, nil, {}}).
+				Any("ifaceElems", [3]Loggable{nil, LoggableFunc(nil), nullSecrets{"secret"}}).
+				Log()
+		})
+		assert.Equal(t,
+			textMsg+` null=nil nilPtr=nil nilValueRecv=nil nilValueNull=nil nilMixed=nil nilFunc=nil nullBehindPtr=nil nullSlice=nil`+
+				` notNull={"nullLoggable":"logged"} ptrToPtr={"redacted":"***"} ptrToAny={"redacted":"***"}`+
+				` elems=[nil,{"redacted":"***"}] nullElems=[nil,nil,{"nullLoggable":"logged"}] ifaceElems=[nil,nil,{"numRedacted":1}]`+"\n",
+			textOut.String(),
+		)
+		assert.Equal(t,
+			`{"time":"2006-01-02 15:04:05","level":"INFO","message":"Msg","null":null,"nilPtr":null,"nilValueRecv":null,`+
+				`"nilValueNull":null,"nilMixed":null,"nilFunc":null,"nullBehindPtr":null,"nullSlice":null,`+
+				`"notNull":{"nullLoggable":"logged"},"ptrToPtr":{"redacted":"***"},"ptrToAny":{"redacted":"***"},`+
+				`"elems":[null,{"redacted":"***"}],"nullElems":[null,null,{"nullLoggable":"logged"}],"ifaceElems":[null,null,{"numRedacted":1}]}`+"\n",
+			jsonOut.String(),
+		)
+		assert.NotContains(t, textOut.String()+jsonOut.String(), "secret")
+	})
+
+	t.Run("Any with a reference cycle", func(t *testing.T) {
+		log, textOut, _ := newTestLogger()
+		var cycle any
+		cycle = &cycle
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			log.NewMessage(ctx, log.Config().InfoLevel(), "Msg").Any("cycle", cycle).Log()
+		}()
+		select {
+		case <-done:
+			assert.Contains(t, textOut.String(), " cycle=")
+		case <-time.After(5 * time.Second):
+			t.Fatal("Any hangs on a reference cycle")
+		}
+	})
+
+	t.Run("attrib recorder", func(t *testing.T) {
+		log, textOut, _ := newTestLogger()
+		subLog := log.With().
+			Str("str", pw).
+			Any("any", pw).
+			SubLogger()
+		subLog.NewMessage(ctx, log.Config().InfoLevel(), "Msg").Log()
+		assert.Equal(t, textMsg+` str="secret" any={"redacted":"***"}`+"\n", textOut.String())
+	})
 }
 
 func TestMessage_SubLoggerContext(t *testing.T) {
@@ -3179,20 +3710,21 @@ func TestMessage_TaggedStructFields(t *testing.T) {
 		assert.NotContains(t, textOut.String(), `secret`)
 	})
 
-	t.Run("json dash with trailing modifier is literal name", func(t *testing.T) {
+	t.Run("dash with trailing modifier is literal name", func(t *testing.T) {
 		textOut.Reset()
 		jsonOut.Reset()
 
-		// `json:"-,omitempty"` means the literal field name "-" with the
-		// omitempty modifier — matches encoding/json.Marshal. Only a bare
-		// `json:"-"` with no comma skips.
+		// "-," means the literal field name "-", like encoding/json.Marshal
+		// reads `json:"-,"`. Only a bare "-" with no comma skips.
+		// Tested with golog tags, because the rule doesn't depend on the
+		// tag key and staticcheck flags a "-," json tag (SA5008).
 		type DashNames struct {
-			Literal string `json:"-,omitempty"`
-			Normal  string `json:"normal"`
+			Literal string `golog:"-,omitempty"`
+			Normal  string `golog:"normal"`
 		}
 
 		log.NewMessage(ctx, infoLevel, "Msg").
-			TaggedStructFields(DashNames{Literal: "kept", Normal: "n"}, "json").
+			TaggedStructFields(DashNames{Literal: "kept", Normal: "n"}, "golog").
 			Log()
 
 		assert.Contains(t, textOut.String(), `-="kept"`)
@@ -3202,7 +3734,7 @@ func TestMessage_TaggedStructFields(t *testing.T) {
 		jsonOut.Reset()
 
 		log.NewMessage(ctx, infoLevel, "Msg").
-			TaggedStructFields(DashNames{Literal: "", Normal: "n"}, "json").
+			TaggedStructFields(DashNames{Literal: "", Normal: "n"}, "golog").
 			Log()
 
 		// Empty literal "-" field → omitempty suppresses it.
@@ -3363,4 +3895,37 @@ func TestMessageManyWriters(t *testing.T) {
 		assert.Contains(t, out.String(), `"message":"Test message"`, "writer %d", i)
 		assert.Contains(t, out.String(), `"key":"value"`, "writer %d", i)
 	}
+}
+
+// TestMessage_FixedSizePtr checks the fixed-size pointer methods,
+// which forward to the generic IntPtr, UintPtr and FloatPtr.
+func TestMessage_FixedSizePtr(t *testing.T) {
+	var (
+		i8  int8    = -8
+		i16 int16   = -16
+		i32 int32   = -32
+		i64 int64   = -64
+		u8  uint8   = 8
+		u16 uint16  = 16
+		u32 uint32  = 32
+		u64 uint64  = 64
+		f32 float32 = 0.5
+	)
+	config, buf := newTextTestConfig()
+	NewLogger(config).Info("Msg").
+		Int8Ptr("i8", &i8).Int8Ptr("nilI8", nil).
+		Int16Ptr("i16", &i16).Int16Ptr("nilI16", nil).
+		Int32Ptr("i32", &i32).Int32Ptr("nilI32", nil).
+		Int64Ptr("i64", &i64).Int64Ptr("nilI64", nil).
+		Uint8Ptr("u8", &u8).Uint8Ptr("nilU8", nil).
+		Uint16Ptr("u16", &u16).Uint16Ptr("nilU16", nil).
+		Uint32Ptr("u32", &u32).Uint32Ptr("nilU32", nil).
+		Uint64Ptr("u64", &u64).Uint64Ptr("nilU64", nil).
+		Float32Ptr("f32", &f32).Float32Ptr("nilF32", nil).
+		Log()
+	assert.Contains(t, buf.String(),
+		`i8=-8 nilI8=nil i16=-16 nilI16=nil i32=-32 nilI32=nil i64=-64 nilI64=nil`+
+			` u8=8 nilU8=nil u16=16 nilU16=nil u32=32 nilU32=nil u64=64 nilU64=nil`+
+			` f32=0.5 nilF32=nil`,
+	)
 }

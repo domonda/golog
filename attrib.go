@@ -481,8 +481,15 @@ func NewBools(key string, vals []bool) *Bools {
 	return a
 }
 
-func NewBoolsCopy(key string, vals []bool) *Bools {
-	return NewBools(key, slices.Clone(vals))
+func NewBoolsCopy[T ~bool](key string, vals []T) *Bools {
+	if vals == nil {
+		return NewBools(key, nil)
+	}
+	bools := make([]bool, len(vals))
+	for i, val := range vals {
+		bools[i] = bool(val)
+	}
+	return NewBools(key, bools)
 }
 
 func (a *Bools) Clone() Attrib {
@@ -660,7 +667,7 @@ func NewUints(key string, vals []uint64) *Uints {
 	return a
 }
 
-func NewUintsCopy[T ~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64](key string, vals []T) *Uints {
+func NewUintsCopy[T ~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64 | ~uintptr](key string, vals []T) *Uints {
 	if vals == nil {
 		return NewUints(key, nil)
 	}

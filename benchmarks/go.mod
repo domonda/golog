@@ -1,13 +1,12 @@
 module github.com/domonda/golog/benchmarks
 
-go 1.26.0
-
-// replaced with local golog package
-require github.com/domonda/golog v0.0.0-00010101000000-000000000000
+go 1.27.0
 
 replace github.com/domonda/golog => ../
 
 require (
+	// replaced with local golog package
+	github.com/domonda/golog v0.0.0-00010101000000-000000000000
 	github.com/rs/zerolog v1.35.1
 	github.com/sirupsen/logrus v1.10.2
 	go.uber.org/zap v1.28.0

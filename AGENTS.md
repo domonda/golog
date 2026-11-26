@@ -5,10 +5,10 @@ Guidance for agents working in this repository.
 ## Project
 
 `github.com/domonda/golog` — a fast, zero-allocation structured logging library for Go
-(inspired by zerolog). Production-tested at domonda since 2023. Go 1.26.
+(inspired by zerolog). Production-tested at domonda since 2023. Go 1.27.
 
-The public API surface is large but mechanical (see `message.go`, ~87 typed `Message`
-field methods). Read `doc.go` and `README.md` for the user-facing overview before adding
+The public API surface is large but mechanical (see `message.go`, 83 exported `Message`
+methods, most of them typed field methods). Read `doc.go` and `README.md` for the user-facing overview before adding
 features; both must be kept in sync with code changes.
 
 ## Multi-module workspace
