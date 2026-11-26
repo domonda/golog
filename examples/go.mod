@@ -1,12 +1,13 @@
 module github.com/domonda/golog/examples
 
-go 1.26.0
+go 1.27.0
 
 replace github.com/domonda/golog => ..
 
-require github.com/domonda/golog v0.0.0-00010101000000-000000000000 // replaced
-
-require github.com/fatih/color v1.19.0
+require (
+	github.com/domonda/golog v0.0.0-00010101000000-000000000000 // replaced
+	github.com/fatih/color v1.19.0
+)
 
 require (
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect

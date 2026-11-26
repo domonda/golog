@@ -2,6 +2,9 @@
 
 Zero-allocation structured logging for Go. The same logger writes colored text in a terminal and JSON everywhere else.
 
+[![Go](https://github.com/domonda/golog/actions/workflows/go.yml/badge.svg?branch=master)](https://github.com/domonda/golog/actions/workflows/go.yml)
+[![Gosec](https://github.com/domonda/golog/actions/workflows/gosec.yml/badge.svg?branch=master)](https://github.com/domonda/golog/actions/workflows/gosec.yml)
+[![Release](https://img.shields.io/github/v/release/domonda/golog)](https://github.com/domonda/golog/releases)
 ![GitHub go.mod Go version](https://img.shields.io/github/go-mod/go-version/domonda/golog)
 [![Go Reference](https://pkg.go.dev/badge/github.com/domonda/golog.svg)](https://pkg.go.dev/github.com/domonda/golog)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -13,6 +16,14 @@ In production at [domonda](https://www.domonda.com) since 2023.
 ```bash
 go get github.com/domonda/golog
 ```
+
+Requires Go 1.27 or later, the first Go release with generic methods, which v1.5 uses. The v1.4 release line keeps Go 1.26 compatibility:
+
+```bash
+go get github.com/domonda/golog@v1.4
+```
+
+The same goes for the `goslog` and `logsentry` modules below: append `@v1.4`.
 
 ## Quick Start
 
@@ -50,6 +61,7 @@ Set the `LOG_LEVEL` environment variable to `TRACE`, `DEBUG`, `INFO`, `WARN`, `E
 ## Features
 
 - **Logs without allocating** — 0 allocations per message for JSON and uncolored text output, including errors and `time.Time` fields. See [Performance](#performance).
+- **No type casts for your own types** — `Str`, `Int`, `UUIDs` and the other typed methods are generic (v1.5, Go 1.27): pass a `type OrderID string` without `string(…)`, or a `[]uuid.UUID` without copying it into a `[][16]byte` first. Still 0 allocations. See [Named Types](#named-types).
 - **Picks the output format** — the `log` package writes colored text to a terminal and JSON when output is piped, with no setup.
 - **Writes to several places at once** — for example colored text on stdout plus warnings and errors as JSON in a size-rotated file, each writer with its own format and level filter.
 - **Reports errors to Sentry** — the `logsentry` module turns errors logged with `Err` into Sentry exceptions, keeping the stack trace the error carries.
@@ -215,6 +227,58 @@ log.Info("Team").Any("members", []User{alice, bob}).Log()
 `Any` logs as `null` a nil pointer to a `Loggable`, a `Loggable` whose `IsNull() bool` method returns true and a nil `golog.LoggableFunc`, also behind several pointers, and `Loggable` logs nothing for them. `golog.LoggableFunc` turns a `func(*golog.Message)` into a `Loggable`, and `golog.Attribs` is a `Loggable` as well.
 
 Declare `Log` with a value receiver as above. A `Log` method declared on `*User` is only called for a `*User`: `Any` encodes a `User` value with `encoding/json` instead, which logs all exported fields, `Email` included.
+
+### Named Types
+
+Since v1.5, `Str`, `Int`, `Uint`, `Float` and `Bool`, with their `Ptr` and slice variants,
+plus `StrMax`, `UUIDPtr` and `UUIDs`, are generic. Values of named types need no
+conversion:
+
+```go
+type OrderID string
+type Status uint8
+
+log.Info("Order shipped").
+    Str("order_id", order.ID).           // OrderID
+    Uint("status", order.Status).        // Status
+    Strs("tags", []OrderID{"a", "b"}).
+    Log()
+```
+
+- The `Ptr` and slice variants can't infer the type from a literal `nil`.
+  Use `Nil(key)` instead of `IntPtr(key, nil)`, or pass a typed nil like
+  `[]string(nil)`.
+- The method you call decides how a value is logged: `Int` logs an integer,
+  `Str` logs a string. The typed methods write the underlying value of a
+  named type and never call its `Log`, `String`, `MarshalText` or
+  `MarshalJSON` method. `Int("timeout", time.Second)` logs `1000000000`
+  and `Uint("mode", os.ModePerm)` logs `511`. To log a value in the format
+  of its type, call the method for that format:
+  - `Duration` for a `time.Duration`, to log `"1s"`
+  - `Stringer` for the result of a `String` method, for example
+    `Stringer("mode", os.ModePerm)` logs `"-rwxrwxrwx"`
+  - `Loggable` for the fields that a `Log` method logs, or `Any`, which logs
+    them as a JSON object under the key
+  - `Any` for a string type with a `MarshalJSON` or `MarshalText` method
+
+  So a password type that redacts itself in `Log` is logged in plain text
+  when you pass it to `Str`:
+
+```go
+type Password string
+
+func (Password) Log(m *golog.Message) { m.Str("password", "***") }
+
+log.Info("Login").Str("pw", user.Password).Log()  // pw="secret"
+log.Info("Login").Loggable(user.Password).Log()   // password="***"
+log.Info("Login").Any("pw", user.Password).Log()  // pw={"password":"***"}
+```
+
+`Any` calls `Log` for a `Loggable` value, a pointer to one, and the
+elements of a slice or array, also of nested slices. A nil `Loggable`, or
+one whose `IsNull` method returns true, is logged as `null`, also as slice
+element. A `Loggable` in a struct field or a map value is encoded by
+`encoding/json` without calling `Log`, so it is not redacted.
 
 ## Log Levels
 

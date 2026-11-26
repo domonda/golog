@@ -88,9 +88,10 @@ func (testPanicBytes) String() string { panic("String boom") }
 // IsNull and IsZero, is logged as error instead of panicking.
 func TestNeverPanics(t *testing.T) {
 	log, textOut, jsonOut := newTestLogger()
+	// golog tags, because omitnull is a golog modifier unknown to encoding/json
 	type withNull struct {
-		N testPanicNull `json:"n,omitnull"`
-		Z testPanicNull `json:"z,omitzero"`
+		N testPanicNull `golog:"n,omitnull"`
+		Z testPanicNull `golog:"z,omitzero"`
 	}
 
 	for _, tc := range []struct {

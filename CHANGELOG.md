@@ -10,6 +10,73 @@ lockstep with the root module, e.g. `v1.0.7`, `logsentry/v1.0.7`, `goslog/v1.0.7
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-11-26
+
+### Changed
+
+- **Breaking:** raised the minimum Go version to 1.27.0 in every module, to use
+  generic methods. v1.4.x is the last release line that supports Go 1.26;
+  v1.5.x and later require Go 1.27.
+- **Breaking:** these `Message` methods are generic, so named types no
+  longer need a conversion at the call site:
+  - `Str`, `StrMax`, `StrPtr`, `Strs` accept any type with `string` as
+    underlying type (`Strs("tags", []Tag{...})`).
+  - `Int`, `IntPtr`, `Ints` accept every signed integer type
+    (`Int("retries", cfg.MaxRetries)`), `Uint`, `UintPtr`, `Uints` every
+    unsigned integer type including `uintptr`, and `Float`, `FloatPtr`,
+    `Floats` both `float32` and `float64` types. The writers still receive
+    `int64`, `uint64` and `float64`.
+  - The method the caller picks decides how a value is logged: `Int` logs
+    an integer, `Str` a string. Named types are written as their underlying
+    value even if they have their own format: `Int("timeout", time.Second)`
+    now compiles and logs `1000000000`, and `Uint("mode", os.ModePerm)`
+    logs `511`. Use `Duration` to log a `time.Duration` as `"1s"`, and
+    `Stringer` to log the result of a `String` method, like `"-rwxrwxrwx"`
+    for `Stringer("mode", os.ModePerm)`.
+  - `Bool`, `BoolPtr`, `Bools` accept any type with `bool` as underlying
+    type, `UUIDPtr` and `UUIDs` any type with `[16]byte` as underlying type
+    (`UUIDs("ids", []uuid.UUID{...})`).
+  - The fixed-size variants (`Int8`…`Int64`, `Uint8`…`Uint64`, `Float32`)
+    and `UUID` keep their signatures. The fixed-size methods now forward to
+    the generic ones instead of repeating their bodies, with the same output.
+  - The generic methods never call the `Log` method of a type that
+    implements `Loggable`: they write the underlying value under the given
+    key. A named type that redacts a secret in `Log`, like
+    `type Password string`, now compiles with `Str` without a conversion
+    and is logged in plain text. Pass it to `Loggable` or `Any` instead.
+    The same goes for a named type that hides its value in a `String`
+    method, use `Stringer` for it, or in a `MarshalText` or `MarshalJSON`
+    method, use `Any` for it.
+
+  Calls with values of the old parameter types compile unchanged. These
+  calls break:
+  - An untyped constant whose default type is not in the method's type set:
+    `Uint("n", 5)` and `Float("x", 1)` no longer compile. Write
+    `Uint("n", uint(5))` or `Uint64("n", 5)`, and `Float("x", 1.0)`. The
+    same goes for a float constant with a whole-number value passed to
+    `Int` or `Uint`: `Int("limit", 1e6)` or `Int("n", 3.0)` used to convert
+    to `int` and now fails because the constant defaults to `float64`.
+    Write `Int("limit", 1_000_000)` or `Int("limit", int(1e6))`.
+  - Untyped `nil` passed to a generic `…Ptr` or slice method, for example
+    `IntPtr("n", nil)` or `Strs("s", nil)`, can't infer the type. For a
+    literal `nil` pointer call `Nil("n")`, which logs the same; otherwise
+    write a typed nil like `(*int)(nil)` or `[]string(nil)`. Pointer and
+    slice variables work unchanged, nil or not.
+  - A generic method can't satisfy an interface method, so `*Message` no
+    longer implements interfaces declaring for example
+    `Str(key, val string) *Message`.
+  - Method values like `m.Str` or `(*Message).Int` need an explicit
+    instantiation such as `m.Str[string]`.
+  - Reflection no longer finds the generic methods: `reflect` leaves them
+    out of the method set of `*Message`, so `MethodByName("Str")` returns
+    false and a `text/template` call like `{{.Str "k" "v"}}` fails at run
+    time. The fixed-size methods like `Int64` are still found.
+- **Breaking:** `NewBoolsCopy` is generic and accepts a slice of any type with
+  `bool` as underlying type, like the other `New…Copy` constructors. An
+  untyped `nil` argument (`NewBoolsCopy("k", nil)`) can't infer the type,
+  write `[]bool(nil)`; function values need `NewBoolsCopy[bool]`.
+  `NewUintsCopy` also accepts `uintptr` types.
+
 ## [1.4.1] - 2026-11-25
 
 ### Fixed
@@ -700,7 +767,8 @@ lockstep with the root module, e.g. `v1.0.7`, `logsentry/v1.0.7`, `goslog/v1.0.7
   attrib type for zero-allocation `time.Time` logging, and the `tag-release`
   versioning script.
 
-[Unreleased]: https://github.com/domonda/golog/compare/v1.4.1...HEAD
+[Unreleased]: https://github.com/domonda/golog/compare/v1.5.0...HEAD
+[1.5.0]: https://github.com/domonda/golog/compare/v1.4.1...v1.5.0
 [1.4.1]: https://github.com/domonda/golog/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/domonda/golog/compare/v1.3.2...v1.4.0
 [1.3.2]: https://github.com/domonda/golog/compare/v1.3.1...v1.3.2

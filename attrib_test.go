@@ -155,6 +155,17 @@ func TestBoolsAttrib(t *testing.T) {
 		assert.True(t, a.ValueBools()[0]) // Original should be unchanged
 	})
 
+	t.Run("NewBoolsCopy with named bool type", func(t *testing.T) {
+		type flag bool
+		a := NewBoolsCopy("flags", []flag{true, false})
+		assert.Equal(t, []bool{true, false}, a.ValueBools())
+	})
+
+	t.Run("NewBoolsCopy with nil", func(t *testing.T) {
+		a := NewBoolsCopy[bool]("flags", nil)
+		assert.Nil(t, a.ValueBools())
+	})
+
 	t.Run("Clone", func(t *testing.T) {
 		a := NewBools("key", []bool{true, false})
 		clone := a.Clone().(*Bools)
@@ -1101,7 +1112,7 @@ func TestNewCopyConstructors(t *testing.T) {
 				return NewBoolsCopy("k", src), func() { src[0] = false }
 			},
 			want:    []bool{true, false},
-			newNil:  func() Attrib { return NewBoolsCopy("k", nil) },
+			newNil:  func() Attrib { return NewBoolsCopy("k", []bool(nil)) },
 			wantNil: []bool(nil),
 		},
 		{

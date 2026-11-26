@@ -1,5 +1,5 @@
-# Use Go 1.26 to match the project version
-FROM golang:1.26-alpine
+# Use Go 1.27 to match the project version
+FROM golang:1.27-alpine
 
 WORKDIR /app
 

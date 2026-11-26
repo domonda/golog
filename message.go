@@ -1215,6 +1215,7 @@ func (m *Message) Print(key string, vals ...any) *Message {
 	return m
 }
 
+// Nil logs a nil value for key.
 func (m *Message) Nil(key string) *Message {
 	if m == nil || m.hasKey(key) {
 		return m
@@ -1230,29 +1231,36 @@ func (m *Message) Nil(key string) *Message {
 	return m
 }
 
-func (m *Message) Bool(key string, val bool) *Message {
+// Bool logs val as a boolean.
+// val can be a bool or any type with bool as underlying type.
+func (m *Message) Bool[T ~bool](key string, val T) *Message {
 	if m == nil || m.hasKey(key) {
 		return m
 	}
 	if m.IsAttribRecorder() {
-		m.attribs.Add(NewBool(key, val))
+		m.attribs.Add(NewBool(key, bool(val)))
 		return m
 	}
 	for _, w := range m.writers {
 		w.WriteKey(key)
-		w.WriteBool(val)
+		w.WriteBool(bool(val))
 	}
 	return m
 }
 
-func (m *Message) BoolPtr(key string, val *bool) *Message {
+// BoolPtr logs *val as a boolean, or nil if val is nil.
+// val can point to a bool or any type with bool as underlying type.
+// For a literal nil call Nil(key) instead: an untyped nil can't infer the type parameter.
+func (m *Message) BoolPtr[T ~bool](key string, val *T) *Message {
 	if val == nil {
 		return m.Nil(key)
 	}
 	return m.Bool(key, *val)
 }
 
-func (m *Message) Bools(key string, vals []bool) *Message {
+// Bools logs vals as a slice of booleans.
+// vals can be a slice of any type with bool as underlying type.
+func (m *Message) Bools[T ~bool](key string, vals []T) *Message {
 	if m == nil || m.hasKey(key) {
 		return m
 	}
@@ -1263,14 +1271,20 @@ func (m *Message) Bools(key string, vals []bool) *Message {
 	for _, w := range m.writers {
 		w.WriteSliceKey(key)
 		for _, val := range vals {
-			w.WriteBool(val)
+			w.WriteBool(bool(val))
 		}
 		w.WriteSliceEnd()
 	}
 	return m
 }
 
-func (m *Message) Int(key string, val int) *Message {
+// Int logs val as an integer.
+// val can be of any signed integer type, including named integer types.
+// Int writes the number even if the type has its own format, like a
+// String method: Int("timeout", time.Second) logs 1000000000.
+// Use Duration for a time.Duration to log "1s", Stringer for the result
+// of a String method, or Loggable or Any for a Loggable.
+func (m *Message) Int[T ~int | ~int8 | ~int16 | ~int32 | ~int64](key string, val T) *Message {
 	if m == nil || m.hasKey(key) {
 		return m
 	}
@@ -1285,14 +1299,19 @@ func (m *Message) Int(key string, val int) *Message {
 	return m
 }
 
-func (m *Message) IntPtr(key string, val *int) *Message {
+// IntPtr logs *val as an integer, or nil if val is nil.
+// val can point to any signed integer type.
+// For a literal nil call Nil(key) instead: an untyped nil can't infer the type parameter.
+func (m *Message) IntPtr[T ~int | ~int8 | ~int16 | ~int32 | ~int64](key string, val *T) *Message {
 	if val == nil {
 		return m.Nil(key)
 	}
 	return m.Int(key, *val)
 }
 
-func (m *Message) Ints(key string, vals []int) *Message {
+// Ints logs vals as a slice of integers.
+// vals can be a slice of any signed integer type.
+func (m *Message) Ints[T ~int | ~int8 | ~int16 | ~int32 | ~int64](key string, vals []T) *Message {
 	if m == nil || m.hasKey(key) {
 		return m
 	}
@@ -1310,167 +1329,73 @@ func (m *Message) Ints(key string, vals []int) *Message {
 	return m
 }
 
+// Int8 logs val as an integer, like Int.
 func (m *Message) Int8(key string, val int8) *Message {
-	if m == nil || m.hasKey(key) {
-		return m
-	}
-	if m.IsAttribRecorder() {
-		m.attribs.Add(NewInt(key, int64(val)))
-		return m
-	}
-	for _, w := range m.writers {
-		w.WriteKey(key)
-		w.WriteInt(int64(val))
-	}
-	return m
+	return m.Int(key, val)
 }
 
+// Int8Ptr logs *val as an integer, or nil if val is nil, like IntPtr.
 func (m *Message) Int8Ptr(key string, val *int8) *Message {
-	if val == nil {
-		return m.Nil(key)
-	}
-	return m.Int8(key, *val)
+	return m.IntPtr(key, val)
 }
 
+// Int8s logs vals as a slice of integers, like Ints.
 func (m *Message) Int8s(key string, vals []int8) *Message {
-	if m == nil || m.hasKey(key) {
-		return m
-	}
-	if m.IsAttribRecorder() {
-		m.attribs.Add(NewIntsCopy(key, vals))
-		return m
-	}
-	for _, w := range m.writers {
-		w.WriteSliceKey(key)
-		for _, val := range vals {
-			w.WriteInt(int64(val))
-		}
-		w.WriteSliceEnd()
-	}
-	return m
+	return m.Ints(key, vals)
 }
 
+// Int16 logs val as an integer, like Int.
 func (m *Message) Int16(key string, val int16) *Message {
-	if m == nil || m.hasKey(key) {
-		return m
-	}
-	if m.IsAttribRecorder() {
-		m.attribs.Add(NewInt(key, int64(val)))
-		return m
-	}
-	for _, w := range m.writers {
-		w.WriteKey(key)
-		w.WriteInt(int64(val))
-	}
-	return m
+	return m.Int(key, val)
 }
 
+// Int16Ptr logs *val as an integer, or nil if val is nil, like IntPtr.
 func (m *Message) Int16Ptr(key string, val *int16) *Message {
-	if val == nil {
-		return m.Nil(key)
-	}
-	return m.Int16(key, *val)
+	return m.IntPtr(key, val)
 }
 
+// Int16s logs vals as a slice of integers, like Ints.
 func (m *Message) Int16s(key string, vals []int16) *Message {
-	if m == nil || m.hasKey(key) {
-		return m
-	}
-	if m.IsAttribRecorder() {
-		m.attribs.Add(NewIntsCopy(key, vals))
-		return m
-	}
-	for _, w := range m.writers {
-		w.WriteSliceKey(key)
-		for _, val := range vals {
-			w.WriteInt(int64(val))
-		}
-		w.WriteSliceEnd()
-	}
-	return m
+	return m.Ints(key, vals)
 }
 
+// Int32 logs val as an integer, like Int.
 func (m *Message) Int32(key string, val int32) *Message {
-	if m == nil || m.hasKey(key) {
-		return m
-	}
-	if m.IsAttribRecorder() {
-		m.attribs.Add(NewInt(key, int64(val)))
-		return m
-	}
-	for _, w := range m.writers {
-		w.WriteKey(key)
-		w.WriteInt(int64(val))
-	}
-	return m
+	return m.Int(key, val)
 }
 
+// Int32Ptr logs *val as an integer, or nil if val is nil, like IntPtr.
 func (m *Message) Int32Ptr(key string, val *int32) *Message {
-	if val == nil {
-		return m.Nil(key)
-	}
-	return m.Int32(key, *val)
+	return m.IntPtr(key, val)
 }
 
+// Int32s logs vals as a slice of integers, like Ints.
 func (m *Message) Int32s(key string, vals []int32) *Message {
-	if m == nil || m.hasKey(key) {
-		return m
-	}
-	if m.IsAttribRecorder() {
-		m.attribs.Add(NewIntsCopy(key, vals))
-		return m
-	}
-	for _, w := range m.writers {
-		w.WriteSliceKey(key)
-		for _, val := range vals {
-			w.WriteInt(int64(val))
-		}
-		w.WriteSliceEnd()
-	}
-	return m
+	return m.Ints(key, vals)
 }
 
+// Int64 logs val as an integer, like Int.
 func (m *Message) Int64(key string, val int64) *Message {
-	if m == nil || m.hasKey(key) {
-		return m
-	}
-	if m.IsAttribRecorder() {
-		m.attribs.Add(NewInt(key, val))
-		return m
-	}
-	for _, w := range m.writers {
-		w.WriteKey(key)
-		w.WriteInt(val)
-	}
-	return m
+	return m.Int(key, val)
 }
 
+// Int64Ptr logs *val as an integer, or nil if val is nil, like IntPtr.
 func (m *Message) Int64Ptr(key string, val *int64) *Message {
-	if val == nil {
-		return m.Nil(key)
-	}
-	return m.Int64(key, *val)
+	return m.IntPtr(key, val)
 }
 
+// Int64s logs vals as a slice of integers, like Ints.
 func (m *Message) Int64s(key string, vals []int64) *Message {
-	if m == nil || m.hasKey(key) {
-		return m
-	}
-	if m.IsAttribRecorder() {
-		m.attribs.Add(NewIntsCopy(key, vals))
-		return m
-	}
-	for _, w := range m.writers {
-		w.WriteSliceKey(key)
-		for _, val := range vals {
-			w.WriteInt(val)
-		}
-		w.WriteSliceEnd()
-	}
-	return m
+	return m.Ints(key, vals)
 }
 
-func (m *Message) Uint(key string, val uint) *Message {
+// Uint logs val as an unsigned integer.
+// val can be of any unsigned integer type, including uintptr and named
+// unsigned integer types. Uint writes the number even if the type has
+// its own format, like a String method: Uint("mode", os.ModePerm) logs 511.
+// Use Stringer to log the result of a String method, like "-rwxrwxrwx",
+// or Loggable or Any for a Loggable.
+func (m *Message) Uint[T ~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64 | ~uintptr](key string, val T) *Message {
 	if m == nil || m.hasKey(key) {
 		return m
 	}
@@ -1485,14 +1410,19 @@ func (m *Message) Uint(key string, val uint) *Message {
 	return m
 }
 
-func (m *Message) UintPtr(key string, val *uint) *Message {
+// UintPtr logs *val as an unsigned integer, or nil if val is nil.
+// val can point to any unsigned integer type.
+// For a literal nil call Nil(key) instead: an untyped nil can't infer the type parameter.
+func (m *Message) UintPtr[T ~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64 | ~uintptr](key string, val *T) *Message {
 	if val == nil {
 		return m.Nil(key)
 	}
 	return m.Uint(key, *val)
 }
 
-func (m *Message) Uints(key string, vals []uint) *Message {
+// Uints logs vals as a slice of unsigned integers.
+// vals can be a slice of any unsigned integer type.
+func (m *Message) Uints[T ~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64 | ~uintptr](key string, vals []T) *Message {
 	if m == nil || m.hasKey(key) {
 		return m
 	}
@@ -1510,26 +1440,14 @@ func (m *Message) Uints(key string, vals []uint) *Message {
 	return m
 }
 
+// Uint8 logs val as an unsigned integer, like Uint.
 func (m *Message) Uint8(key string, val uint8) *Message {
-	if m == nil || m.hasKey(key) {
-		return m
-	}
-	if m.IsAttribRecorder() {
-		m.attribs.Add(NewUint(key, uint64(val)))
-		return m
-	}
-	for _, w := range m.writers {
-		w.WriteKey(key)
-		w.WriteUint(uint64(val))
-	}
-	return m
+	return m.Uint(key, val)
 }
 
+// Uint8Ptr logs *val as an unsigned integer, or nil if val is nil, like UintPtr.
 func (m *Message) Uint8Ptr(key string, val *uint8) *Message {
-	if val == nil {
-		return m.Nil(key)
-	}
-	return m.Uint8(key, *val)
+	return m.UintPtr(key, val)
 }
 
 // Uint8s logs the values as a slice of numbers.
@@ -1539,144 +1457,73 @@ func (m *Message) Uint8Ptr(key string, val *uint8) *Message {
 // use Message.StrBytes for bytes that hold text (the meaning Message.Any
 // uses for bytes), Message.Bytes for binary data and Message.JSON for JSON.
 func (m *Message) Uint8s(key string, vals []uint8) *Message {
-	if m == nil || m.hasKey(key) {
-		return m
-	}
-	if m.IsAttribRecorder() {
-		m.attribs.Add(NewUintsCopy(key, vals))
-		return m
-	}
-	for _, w := range m.writers {
-		w.WriteSliceKey(key)
-		for _, val := range vals {
-			w.WriteUint(uint64(val))
-		}
-		w.WriteSliceEnd()
-	}
-	return m
+	return m.Uints(key, vals)
 }
 
+// Uint16 logs val as an unsigned integer, like Uint.
 func (m *Message) Uint16(key string, val uint16) *Message {
-	if m == nil || m.hasKey(key) {
-		return m
-	}
-	if m.IsAttribRecorder() {
-		m.attribs.Add(NewUint(key, uint64(val)))
-		return m
-	}
-	for _, w := range m.writers {
-		w.WriteKey(key)
-		w.WriteUint(uint64(val))
-	}
-	return m
+	return m.Uint(key, val)
 }
 
+// Uint16Ptr logs *val as an unsigned integer, or nil if val is nil, like UintPtr.
 func (m *Message) Uint16Ptr(key string, val *uint16) *Message {
-	if val == nil {
-		return m.Nil(key)
-	}
-	return m.Uint16(key, *val)
+	return m.UintPtr(key, val)
 }
 
+// Uint16s logs vals as a slice of unsigned integers, like Uints.
 func (m *Message) Uint16s(key string, vals []uint16) *Message {
-	if m == nil || m.hasKey(key) {
-		return m
-	}
-	if m.IsAttribRecorder() {
-		m.attribs.Add(NewUintsCopy(key, vals))
-		return m
-	}
-	for _, w := range m.writers {
-		w.WriteSliceKey(key)
-		for _, val := range vals {
-			w.WriteUint(uint64(val))
-		}
-		w.WriteSliceEnd()
-	}
-	return m
+	return m.Uints(key, vals)
 }
 
+// Uint32 logs val as an unsigned integer, like Uint.
 func (m *Message) Uint32(key string, val uint32) *Message {
-	if m == nil || m.hasKey(key) {
-		return m
-	}
-	if m.IsAttribRecorder() {
-		m.attribs.Add(NewUint(key, uint64(val)))
-		return m
-	}
-	for _, w := range m.writers {
-		w.WriteKey(key)
-		w.WriteUint(uint64(val))
-	}
-	return m
+	return m.Uint(key, val)
 }
 
+// Uint32Ptr logs *val as an unsigned integer, or nil if val is nil, like UintPtr.
 func (m *Message) Uint32Ptr(key string, val *uint32) *Message {
-	if val == nil {
-		return m.Nil(key)
-	}
-	return m.Uint32(key, *val)
+	return m.UintPtr(key, val)
 }
 
+// Uint32s logs vals as a slice of unsigned integers, like Uints.
 func (m *Message) Uint32s(key string, vals []uint32) *Message {
-	if m == nil || m.hasKey(key) {
-		return m
-	}
-	if m.IsAttribRecorder() {
-		m.attribs.Add(NewUintsCopy(key, vals))
-		return m
-	}
-	for _, w := range m.writers {
-		w.WriteSliceKey(key)
-		for _, val := range vals {
-			w.WriteUint(uint64(val))
-		}
-		w.WriteSliceEnd()
-	}
-	return m
+	return m.Uints(key, vals)
 }
 
+// Uint64 logs val as an unsigned integer, like Uint.
 func (m *Message) Uint64(key string, val uint64) *Message {
-	if m == nil || m.hasKey(key) {
-		return m
-	}
-	if m.IsAttribRecorder() {
-		m.attribs.Add(NewUint(key, val))
-		return m
-	}
-	for _, w := range m.writers {
-		w.WriteKey(key)
-		w.WriteUint(val)
-	}
-	return m
+	return m.Uint(key, val)
 }
 
+// Uint64Ptr logs *val as an unsigned integer, or nil if val is nil, like UintPtr.
 func (m *Message) Uint64Ptr(key string, val *uint64) *Message {
-	if val == nil {
-		return m.Nil(key)
-	}
-	return m.Uint64(key, *val)
+	return m.UintPtr(key, val)
 }
 
+// Uint64s logs vals as a slice of unsigned integers, like Uints.
 func (m *Message) Uint64s(key string, vals []uint64) *Message {
-	if m == nil || m.hasKey(key) {
-		return m
-	}
-	if m.IsAttribRecorder() {
-		m.attribs.Add(NewUintsCopy(key, vals))
-		return m
-	}
-	for _, w := range m.writers {
-		w.WriteSliceKey(key)
-		for _, val := range vals {
-			w.WriteUint(val)
-		}
-		w.WriteSliceEnd()
-	}
-	return m
+	return m.Uints(key, vals)
 }
 
+// Float32 logs val as a floating point number, like Float.
 func (m *Message) Float32(key string, val float32) *Message {
+	return m.Float(key, val)
+}
+
+// Float32Ptr logs *val as a floating point number, or nil if val is nil, like FloatPtr.
+func (m *Message) Float32Ptr(key string, val *float32) *Message {
+	return m.FloatPtr(key, val)
+}
+
+// Float32s logs vals as a slice of floating point numbers, like Floats.
+func (m *Message) Float32s(key string, vals []float32) *Message {
+	return m.Floats(key, vals)
+}
+
+// Float logs val as a floating point number.
+// val can be of any floating point type, it is written as float64.
+// Float is not called Float64 on purpose.
+func (m *Message) Float[T ~float32 | ~float64](key string, val T) *Message {
 	if m == nil || m.hasKey(key) {
 		return m
 	}
@@ -1691,14 +1538,19 @@ func (m *Message) Float32(key string, val float32) *Message {
 	return m
 }
 
-func (m *Message) Float32Ptr(key string, val *float32) *Message {
+// FloatPtr logs *val as a floating point number, or nil if val is nil.
+// val can point to any floating point type.
+// For a literal nil call Nil(key) instead: an untyped nil can't infer the type parameter.
+func (m *Message) FloatPtr[T ~float32 | ~float64](key string, val *T) *Message {
 	if val == nil {
 		return m.Nil(key)
 	}
-	return m.Float32(key, *val)
+	return m.Float(key, *val)
 }
 
-func (m *Message) Float32s(key string, vals []float32) *Message {
+// Floats logs vals as a slice of floating point numbers.
+// vals can be a slice of any floating point type.
+func (m *Message) Floats[T ~float32 | ~float64](key string, vals []T) *Message {
 	if m == nil || m.hasKey(key) {
 		return m
 	}
@@ -1716,70 +1568,42 @@ func (m *Message) Float32s(key string, vals []float32) *Message {
 	return m
 }
 
-// Float is not called Float64 on purpose
-func (m *Message) Float(key string, val float64) *Message {
+// Str logs val as a string.
+// val can be a string or any type with string as underlying type,
+// so named string types don't need a conversion at the call site.
+// Str writes the string even if the type has its own format: a password
+// type that redacts itself in a Log or String method is logged in plain
+// text. Use Loggable or Any for a Loggable, Stringer for the result of
+// a String method, or Any for a MarshalJSON or MarshalText method.
+func (m *Message) Str[S ~string](key string, val S) *Message {
 	if m == nil || m.hasKey(key) {
 		return m
 	}
 	if m.IsAttribRecorder() {
-		m.attribs.Add(NewFloat(key, val))
+		m.attribs.Add(NewString(key, string(val)))
 		return m
 	}
 	for _, w := range m.writers {
 		w.WriteKey(key)
-		w.WriteFloat(val)
-	}
-	return m
-}
-
-func (m *Message) FloatPtr(key string, val *float64) *Message {
-	if val == nil {
-		return m.Nil(key)
-	}
-	return m.Float(key, *val)
-}
-
-func (m *Message) Floats(key string, vals []float64) *Message {
-	if m == nil || m.hasKey(key) {
-		return m
-	}
-	if m.IsAttribRecorder() {
-		m.attribs.Add(NewFloatsCopy(key, vals))
-		return m
-	}
-	for _, w := range m.writers {
-		w.WriteSliceKey(key)
-		for _, val := range vals {
-			w.WriteFloat(val)
-		}
-		w.WriteSliceEnd()
-	}
-	return m
-}
-
-func (m *Message) Str(key, val string) *Message {
-	if m == nil || m.hasKey(key) {
-		return m
-	}
-	if m.IsAttribRecorder() {
-		m.attribs.Add(NewString(key, val))
-		return m
-	}
-	for _, w := range m.writers {
-		w.WriteKey(key)
-		w.WriteString(val)
+		w.WriteString(string(val))
 	}
 	return m
 }
 
 // StrMax logs the string val with a maximum number of maxNumRunes runes.
 // If maxNumRunes is <= 0 then the string is logged as is.
-func (m *Message) StrMax(key, val string, maxNumRunes int) *Message {
+// val can be a string or any type with string as underlying type.
+func (m *Message) StrMax[S ~string](key string, val S, maxNumRunes int) *Message {
 	if maxNumRunes <= 0 {
 		return m.Str(key, val)
 	}
+	// Skip the rune scan if the message is nil or the key is set,
+	// like StrBytesMax
+	if m == nil || m.hasKey(key) {
+		return m
+	}
 	numRunes := 0
-	for byteIndex := range val {
+	for byteIndex := range string(val) {
 		numRunes++
 		if numRunes > maxNumRunes {
 			return m.Str(key, val[:byteIndex])
@@ -1788,14 +1612,19 @@ func (m *Message) StrMax(key, val string, maxNumRunes int) *Message {
 	return m.Str(key, val)
 }
 
-func (m *Message) StrPtr(key string, val *string) *Message {
+// StrPtr logs *val as a string, or nil if val is nil.
+// val can point to a string or any type with string as underlying type.
+// For a literal nil call Nil(key) instead: an untyped nil can't infer the type parameter.
+func (m *Message) StrPtr[S ~string](key string, val *S) *Message {
 	if val == nil {
 		return m.Nil(key)
 	}
 	return m.Str(key, *val)
 }
 
-func (m *Message) Strs(key string, vals []string) *Message {
+// Strs logs vals as a slice of strings.
+// vals can be a slice of any type with string as underlying type.
+func (m *Message) Strs[S ~string](key string, vals []S) *Message {
 	if m == nil || m.hasKey(key) {
 		return m
 	}
@@ -1806,7 +1635,7 @@ func (m *Message) Strs(key string, vals []string) *Message {
 	for _, w := range m.writers {
 		w.WriteSliceKey(key)
 		for _, val := range vals {
-			w.WriteString(val)
+			w.WriteString(string(val))
 		}
 		w.WriteSliceEnd()
 	}
@@ -1966,17 +1795,20 @@ func (m *Message) UUID(key string, val [16]byte) *Message {
 }
 
 // UUIDPtr logs a UUID or nil in case of a nil pointer or a "Nil UUID" containing only zero bytes.
+// val can point to any type with [16]byte as underlying type.
 // See IsNilUUID.
-func (m *Message) UUIDPtr(key string, val *[16]byte) *Message {
+// For a literal nil call Nil(key) instead: an untyped nil can't infer the type parameter.
+func (m *Message) UUIDPtr[U ~[16]byte](key string, val *U) *Message {
 	if val == nil {
 		return m.Nil(key)
 	}
 	return m.UUID(key, *val)
 }
 
-// UUID logs a slice of UUIDs using nil in case of a "Nil UUID" containing only zero bytes.
+// UUIDs logs a slice of UUIDs using nil in case of a "Nil UUID" containing only zero bytes.
+// vals can be a slice of any type with [16]byte as underlying type.
 // See IsNilUUID.
-func (m *Message) UUIDs(key string, vals [][16]byte) *Message {
+func (m *Message) UUIDs[U ~[16]byte](key string, vals []U) *Message {
 	if m == nil || m.hasKey(key) {
 		return m
 	}
